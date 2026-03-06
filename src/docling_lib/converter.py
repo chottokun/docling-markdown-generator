@@ -1,5 +1,4 @@
 import logging
-import os
 from pathlib import Path
 from typing import Optional
 
@@ -53,19 +52,8 @@ class PDFConverter:
             result = self.doc_converter.convert(input_path)
             doc = result.document
 
-            # Create output directory
-            output_dir.mkdir(parents=True, exist_ok=True)
-            images_dir = output_dir / image_dir_name
-            images_dir.mkdir(parents=True, exist_ok=True)
-
-            # Metadata should be preserved by docling itself in the document object
-            # Save as markdown
-            md_path = output_dir / md_output_name
-            doc.save_as_markdown(
-                filename=md_path,
-                artifacts_dir=images_dir,
-                image_mode=ImageRefMode.REFERENCED,
-            )
+            # Save the result
+            md_path = _save_result(doc, output_dir, image_dir_name, md_output_name)
 
             logger.info(f"Successfully processed {input_path}")
             return md_path
@@ -76,6 +64,28 @@ class PDFConverter:
         except Exception as e:
             logger.error(f"Error converting document {input_path}: {e}")
             return None
+
+
+def _save_result(
+    doc,
+    output_dir: Path,
+    image_dir_name: str,
+    md_output_name: str,
+) -> Path:
+    """
+    Saves the conversion result to the specified output directory.
+    """
+    output_dir.mkdir(parents=True, exist_ok=True)
+    images_dir = output_dir / image_dir_name
+    images_dir.mkdir(parents=True, exist_ok=True)
+
+    md_path = output_dir / md_output_name
+    doc.save_as_markdown(
+        filename=md_path,
+        artifacts_dir=images_dir,
+        image_mode=ImageRefMode.REFERENCED,
+    )
+    return md_path
 
 
 # Global shared converter instance for reuse
@@ -100,7 +110,6 @@ def process_pdf(
 
     # 2. Security Check: Path Traversal
     try:
-        resolved_out = Path(output_dir).resolve()
         # Broad traversal check
         if ".." in output_dir.parts:
              logger.error(f"Security Error: Traversal detected in output directory {output_dir}")
@@ -117,17 +126,7 @@ def process_pdf(
             result = converter.convert(pdf_path)
             doc = result.document
 
-            output_dir.mkdir(parents=True, exist_ok=True)
-            images_dir = output_dir / image_dir_name
-            images_dir.mkdir(parents=True, exist_ok=True)
-
-            md_path = output_dir / md_output_name
-            doc.save_as_markdown(
-                filename=md_path,
-                artifacts_dir=images_dir,
-                image_mode=ImageRefMode.REFERENCED,
-            )
-            return md_path
+            return _save_result(doc, output_dir, image_dir_name, md_output_name)
 
         global _default_pdf_converter
         # Optimization: use own stored image_scale if available to avoid accessing internal mock in tests
