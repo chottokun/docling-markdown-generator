@@ -50,7 +50,7 @@ def verify_all_samples():
             failure_count += 1
 
     logger.info("========================================")
-    logger.info(f"Verification Summary:")
+    logger.info("Verification Summary:")
     logger.info(f"  Total Files: {len(test_files)}")
     logger.info(f"  Success:     {success_count}")
     logger.info(f"  Failure:     {failure_count}")

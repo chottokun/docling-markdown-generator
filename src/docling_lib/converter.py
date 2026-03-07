@@ -1,5 +1,4 @@
 import logging
-import os
 from pathlib import Path
 from typing import Optional
 
@@ -100,7 +99,7 @@ def process_pdf(
 
     # 2. Security Check: Path Traversal
     try:
-        resolved_out = Path(output_dir).resolve()
+        Path(output_dir).resolve()
         # Broad traversal check
         if ".." in output_dir.parts:
              logger.error(f"Security Error: Traversal detected in output directory {output_dir}")

@@ -1,6 +1,5 @@
 import pytest
-from unittest.mock import patch, MagicMock
-from pathlib import Path
+from unittest.mock import patch
 
 from docling_lib.cli import main, entry_point
 
