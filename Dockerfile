@@ -6,7 +6,14 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 # Install necessary system dependencies
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends wget && \
+    apt-get install -y --no-install-recommends \
+    wget \
+    libxcb1 \
+    libgl1 \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender1 && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
@@ -28,6 +35,14 @@ RUN uv pip install --system .
 
 # Copy the rest of the application source code
 COPY ./src /app/src
+COPY ./tests /app/tests
+
+# Set PYTHONPATH to include the src directory
+ENV PYTHONPATH="/app/src:${PYTHONPATH}"
+
+# Ensure the OCR model directory is writable by the appuser
+RUN mkdir -p /usr/local/lib/python3.11/site-packages/rapidocr/models && \
+    chown -R appuser:appuser /usr/local/lib/python3.11/site-packages/rapidocr/models
 
 # Change ownership of the app directory to the non-root user
 RUN chown -R appuser:appuser /app
