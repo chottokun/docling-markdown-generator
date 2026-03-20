@@ -1,1 +1,0 @@
-<table><tbody><tr><th>ID</th><th>Name</th><th>Score</th></tr><tr><td>1</td><td>Alice</td><td>95</td></tr><tr><td>2</td><td>Bob</td><td>88</td></tr><tr><td>3</td><td>Charlie</td><td>92</td></tr></tbody></table>
