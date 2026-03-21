@@ -173,6 +173,10 @@ class PDFConverter:
         Helper method to save the document as Markdown and images.
         Uses an enhanced custom serializer based on the instance configuration.
         """
+        # Security: Sanitize names to prevent path traversal
+        image_dir_name = Path(image_dir_name).name
+        md_output_name = Path(md_output_name).name
+
         # Create output directory
         output_dir.mkdir(parents=True, exist_ok=True)
         images_dir = output_dir / image_dir_name
