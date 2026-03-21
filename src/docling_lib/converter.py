@@ -1,32 +1,31 @@
 import logging
 import threading
 from pathlib import Path
-from typing import Optional, Any, Union
+from typing import Any
 
 from docling.datamodel.base_models import InputFormat
 from docling.datamodel.pipeline_options import PdfPipelineOptions
 from docling.document_converter import (
     DocumentConverter,
     PdfFormatOption,
-    WordFormatOption,
     PowerpointFormatOption,
-)
-from docling_core.types.doc import (
-    ImageRefMode,
-    DoclingDocument,
-    TableItem,
-    PictureItem,
-    NodeItem,
+    WordFormatOption,
 )
 from docling_core.transforms.serializer.markdown import (
     MarkdownDocSerializer,
-    MarkdownTableSerializer,
     MarkdownParams,
-    create_ser_result,
+    MarkdownTableSerializer,
     SerializationResult,
+    create_ser_result,
+)
+from docling_core.types.doc import (
+    DoclingDocument,
+    ImageRefMode,
+    NodeItem,
+    TableItem,
 )
 
-from .config import MD_OUTPUT_NAME, IMAGE_DIR_NAME, IMAGE_RESOLUTION_SCALE
+from .config import IMAGE_DIR_NAME, IMAGE_RESOLUTION_SCALE, MD_OUTPUT_NAME
 from .utils import sanitize_log_message
 
 # Configure logging
@@ -142,7 +141,7 @@ class PDFConverter:
         output_dir: Path,
         image_dir_name: str = IMAGE_DIR_NAME,
         md_output_name: str = MD_OUTPUT_NAME,
-    ) -> Optional[Path]:
+    ) -> Path | None:
         """
         Converts the document to Markdown and extracts images.
         """
@@ -209,7 +208,7 @@ class PDFConverter:
 
 
 # Global shared converter instance for reuse
-_default_pdf_converter: Optional[PDFConverter] = None
+_default_pdf_converter: PDFConverter | None = None
 _converter_lock = threading.Lock()
 
 
@@ -222,8 +221,8 @@ def process_pdf(
     table_format: str = "html",
     do_formula: bool = True,
     do_ocr: bool = True,
-    converter: Optional[DocumentConverter] = None,
-) -> Optional[Path]:
+    converter: DocumentConverter | None = None,
+) -> Path | None:
     """
     High-level function to process a document (PDF, DOCX, etc.).
     Supports dynamic configuration of output formats and extraction features.

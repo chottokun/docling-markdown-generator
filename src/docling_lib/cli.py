@@ -1,10 +1,15 @@
 import argparse
-from pathlib import Path
-import sys
 import logging
+import sys
+from pathlib import Path
 
 # Import from config and converter
-from .config import MD_OUTPUT_NAME, IMAGE_DIR_NAME, IMAGE_RESOLUTION_SCALE, setup_logging
+from .config import (
+    IMAGE_DIR_NAME,
+    IMAGE_RESOLUTION_SCALE,
+    MD_OUTPUT_NAME,
+    setup_logging,
+)
 from .converter import process_pdf
 
 # Configure logging for the CLI tool

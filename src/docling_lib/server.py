@@ -1,14 +1,15 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException
-from fastapi.responses import FileResponse
-from starlette.concurrency import run_in_threadpool
-from pathlib import Path
-import shutil
-import tempfile
 import logging
 import os
+import shutil
+import tempfile
+from pathlib import Path
 
+from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi.responses import FileResponse
+from starlette.concurrency import run_in_threadpool
+
+from .config import OUTPUT_DIR, UPLOAD_DIR, setup_logging
 from .converter import process_pdf
-from .config import setup_logging, UPLOAD_DIR, OUTPUT_DIR
 from .utils import sanitize_log_message
 
 # --- Logging Setup ---
@@ -48,16 +49,16 @@ async def convert_file(file: UploadFile = File(...)):
         # Create a unique output directory for this request
         request_id = os.urandom(8).hex()
         request_output_dir = OUTPUT_DIR / request_id
-        request_output_dir.mkdir(parents=True, exist_ok=True)
+        await run_in_threadpool(request_output_dir.mkdir, parents=True, exist_ok=True)
 
         sanitized_filename = sanitize_log_message(file.filename)
         logger.info(f"Processing file: {sanitized_filename}")
-        
+
         # Use our process_pdf function wrapped in run_in_threadpool for concurrency.
         # It's now thread-safe due to the internal lock in converter.py.
         result_path = await run_in_threadpool(process_pdf, tmp_path, request_output_dir)
 
-        if not result_path or not result_path.exists():
+        if not result_path or not await run_in_threadpool(result_path.exists):
             raise HTTPException(status_code=500, detail="Conversion failed.")
 
         # For simplicity, we return the main markdown file.
@@ -77,8 +78,8 @@ async def convert_file(file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         # Cleanup temporary input file
-        if tmp_path and tmp_path.exists():
-            tmp_path.unlink()
+        if tmp_path and await run_in_threadpool(tmp_path.exists):
+            await run_in_threadpool(tmp_path.unlink)
 
 
 @app.get("/download/{request_id}/{filename}")
@@ -86,19 +87,30 @@ async def download_file(request_id: str, filename: str):
     """
     Endpoint to download converted files.
     """
-    try:
+
+    def _get_safe_path():
         # Security: Prevent path traversal
         # Resolve to absolute paths and verify anchoring to OUTPUT_DIR
         resolved_output_dir = OUTPUT_DIR.resolve()
         safe_dir = (resolved_output_dir / request_id).resolve()
         file_path = (safe_dir / filename).resolve()
+        return resolved_output_dir, safe_dir, file_path
+
+    try:
+        resolved_output_dir, safe_dir, file_path = await run_in_threadpool(
+            _get_safe_path
+        )
 
         # Check if the file is within its assigned request directory and OUTPUT_DIR
-        if not file_path.is_relative_to(resolved_output_dir) or not file_path.is_relative_to(safe_dir):
+        if not file_path.is_relative_to(
+            resolved_output_dir
+        ) or not file_path.is_relative_to(safe_dir):
             logger.warning(f"Unauthorized download attempt: {request_id}/{filename}")
             raise HTTPException(status_code=404, detail="File not found.")
 
-        if not file_path.exists() or not file_path.is_file():
+        if not await run_in_threadpool(file_path.exists) or not await run_in_threadpool(
+            file_path.is_file
+        ):
             raise HTTPException(status_code=404, detail="File not found.")
 
         return FileResponse(file_path)

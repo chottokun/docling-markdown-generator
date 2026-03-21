@@ -1,8 +1,8 @@
-import pytest
-from unittest.mock import patch, MagicMock
-from pathlib import Path
+from unittest.mock import patch
 
-from docling_lib.cli import main, entry_point
+import pytest
+
+from docling_lib.cli import entry_point, main
 
 # --- Test Cases for main() ---
 

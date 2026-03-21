@@ -1,10 +1,12 @@
-import pytest
+import io
 import logging
 from unittest.mock import MagicMock
+
+import pytest
 from fastapi import UploadFile
+
 from docling_lib.server import convert_file
-import io
-import asyncio
+
 
 @pytest.mark.asyncio
 async def test_log_injection_fix_verification(caplog):
