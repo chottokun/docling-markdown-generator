@@ -3,6 +3,7 @@ from fastapi.testclient import TestClient
 from pathlib import Path
 from docling_lib.server import app
 import shutil
+from unittest.mock import patch
 
 client = TestClient(app)
 
@@ -47,3 +48,33 @@ def test_convert_file():
 def test_download_file_not_found():
     response = client.get("/download/nonexistent/file.md")
     assert response.status_code == 404
+
+
+def test_convert_file_internal_error():
+    """
+    Test the case where process_pdf returns None or non-existent path.
+    """
+    file_path = DUMMY_DOCX
+    with open(file_path, "rb") as f:
+        files = {"file": (file_path.name, f, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")}
+        with patch("docling_lib.server.process_pdf") as mock_process:
+            mock_process.return_value = None
+            response = client.post("/convert/", files=files)
+
+    assert response.status_code == 500
+    assert response.json()["detail"] == "Conversion failed."
+
+
+def test_convert_file_exception():
+    """
+    Test the case where process_pdf raises an exception.
+    """
+    file_path = DUMMY_DOCX
+    with open(file_path, "rb") as f:
+        files = {"file": (file_path.name, f, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")}
+        with patch("docling_lib.server.process_pdf") as mock_process:
+            mock_process.side_effect = Exception("Mocked error")
+            response = client.post("/convert/", files=files)
+
+    assert response.status_code == 500
+    assert response.json()["detail"] == "Mocked error"
