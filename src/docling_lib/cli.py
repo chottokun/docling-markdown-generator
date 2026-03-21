@@ -12,11 +12,8 @@ logger = logging.getLogger(__name__)
 setup_logging()
 
 
-def main(args=None):
-    """
-    Main function for the command-line interface.
-    Parses arguments and runs the high-accuracy document processing workflow.
-    """
+def setup_parser():
+    """Sets up and returns the argument parser for the CLI."""
     parser = argparse.ArgumentParser(
         description="Extract markdown, figures, and tables from documents (PDF, DOCX, PPTX) with high accuracy."
     )
@@ -50,7 +47,15 @@ def main(args=None):
         default=IMAGE_RESOLUTION_SCALE,
         help=f"Image resolution scale (default: {IMAGE_RESOLUTION_SCALE}). Higher values mean better quality but larger files.",
     )
+    return parser
 
+
+def main(args=None):
+    """
+    Main function for the command-line interface.
+    Parses arguments and runs the high-accuracy document processing workflow.
+    """
+    parser = setup_parser()
     parsed_args = parser.parse_args(args if args is not None else sys.argv[1:])
 
     logger.info(f"Starting high-accuracy workflow for: {parsed_args.pdf_file}")
