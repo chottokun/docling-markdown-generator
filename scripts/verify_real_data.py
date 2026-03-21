@@ -8,7 +8,7 @@ logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 logger = logging.getLogger(__name__)
 
 def verify_all_samples():
-    project_root = Path("/home/nobuhiko/project/Docling_pdf2markdown")
+    project_root = Path(__file__).resolve().parent.parent
     test_data_dir = project_root / "tests" / "test_data"
     output_base_dir = project_root / "test_output_verification"
     output_base_dir.mkdir(parents=True, exist_ok=True)

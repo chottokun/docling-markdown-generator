@@ -218,3 +218,8 @@ __marimo__/
 # input and output folders
 input/
 output/
+output_*/
+test_cli_output/
+
+# Real-world test samples
+tests/data/real_world/

@@ -18,7 +18,9 @@ For more detailed information, please refer to:
 - **Multi-Format Support**: Extracts text, tables, and figures from PDF, DOCX, PPTX, and XLSX files.
 - **Native Conversion**: Powered by Docling v2, no external dependencies like LibreOffice are required for Office file conversion.
 - **Advanced Layout Analysis**: Intelligent extraction of tables (Markdown format) and figures (with associated captions).
-- **Performance Optimized**: Reuses conversion engines for faster processing of multiple documents.
+  - Can extract structure and convert figures into Mermaid flowcharts or specific Markdown figure blocks.
+- **Performance Optimized**: Reuses conversion engines and incorporates optimized asynchronous blocking I/O for faster processing of multiple documents.
+- **Security Hardened**: Built-in protections against Path Traversal and Information Exposure vulnerabilities.
 - **Ready-to-use API**: Includes a FastAPI server for remote conversion requests.
 - **Docker Integration**: Easy deployment with Docker and Docker Compose.
 
@@ -49,7 +51,7 @@ This project uses `uv` for seamless dependency management.
 ### Command Line Interface (CLI)
 
 ```bash
-pdf2md_cli [INPUT_FILE] -o [OUTPUT_DIRECTORY]
+docling_converter_cli [INPUT_FILE] -o [OUTPUT_DIRECTORY]
 ```
 
 **Arguments:**
@@ -59,7 +61,7 @@ pdf2md_cli [INPUT_FILE] -o [OUTPUT_DIRECTORY]
 
 **Example:**
 ```bash
-pdf2md_cli sample.pptx -o results/
+docling_converter_cli sample.pptx -o results/
 ```
 
 ### Running with Docker
@@ -81,14 +83,16 @@ The containerized FastAPI server is the easiest way to deploy the conversion ser
 
 ## Development & Testing
 
-We follow a Test-Driven Development (TDD) approach.
+## Development & Testing
 
-- **Run all tests:**
+We follow a Test-Driven Development (TDD) approach, ensuring thorough testing including robust end-to-end evaluations on diverse, real-world data.
+
+詳細なテストの実行方法や、重いE2Eテストと軽量なユニットテストの使い分けについては、**[テスト実施ガイド (docs/TESTING.md)](docs/TESTING.md)** を参照してください。
+
+- **Run all fast unit tests:**
   ```bash
   uv run pytest
   ```
-- **Run with coverage:**
-  ```bash
   uv run pytest --cov=src
   ```
 

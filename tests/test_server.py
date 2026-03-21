@@ -77,4 +77,4 @@ def test_convert_file_exception():
             response = client.post("/convert/", files=files)
 
     assert response.status_code == 500
-    assert response.json()["detail"] == "Mocked error"
+    assert response.json()["detail"] == "An internal error occurred during conversion."
