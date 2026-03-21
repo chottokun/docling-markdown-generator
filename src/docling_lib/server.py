@@ -74,7 +74,9 @@ async def convert_file(file: UploadFile = File(...)):
         raise
     except Exception as e:
         logger.exception(f"An error occurred during conversion: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(
+            status_code=500, detail="An internal error occurred during conversion."
+        )
     finally:
         # Cleanup temporary input file
         if tmp_path and tmp_path.exists():
