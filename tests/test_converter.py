@@ -1,11 +1,12 @@
-import pytest
 import logging
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
+
+import pytest
+from docling.datamodel.base_models import InputFormat
+from docling_core.types.doc import DoclingDocument
 
 from docling_lib.converter import process_pdf
-from docling_core.types.doc import ImageRefMode, DoclingDocument
-from docling.datamodel.base_models import InputFormat
 
 # --- Fixtures ---
 

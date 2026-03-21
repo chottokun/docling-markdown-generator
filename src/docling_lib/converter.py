@@ -1,32 +1,31 @@
 import logging
 import threading
 from pathlib import Path
-from typing import Optional, Any, Union
+from typing import Any
 
 from docling.datamodel.base_models import InputFormat
 from docling.datamodel.pipeline_options import PdfPipelineOptions
 from docling.document_converter import (
     DocumentConverter,
     PdfFormatOption,
-    WordFormatOption,
     PowerpointFormatOption,
-)
-from docling_core.types.doc import (
-    ImageRefMode,
-    DoclingDocument,
-    TableItem,
-    PictureItem,
-    NodeItem,
+    WordFormatOption,
 )
 from docling_core.transforms.serializer.markdown import (
     MarkdownDocSerializer,
-    MarkdownTableSerializer,
     MarkdownParams,
-    create_ser_result,
+    MarkdownTableSerializer,
     SerializationResult,
+    create_ser_result,
+)
+from docling_core.types.doc import (
+    DoclingDocument,
+    ImageRefMode,
+    NodeItem,
+    TableItem,
 )
 
-from .config import MD_OUTPUT_NAME, IMAGE_DIR_NAME, IMAGE_RESOLUTION_SCALE
+from .config import IMAGE_DIR_NAME, IMAGE_RESOLUTION_SCALE, MD_OUTPUT_NAME
 from .utils import sanitize_log_message
 
 # Configure logging
@@ -142,7 +141,7 @@ class PDFConverter:
         output_dir: Path,
         image_dir_name: str = IMAGE_DIR_NAME,
         md_output_name: str = MD_OUTPUT_NAME,
-    ) -> Optional[Path]:
+    ) -> Path | None:
         """
         Converts the document to Markdown and extracts images.
         """
@@ -173,10 +172,31 @@ class PDFConverter:
         Helper method to save the document as Markdown and images.
         Uses an enhanced custom serializer based on the instance configuration.
         """
+        # Security Check: Path Traversal
+        try:
+            resolved_output_dir = output_dir.resolve()
+            resolved_images_dir = (output_dir / image_dir_name).resolve()
+            resolved_md_path = (output_dir / md_output_name).resolve()
+
+            if not resolved_images_dir.is_relative_to(resolved_output_dir):
+                logger.error(
+                    f"Security Error: Traversal detected in image directory {sanitize_log_message(image_dir_name)}"
+                )
+                raise ValueError("Traversal detected in image directory")
+
+            if not resolved_md_path.is_relative_to(resolved_output_dir):
+                logger.error(
+                    f"Security Error: Traversal detected in markdown output name {sanitize_log_message(md_output_name)}"
+                )
+                raise ValueError("Traversal detected in markdown output name")
+
+        except Exception as e:
+            logger.error(f"Security Error during path resolution: {e}")
+            raise
+
         # Create output directory
         output_dir.mkdir(parents=True, exist_ok=True)
-        images_dir = output_dir / image_dir_name
-        images_dir.mkdir(parents=True, exist_ok=True)
+        resolved_images_dir.mkdir(parents=True, exist_ok=True)
 
         # Configure enhanced custom serializer
         serializer = EnhancedMarkdownSerializer(
@@ -202,14 +222,13 @@ class PDFConverter:
             md_content = frontmatter + md_content
 
         # Save as markdown file
-        md_path = output_dir / md_output_name
-        md_path.write_text(md_content, encoding="utf-8")
+        resolved_md_path.write_text(md_content, encoding="utf-8")
 
-        return md_path
+        return output_dir / md_output_name
 
 
 # Global shared converter instance for reuse
-_default_pdf_converter: Optional[PDFConverter] = None
+_default_pdf_converter: PDFConverter | None = None
 _converter_lock = threading.Lock()
 
 
@@ -222,8 +241,8 @@ def process_pdf(
     table_format: str = "html",
     do_formula: bool = True,
     do_ocr: bool = True,
-    converter: Optional[DocumentConverter] = None,
-) -> Optional[Path]:
+    converter: DocumentConverter | None = None,
+) -> Path | None:
     """
     High-level function to process a document (PDF, DOCX, etc.).
     Supports dynamic configuration of output formats and extraction features.

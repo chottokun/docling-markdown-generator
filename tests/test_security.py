@@ -1,6 +1,7 @@
-from pathlib import Path
-from docling_lib.converter import process_pdf
 import shutil
+from pathlib import Path
+
+from docling_lib.converter import process_pdf
 
 
 def test_process_pdf_path_traversal(tmp_path, monkeypatch):
