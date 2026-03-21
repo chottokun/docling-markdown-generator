@@ -206,7 +206,9 @@ class PDFConverter:
             md_content = frontmatter + md_content
 
         # Save as markdown file
-        md_path = output_dir / md_output_name
+        # Security: Prevent path traversal by ensuring the filename is a basename
+        safe_filename = Path(md_output_name).name
+        md_path = output_dir / safe_filename
         md_path.write_text(md_content, encoding="utf-8")
 
         return md_path
