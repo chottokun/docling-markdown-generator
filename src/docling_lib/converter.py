@@ -1,32 +1,31 @@
 import logging
 import threading
 from pathlib import Path
-from typing import Optional, Any, Union
+from typing import Any
 
 from docling.datamodel.base_models import InputFormat
 from docling.datamodel.pipeline_options import PdfPipelineOptions
 from docling.document_converter import (
     DocumentConverter,
     PdfFormatOption,
-    WordFormatOption,
     PowerpointFormatOption,
-)
-from docling_core.types.doc import (
-    ImageRefMode,
-    DoclingDocument,
-    TableItem,
-    PictureItem,
-    NodeItem,
+    WordFormatOption,
 )
 from docling_core.transforms.serializer.markdown import (
     MarkdownDocSerializer,
-    MarkdownTableSerializer,
     MarkdownParams,
-    create_ser_result,
+    MarkdownTableSerializer,
     SerializationResult,
+    create_ser_result,
+)
+from docling_core.types.doc import (
+    DoclingDocument,
+    ImageRefMode,
+    NodeItem,
+    TableItem,
 )
 
-from .config import MD_OUTPUT_NAME, IMAGE_DIR_NAME, IMAGE_RESOLUTION_SCALE
+from .config import IMAGE_DIR_NAME, IMAGE_RESOLUTION_SCALE, MD_OUTPUT_NAME
 from .utils import sanitize_log_message
 
 # Configure logging
@@ -78,11 +77,10 @@ class EnhancedMarkdownSerializer(MarkdownDocSerializer):
     2. Provides a foundation for future image alt-text enhancement (OCR/VLM).
     """
 
-    def __init__(
-        self, doc: DoclingDocument, table_format: str = "html", **kwargs
-    ):
-        # In tests, doc might be a MagicMock. Pydantic models (like MarkdownDocSerializer)
-        # may fail validation if they don't see a real DoclingDocument.
+    def __init__(self, doc: DoclingDocument, table_format: str = "html", **kwargs):
+        # In tests, doc might be a MagicMock. Pydantic models (like
+        # MarkdownDocSerializer) may fail validation if they don't see a real
+        # DoclingDocument.
         if hasattr(doc, "_mock_name") or "MagicMock" in str(type(doc)):
             # Skip Pydantic validation by setting attributes directly if it's a mock
             self.doc = doc
@@ -142,7 +140,7 @@ class PDFConverter:
         output_dir: Path,
         image_dir_name: str = IMAGE_DIR_NAME,
         md_output_name: str = MD_OUTPUT_NAME,
-    ) -> Optional[Path]:
+    ) -> Path | None:
         """
         Converts the document to Markdown and extracts images.
         """
@@ -209,8 +207,65 @@ class PDFConverter:
 
 
 # Global shared converter instance for reuse
-_default_pdf_converter: Optional[PDFConverter] = None
+_default_pdf_converter: PDFConverter | None = None
 _converter_lock = threading.Lock()
+
+
+def _validate_input_path(pdf_path: Path) -> bool:
+    """Checks if the input file exists and logs an error if not."""
+    if not pdf_path.exists():
+        logger.error(f"Input file not found: {pdf_path}")
+        return False
+    return True
+
+
+def _validate_output_security(output_dir: Path) -> bool:
+    """
+    Implements the path traversal security check and logs errors
+    if validation fails.
+    """
+    try:
+        # Robust validation: resolution must be relative to current working directory
+        cwd = Path.cwd().resolve()
+        resolved_out = (cwd / output_dir).resolve()
+
+        if not resolved_out.is_relative_to(cwd):
+            logger.error(
+                "Security Error: Traversal detected in output directory "
+                f"{sanitize_log_message(output_dir)}"
+            )
+            return False
+
+    except Exception as e:
+        logger.error(f"Security Error during path resolution: {e}")
+        return False
+
+    return True
+
+
+def _get_or_create_converter(
+    image_scale: float, table_format: str, do_formula: bool, do_ocr: bool
+) -> PDFConverter:
+    """
+    Manages and re-initializes the global _default_pdf_converter instance
+    if the configuration has changed.
+    NOTE: This function does not handle locking; the caller must acquire
+    _converter_lock.
+    """
+    global _default_pdf_converter
+    # Re-initialize if configuration changed or not yet initialized
+    if (
+        _default_pdf_converter is None
+        or _default_pdf_converter.image_scale != image_scale
+        or _default_pdf_converter.table_format != table_format
+    ):
+        _default_pdf_converter = PDFConverter(
+            image_scale=image_scale,
+            table_format=table_format,
+            do_formula=do_formula,
+            do_ocr=do_ocr,
+        )
+    return _default_pdf_converter
 
 
 def process_pdf(
@@ -222,59 +277,41 @@ def process_pdf(
     table_format: str = "html",
     do_formula: bool = True,
     do_ocr: bool = True,
-    converter: Optional[DocumentConverter] = None,
-) -> Optional[Path]:
+    converter: DocumentConverter | None = None,
+) -> Path | None:
     """
     High-level function to process a document (PDF, DOCX, etc.).
     Supports dynamic configuration of output formats and extraction features.
     """
     # 1. Input Validation
-    if not pdf_path.exists():
-        logger.error(f"Input file not found: {pdf_path}")
+    if not _validate_input_path(pdf_path):
         return None
 
     # 2. Security Check: Path Traversal
-    try:
-        # Robust validation: resolution must be relative to current working directory
-        cwd = Path.cwd().resolve()
-        resolved_out = (cwd / output_dir).resolve()
-
-        if not resolved_out.is_relative_to(cwd):
-            logger.error(
-                f"Security Error: Traversal detected in output directory {sanitize_log_message(output_dir)}"
-            )
-            return None
-
-    except Exception as e:
-        logger.error(f"Security Error during path resolution: {e}")
+    if not _validate_output_security(output_dir):
         return None
 
     # 3. Processing
     try:
         with _converter_lock:
-            global _default_pdf_converter
-            # Re-initialize if configuration changed or not yet initialized
-            if (
-                _default_pdf_converter is None
-                or _default_pdf_converter.image_scale != image_scale
-                or _default_pdf_converter.table_format != table_format
-            ):
-                _default_pdf_converter = PDFConverter(
-                    image_scale=image_scale,
-                    table_format=table_format,
-                    do_formula=do_formula,
-                    do_ocr=do_ocr,
-                )
+            # Get or initialize the shared converter
+            shared_converter = _get_or_create_converter(
+                image_scale=image_scale,
+                table_format=table_format,
+                do_formula=do_formula,
+                do_ocr=do_ocr,
+            )
 
             if converter:
-                # Use explicit converter (already configured) but still use our saving logic
+                # Use explicit converter (already configured) but still use our
+                # saving logic
                 result = converter.convert(pdf_path)
                 doc = result.document
-                return _default_pdf_converter._save_markdown(
+                return shared_converter._save_markdown(
                     doc, output_dir, image_dir_name, md_output_name
                 )
 
-            return _default_pdf_converter.convert(
+            return shared_converter.convert(
                 pdf_path, output_dir, image_dir_name, md_output_name
             )
 
