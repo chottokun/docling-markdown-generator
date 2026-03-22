@@ -1,3 +1,4 @@
+import pytest
 from unittest.mock import MagicMock, patch
 
 from docling_lib.converter import PDFConverter
@@ -27,29 +28,24 @@ def test_save_markdown_path_traversal_vulnerability(tmp_path):
         malicious_md_name = "../traversal_md.md"
         malicious_image_dir = "../traversal_images"
 
-        # Call the vulnerable method
-        md_path = converter._save_markdown(
-            doc=doc,
-            output_dir=output_dir,
-            image_dir_name=malicious_image_dir,
-            md_output_name=malicious_md_name
-        )
+        # Call the vulnerable method and expect it to raise ValueError due to protection
+        with pytest.raises(ValueError, match="Traversal detected"):
+            converter._save_markdown(
+                doc=doc,
+                output_dir=output_dir,
+                image_dir_name=malicious_image_dir,
+                md_output_name=malicious_md_name
+            )
 
-        # Check if the markdown file was written outside the output directory
+        # Verify that no files were created outside the output directory
         traversal_md_file = tmp_path / "traversal_md.md"
         traversal_image_dir = tmp_path / "traversal_images"
 
-        # Assertions that will FAIL if the vulnerability exists
         assert not traversal_md_file.exists(), (
             "Vulnerability: Markdown file written outside output_dir!"
         )
         assert not traversal_image_dir.exists(), (
             "Vulnerability: Image directory created outside output_dir!"
-        )
-
-        # Also check md_path returned
-        assert md_path.parent == output_dir.resolve(), (
-            f"Returned path {md_path} is outside {output_dir}"
         )
 
 
@@ -69,12 +65,13 @@ def test_save_markdown_image_dir_traversal(tmp_path):
 
         malicious_image_dir = "../../malicious_images"
 
-        converter._save_markdown(
-            doc=doc,
-            output_dir=output_dir,
-            image_dir_name=malicious_image_dir,
-            md_output_name="safe.md"
-        )
+        with pytest.raises(ValueError, match="Traversal detected"):
+            converter._save_markdown(
+                doc=doc,
+                output_dir=output_dir,
+                image_dir_name=malicious_image_dir,
+                md_output_name="safe.md"
+            )
 
         traversal_image_dir = tmp_path.parent / "malicious_images"
         assert not traversal_image_dir.exists(), (
