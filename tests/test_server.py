@@ -125,8 +125,6 @@ def test_download_file_success(tmp_path, monkeypatch):
     """
     Happy path test for download_file endpoint.
     """
-    import docling_lib.server
-
     # Use monkeypatch to redirect OUTPUT_DIR to a temporary directory
     monkeypatch.setattr(docling_lib.server, "OUTPUT_DIR", tmp_path)
 
@@ -146,3 +144,15 @@ def test_download_file_success(tmp_path, monkeypatch):
     # Verify the response
     assert response.status_code == 200
     assert response.text == content
+
+
+def test_download_file_resolution_error():
+    """
+    Test that download_file endpoint handles resolution errors (ValueError)
+    by returning a 400 Bad Request.
+    """
+    with patch("docling_lib.server.Path.resolve") as mock_resolve:
+        mock_resolve.side_effect = ValueError("Mocked resolution error")
+        response = client.get("/download/some_id/some_file.md")
+        assert response.status_code == 400
+        assert response.json()["detail"] == "Invalid request parameters."
