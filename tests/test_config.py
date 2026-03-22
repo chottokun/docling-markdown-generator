@@ -1,6 +1,8 @@
 import logging
 from unittest.mock import patch
+
 from docling_lib import config
+
 
 def test_constants():
     """Verify that constants have the expected values."""
