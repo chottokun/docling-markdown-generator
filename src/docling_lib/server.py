@@ -4,11 +4,11 @@ import shutil
 import tempfile
 from pathlib import Path
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, Header, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from starlette.concurrency import run_in_threadpool
 
-from .config import OUTPUT_DIR, UPLOAD_DIR, setup_logging
+from .config import MAX_UPLOAD_SIZE, OUTPUT_DIR, UPLOAD_DIR, setup_logging
 from .converter import process_pdf
 from .utils import sanitize_log_message
 
@@ -36,11 +36,30 @@ def _validate_extension(filename: str) -> str:
 
 
 async def _save_upload_temp(file: UploadFile, suffix: str) -> Path:
-    """Save the uploaded file to a temporary location."""
+    """
+    Save the uploaded file to a temporary location with size validation.
+    Reads in chunks to maintain memory efficiency and prevent DoS.
+    """
+    total_size = 0
     with tempfile.NamedTemporaryFile(
         delete=False, suffix=suffix, dir=UPLOAD_DIR
     ) as tmp_file:
-        await run_in_threadpool(shutil.copyfileobj, file.file, tmp_file)
+        # Re-read the upload stream in chunks to verify the actual size
+        while True:
+            chunk = await file.read(1024 * 1024)  # 1MB chunks
+            if not chunk:
+                break
+            total_size += len(chunk)
+            if total_size > MAX_UPLOAD_SIZE:
+                # Cleanup and raise error
+                tmp_file.close()
+                os.unlink(tmp_file.name)
+                raise HTTPException(
+                    status_code=413,
+                    detail=f"Payload Too Large. Maximum size is {MAX_UPLOAD_SIZE} bytes.",
+                )
+            await run_in_threadpool(tmp_file.write, chunk)
+
         return Path(tmp_file.name)
 
 
@@ -53,10 +72,20 @@ async def _create_output_dir() -> tuple[str, Path]:
 
 
 @app.post("/convert/")
-async def convert_file(file: UploadFile = File(...)):
+async def convert_file(
+    file: UploadFile = File(...), content_length: int | None = Header(None)
+):
     """
     Endpoint to upload a document and convert it to Markdown.
+    Includes validation for file size (via Content-Length header and read loop).
     """
+    # 1. Preliminary size check via Header
+    if content_length and content_length > MAX_UPLOAD_SIZE:
+        raise HTTPException(
+            status_code=413,
+            detail=f"Payload Too Large. Maximum size is {MAX_UPLOAD_SIZE} bytes.",
+        )
+
     file_ext = _validate_extension(file.filename)
     tmp_path = None
     try:

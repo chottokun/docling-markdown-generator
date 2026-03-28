@@ -11,6 +11,9 @@ IMAGE_RESOLUTION_SCALE = 2.0  # Higher value for better image quality
 UPLOAD_DIR = Path(os.getenv("DOCLING_UPLOAD_DIR", "uploads"))
 OUTPUT_DIR = Path(os.getenv("DOCLING_OUTPUT_DIR", "output"))
 
+# Security configurations
+MAX_UPLOAD_SIZE = int(os.getenv("DOCLING_MAX_UPLOAD_SIZE", 20 * 1024 * 1024))  # Default 20MB
+
 def setup_logging():
     """Configures global logging for the library/CLI."""
     logging.basicConfig(
