@@ -1,6 +1,6 @@
 import os
-import urllib.request
-import urllib.error
+import asyncio
+import httpx
 
 # Ensure output directory exists
 out_dir = "tests/data/real_world"
@@ -18,17 +18,27 @@ SampleUrls = {
     "sample10_jp_gov.pdf": "https://www.mext.go.jp/content/20200710-mxt_kouhou01-000008479_1.pdf" # Japanese government document
 }
 
-for filename, url in SampleUrls.items():
+async def download_file(client, filename, url):
     out_path = os.path.join(out_dir, filename)
     if os.path.exists(out_path):
         print(f"Already exists: {filename}")
-        continue
+        return
+
     print(f"Downloading {filename} from {url}...")
-    req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+    headers = {'User-Agent': 'Mozilla/5.0'}
     try:
-        with urllib.request.urlopen(req) as response:
-            with open(out_path, 'wb') as f:
-                f.write(response.read())
+        response = await client.get(url, headers=headers, follow_redirects=True)
+        response.raise_for_status()
+        with open(out_path, 'wb') as f:
+            f.write(response.content)
         print(f"Successfully downloaded {filename}")
-    except urllib.error.URLError as e:
+    except Exception as e:
         print(f"Failed to download {filename}: {e}")
+
+async def download_all():
+    async with httpx.AsyncClient() as client:
+        tasks = [download_file(client, filename, url) for filename, url in SampleUrls.items()]
+        await asyncio.gather(*tasks)
+
+if __name__ == "__main__":
+    asyncio.run(download_all())
