@@ -23,6 +23,15 @@ UPLOAD_DIR.mkdir(exist_ok=True)
 OUTPUT_DIR.mkdir(exist_ok=True)
 
 
+def _validate_content_length(content_length: int | None):
+    """Validate the Content-Length header against MAX_UPLOAD_SIZE."""
+    if content_length and content_length > MAX_UPLOAD_SIZE:
+        raise HTTPException(
+            status_code=413,
+            detail=f"Payload Too Large. Maximum size is {MAX_UPLOAD_SIZE} bytes.",
+        )
+
+
 def _validate_extension(filename: str) -> str:
     """Validate the file extension and return it if valid."""
     allowed_extensions = {".pdf", ".docx", ".pptx", ".xlsx"}
@@ -71,6 +80,27 @@ async def _create_output_dir() -> tuple[str, Path]:
     return request_id, request_output_dir
 
 
+async def _validate_and_format_response(
+    result_path: Path | None, request_id: str
+) -> dict[str, str]:
+    """Validate result existence and format success response."""
+    if not result_path or not await run_in_threadpool(result_path.exists):
+        raise HTTPException(status_code=500, detail="Conversion failed.")
+
+    return {
+        "message": "Conversion successful",
+        "markdown_file": result_path.name,
+        "output_id": request_id,
+        "download_url": f"/download/{request_id}/{result_path.name}",
+    }
+
+
+async def _cleanup_temp_file(tmp_path: Path | None):
+    """Cleanup temporary input file."""
+    if tmp_path and await run_in_threadpool(tmp_path.exists):
+        await run_in_threadpool(tmp_path.unlink)
+
+
 @app.post("/convert/")
 async def convert_file(
     file: UploadFile = File(...), content_length: int | None = Header(None)
@@ -79,12 +109,7 @@ async def convert_file(
     Endpoint to upload a document and convert it to Markdown.
     Includes validation for file size (via Content-Length header and read loop).
     """
-    # 1. Preliminary size check via Header
-    if content_length and content_length > MAX_UPLOAD_SIZE:
-        raise HTTPException(
-            status_code=413,
-            detail=f"Payload Too Large. Maximum size is {MAX_UPLOAD_SIZE} bytes.",
-        )
+    _validate_content_length(content_length)
 
     file_ext = _validate_extension(file.filename)
     tmp_path = None
@@ -99,17 +124,7 @@ async def convert_file(
         # It's now thread-safe due to the internal lock in converter.py.
         result_path = await run_in_threadpool(process_pdf, tmp_path, request_output_dir)
 
-        if not result_path or not await run_in_threadpool(result_path.exists):
-            raise HTTPException(status_code=500, detail="Conversion failed.")
-
-        # For simplicity, we return the main markdown file.
-        # Images are saved in request_output_dir/images
-        return {
-            "message": "Conversion successful",
-            "markdown_file": result_path.name,
-            "output_id": request_id,
-            "download_url": f"/download/{request_id}/{result_path.name}",
-        }
+        return await _validate_and_format_response(result_path, request_id)
 
     except HTTPException:
         # Re-raise already formed HTTP exceptions
@@ -120,9 +135,7 @@ async def convert_file(
             status_code=500, detail="An internal error occurred during conversion."
         ) from e
     finally:
-        # Cleanup temporary input file
-        if tmp_path and await run_in_threadpool(tmp_path.exists):
-            await run_in_threadpool(tmp_path.unlink)
+        await _cleanup_temp_file(tmp_path)
 
 
 @app.get("/download/{request_id}/{filename}")
