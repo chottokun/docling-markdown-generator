@@ -6,7 +6,7 @@ import pytest
 from docling.datamodel.base_models import InputFormat
 from docling_core.types.doc import DoclingDocument
 
-from docling_lib.converter import process_pdf
+from docling_lib.converter import DocumentConversionConfig, process_pdf
 
 # --- Fixtures ---
 
@@ -58,7 +58,7 @@ def test_process_pdf_calls_docling_api_correctly(
     expected_md_path = output_dir / "processed_document.md"
 
     # Act
-    result_path = process_pdf(pdf_path, output_dir)
+    result_path = process_pdf(pdf_path, output_dir, config=DocumentConversionConfig())
 
     # Assert
     # Verify converter options

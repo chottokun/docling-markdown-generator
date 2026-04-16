@@ -3,6 +3,7 @@ from unittest.mock import patch
 import pytest
 
 from docling_lib.cli import entry_point, main
+from docling_lib.converter import DocumentConversionConfig
 
 # --- Test Cases for main() ---
 
@@ -23,7 +24,13 @@ def test_main_happy_path(mock_process_pdf, tmp_path, pdf_downloader, monkeypatch
 
     assert result == 0
     mock_process_pdf.assert_called_once_with(
-        pdf_path, output_dir, image_dir_name="images", md_output_name="processed_document.md", image_scale=2.0
+        pdf_path,
+        output_dir,
+        config=DocumentConversionConfig(
+            image_dir_name="images",
+            md_output_name="processed_document.md",
+            image_scale=2.0,
+        ),
     )
 
 
@@ -81,7 +88,13 @@ def test_main_with_custom_image_dir(mock_process_pdf, tmp_path, pdf_downloader, 
 
     assert result == 0
     mock_process_pdf.assert_called_once_with(
-        pdf_path, output_dir, image_dir_name=custom_image_dir, md_output_name="processed_document.md", image_scale=2.0
+        pdf_path,
+        output_dir,
+        config=DocumentConversionConfig(
+            image_dir_name=custom_image_dir,
+            md_output_name="processed_document.md",
+            image_scale=2.0,
+        ),
     )
 
 
