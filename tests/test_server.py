@@ -47,7 +47,7 @@ def test_convert_file(mock_process, tmp_path, monkeypatch):
     # Path to the test document
     file_path = DUMMY_DOCX
     
-    def side_effect(input_path, request_output_dir):
+    def side_effect(input_path, request_output_dir, options=None):
         # Create a dummy result file in the expected location
         res = request_output_dir / "processed_document.md"
         res.write_text("# Mocked Results")

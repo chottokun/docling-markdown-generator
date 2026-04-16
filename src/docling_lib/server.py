@@ -9,7 +9,7 @@ from fastapi.responses import FileResponse
 from starlette.concurrency import run_in_threadpool
 
 from .config import MAX_UPLOAD_SIZE, OUTPUT_DIR, UPLOAD_DIR, setup_logging
-from .converter import process_pdf
+from .converter import ProcessOptions, process_pdf
 from .utils import sanitize_log_message
 
 # --- Logging Setup ---
@@ -97,7 +97,9 @@ async def convert_file(
 
         # Use our process_pdf function wrapped in run_in_threadpool for concurrency.
         # It's now thread-safe due to the internal lock in converter.py.
-        result_path = await run_in_threadpool(process_pdf, tmp_path, request_output_dir)
+        result_path = await run_in_threadpool(
+            process_pdf, tmp_path, request_output_dir, options=ProcessOptions()
+        )
 
         if not result_path or not await run_in_threadpool(result_path.exists):
             raise HTTPException(status_code=500, detail="Conversion failed.")

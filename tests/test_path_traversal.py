@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import MagicMock, patch
 
-from docling_lib.converter import PDFConverter
+from docling_lib.converter import PDFConverter, ProcessOptions
 
 
 def test_save_markdown_path_traversal_vulnerability(tmp_path):
@@ -10,7 +10,7 @@ def test_save_markdown_path_traversal_vulnerability(tmp_path):
     If vulnerable, it will write a file outside the intended output directory.
     """
     # Setup
-    converter = PDFConverter()
+    converter = PDFConverter(options=ProcessOptions())
 
     # Mock DoclingDocument
     doc = MagicMock()
@@ -33,8 +33,9 @@ def test_save_markdown_path_traversal_vulnerability(tmp_path):
             converter._save_markdown(
                 doc=doc,
                 output_dir=output_dir,
-                image_dir_name=malicious_image_dir,
-                md_output_name=malicious_md_name
+                options=ProcessOptions(
+                    image_dir_name=malicious_image_dir, md_output_name=malicious_md_name
+                ),
             )
 
         # Verify that no files were created outside the output directory
@@ -53,7 +54,7 @@ def test_save_markdown_image_dir_traversal(tmp_path):
     """
     Specifically test if image_dir_name can cause traversal.
     """
-    converter = PDFConverter()
+    converter = PDFConverter(options=ProcessOptions())
     doc = MagicMock()
     doc.name = "test_doc"
 
@@ -69,8 +70,9 @@ def test_save_markdown_image_dir_traversal(tmp_path):
             converter._save_markdown(
                 doc=doc,
                 output_dir=output_dir,
-                image_dir_name=malicious_image_dir,
-                md_output_name="safe.md"
+                options=ProcessOptions(
+                    image_dir_name=malicious_image_dir, md_output_name="safe.md"
+                ),
             )
 
         traversal_image_dir = tmp_path.parent / "malicious_images"

@@ -1,6 +1,6 @@
 from unittest.mock import MagicMock, patch
 
-from docling_lib.converter import process_pdf
+from docling_lib.converter import ProcessOptions, process_pdf
 
 
 def test_process_pdf_image_dir_traversal(tmp_path, monkeypatch):
@@ -26,7 +26,9 @@ def test_process_pdf_image_dir_traversal(tmp_path, monkeypatch):
         mock_serializer = mock_serializer_class.return_value
         mock_serializer.serialize.return_value.text = "mocked markdown"
 
-        result = process_pdf(pdf_path, output_dir, image_dir_name=image_dir_name)
+        result = process_pdf(
+            pdf_path, output_dir, options=ProcessOptions(image_dir_name=image_dir_name)
+        )
 
     # process_pdf catches Exception and returns None
     assert result is None
@@ -54,7 +56,9 @@ def test_process_pdf_md_output_traversal(tmp_path, monkeypatch):
         mock_serializer = mock_serializer_class.return_value
         mock_serializer.serialize.return_value.text = "mocked markdown"
 
-        result = process_pdf(pdf_path, output_dir, md_output_name=md_output_name)
+        result = process_pdf(
+            pdf_path, output_dir, options=ProcessOptions(md_output_name=md_output_name)
+        )
 
     assert result is None
     assert not resolved_traversal.exists(), f"Vulnerability: {resolved_traversal} was created"

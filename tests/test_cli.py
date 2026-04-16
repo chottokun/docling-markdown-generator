@@ -22,9 +22,14 @@ def test_main_happy_path(mock_process_pdf, tmp_path, pdf_downloader, monkeypatch
     result = main([str(pdf_path), "--output-dir", str(output_dir)])
 
     assert result == 0
-    mock_process_pdf.assert_called_once_with(
-        pdf_path, output_dir, image_dir_name="images", md_output_name="processed_document.md", image_scale=2.0
-    )
+    # Capture the options object passed to process_pdf
+    args, kwargs = mock_process_pdf.call_args
+    assert args[0] == pdf_path
+    assert args[1] == output_dir
+    options = kwargs["options"]
+    assert options.image_dir_name == "images"
+    assert options.md_output_name == "processed_document.md"
+    assert options.image_scale == 2.0
 
 
 def test_main_missing_pdf_argument(capsys):
@@ -80,9 +85,14 @@ def test_main_with_custom_image_dir(mock_process_pdf, tmp_path, pdf_downloader, 
     )
 
     assert result == 0
-    mock_process_pdf.assert_called_once_with(
-        pdf_path, output_dir, image_dir_name=custom_image_dir, md_output_name="processed_document.md", image_scale=2.0
-    )
+    # Capture the options object passed to process_pdf
+    args, kwargs = mock_process_pdf.call_args
+    assert args[0] == pdf_path
+    assert args[1] == output_dir
+    options = kwargs["options"]
+    assert options.image_dir_name == custom_image_dir
+    assert options.md_output_name == "processed_document.md"
+    assert options.image_scale == 2.0
 
 
 # --- Tests for entry_point() ---

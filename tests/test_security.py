@@ -1,7 +1,7 @@
 import shutil
 from pathlib import Path
 
-from docling_lib.converter import process_pdf
+from docling_lib.converter import ProcessOptions, process_pdf
 
 
 def test_process_pdf_path_traversal(tmp_path, monkeypatch):
@@ -23,7 +23,7 @@ def test_process_pdf_path_traversal(tmp_path, monkeypatch):
         shutil.rmtree(outside_dir)
 
     # Act
-    result = process_pdf(pdf_path, outside_dir)
+    result = process_pdf(pdf_path, outside_dir, options=ProcessOptions())
 
     # Assert
     assert result is None, (
@@ -56,7 +56,7 @@ def test_process_pdf_relative_traversal(tmp_path, monkeypatch):
             resolved_outside.unlink()
 
     # Act
-    result = process_pdf(pdf_path, outside_dir)
+    result = process_pdf(pdf_path, outside_dir, options=ProcessOptions())
 
     # Assert
     assert result is None

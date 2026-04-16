@@ -3,7 +3,7 @@ import sys
 import argparse
 from pathlib import Path
 
-from docling_lib.converter import process_pdf
+from docling_lib.converter import ProcessOptions, process_pdf
 
 # Configure logging to see the output
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
@@ -37,8 +37,8 @@ def verify_all_samples(filter_str=None):
         output_dir = output_base_dir / test_file.stem
         
         try:
-            result_path = process_pdf(test_file, output_dir)
-            
+            result_path = process_pdf(test_file, output_dir, options=ProcessOptions())
+
             if result_path and result_path.exists():
                 logger.info(f"SUCCESS: Generated {result_path.relative_to(project_root)}")
                 # Check for images dir

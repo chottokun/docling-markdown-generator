@@ -1,5 +1,6 @@
 import logging
 import threading
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -30,6 +31,18 @@ from .utils import sanitize_log_message
 
 # Configure logging
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class ProcessOptions:
+    """Configuration options for the document processing workflow."""
+
+    image_dir_name: str = IMAGE_DIR_NAME
+    md_output_name: str = MD_OUTPUT_NAME
+    image_scale: float = IMAGE_RESOLUTION_SCALE
+    table_format: str = "html"
+    do_formula: bool = True
+    do_ocr: bool = True
 
 
 class HTMLTableMarkdownSerializer(MarkdownTableSerializer):
@@ -108,20 +121,16 @@ class PDFConverter:
 
     def __init__(
         self,
-        image_scale: float = IMAGE_RESOLUTION_SCALE,
-        table_format: str = "html",
-        do_formula: bool = True,
-        do_ocr: bool = True,
+        options: ProcessOptions,
     ):
-        self.image_scale = image_scale
-        self.table_format = table_format
+        self.options = options
 
         # Configure pipeline options
         pipeline_options = PdfPipelineOptions()
         pipeline_options.generate_picture_images = True
-        pipeline_options.images_scale = image_scale
-        pipeline_options.do_formula_enrichment = do_formula
-        pipeline_options.do_ocr = do_ocr
+        pipeline_options.images_scale = options.image_scale
+        pipeline_options.do_formula_enrichment = options.do_formula
+        pipeline_options.do_ocr = options.do_ocr
 
         # Configure DocumentConverter with multi-format support
         self.doc_converter = DocumentConverter(
@@ -138,18 +147,18 @@ class PDFConverter:
         self,
         input_path: Path,
         output_dir: Path,
-        image_dir_name: str = IMAGE_DIR_NAME,
-        md_output_name: str = MD_OUTPUT_NAME,
+        options: ProcessOptions | None = None,
     ) -> Path | None:
         """
         Converts the document to Markdown and extracts images.
         """
+        opts = options or self.options
         try:
             # Perform conversion
             result = self.doc_converter.convert(input_path)
             doc = result.document
 
-            return self._save_markdown(doc, output_dir, image_dir_name, md_output_name)
+            return self._save_markdown(doc, output_dir, opts)
 
         except (OSError, PermissionError) as e:
             # Propagate OSError and PermissionError as per instruction
@@ -164,8 +173,7 @@ class PDFConverter:
         self,
         doc: DoclingDocument,
         output_dir: Path,
-        image_dir_name: str,
-        md_output_name: str,
+        options: ProcessOptions,
     ) -> Path:
         """
         Helper method to save the document as Markdown and images.
@@ -174,18 +182,18 @@ class PDFConverter:
         # Security Check: Path Traversal
         try:
             resolved_output_dir = output_dir.resolve()
-            resolved_images_dir = (output_dir / image_dir_name).resolve()
-            resolved_md_path = (output_dir / md_output_name).resolve()
+            resolved_images_dir = (output_dir / options.image_dir_name).resolve()
+            resolved_md_path = (output_dir / options.md_output_name).resolve()
 
             if not resolved_images_dir.is_relative_to(resolved_output_dir):
                 logger.error(
-                    f"Security Error: Traversal detected in image directory {sanitize_log_message(image_dir_name)}"
+                    f"Security Error: Traversal detected in image directory {sanitize_log_message(options.image_dir_name)}"
                 )
                 raise ValueError("Traversal detected in image directory")
 
             if not resolved_md_path.is_relative_to(resolved_output_dir):
                 logger.error(
-                    f"Security Error: Traversal detected in markdown output name {sanitize_log_message(md_output_name)}"
+                    f"Security Error: Traversal detected in markdown output name {sanitize_log_message(options.md_output_name)}"
                 )
                 raise ValueError("Traversal detected in markdown output name")
 
@@ -200,7 +208,7 @@ class PDFConverter:
         # Configure enhanced custom serializer
         serializer = EnhancedMarkdownSerializer(
             doc=doc,
-            table_format=self.table_format,
+            table_format=options.table_format,
             params=MarkdownParams(
                 image_mode=ImageRefMode.REFERENCED,
                 image_placeholder="<!-- image -->",
@@ -223,7 +231,7 @@ class PDFConverter:
         # Save as markdown file
         resolved_md_path.write_text(md_content, encoding="utf-8")
 
-        return output_dir / md_output_name
+        return output_dir / options.md_output_name
 
 
 # Global shared converter instance for reuse
@@ -264,7 +272,7 @@ def _validate_output_security(output_dir: Path) -> bool:
 
 
 def _get_or_create_converter(
-    image_scale: float, table_format: str, do_formula: bool, do_ocr: bool
+    options: ProcessOptions,
 ) -> PDFConverter:
     """
     Manages and re-initializes the global _default_pdf_converter instance
@@ -276,27 +284,19 @@ def _get_or_create_converter(
     # Re-initialize if configuration changed or not yet initialized
     if (
         _default_pdf_converter is None
-        or _default_pdf_converter.image_scale != image_scale
-        or _default_pdf_converter.table_format != table_format
+        or _default_pdf_converter.options.image_scale != options.image_scale
+        or _default_pdf_converter.options.table_format != options.table_format
+        or _default_pdf_converter.options.do_formula != options.do_formula
+        or _default_pdf_converter.options.do_ocr != options.do_ocr
     ):
-        _default_pdf_converter = PDFConverter(
-            image_scale=image_scale,
-            table_format=table_format,
-            do_formula=do_formula,
-            do_ocr=do_ocr,
-        )
+        _default_pdf_converter = PDFConverter(options=options)
     return _default_pdf_converter
 
 
 def process_pdf(
     pdf_path: Path,
     output_dir: Path,
-    image_dir_name: str = IMAGE_DIR_NAME,
-    md_output_name: str = MD_OUTPUT_NAME,
-    image_scale: float = IMAGE_RESOLUTION_SCALE,
-    table_format: str = "html",
-    do_formula: bool = True,
-    do_ocr: bool = True,
+    options: ProcessOptions | None = None,
     converter: DocumentConverter | None = None,
 ) -> Path | None:
     """
@@ -312,28 +312,20 @@ def process_pdf(
         return None
 
     # 3. Processing
+    opts = options or ProcessOptions()
     try:
         with _converter_lock:
             # Get or initialize the shared converter
-            shared_converter = _get_or_create_converter(
-                image_scale=image_scale,
-                table_format=table_format,
-                do_formula=do_formula,
-                do_ocr=do_ocr,
-            )
+            shared_converter = _get_or_create_converter(options=opts)
 
             if converter:
                 # Use explicit converter (already configured) but still use our
                 # saving logic
                 result = converter.convert(pdf_path)
                 doc = result.document
-                return shared_converter._save_markdown(
-                    doc, output_dir, image_dir_name, md_output_name
-                )
+                return shared_converter._save_markdown(doc, output_dir, opts)
 
-            return shared_converter.convert(
-                pdf_path, output_dir, image_dir_name, md_output_name
-            )
+            return shared_converter.convert(pdf_path, output_dir, opts)
 
     except (OSError, PermissionError) as e:
         logger.error(f"Could not create output directory: {e}")

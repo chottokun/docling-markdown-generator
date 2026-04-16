@@ -6,7 +6,7 @@ import pytest
 from docling.datamodel.base_models import InputFormat
 from docling_core.types.doc import DoclingDocument
 
-from docling_lib.converter import process_pdf
+from docling_lib.converter import ProcessOptions, process_pdf
 
 # --- Fixtures ---
 
@@ -58,7 +58,7 @@ def test_process_pdf_calls_docling_api_correctly(
     expected_md_path = output_dir / "processed_document.md"
 
     # Act
-    result_path = process_pdf(pdf_path, output_dir)
+    result_path = process_pdf(pdf_path, output_dir, options=ProcessOptions())
 
     # Assert
     # Verify converter options
@@ -83,7 +83,7 @@ def test_process_pdf_e2e_happy_path(tmp_path, pdf_downloader, monkeypatch):
     output_dir = tmp_path / "output"
     
     # This will actually run Docling
-    result_path = process_pdf(pdf_path, output_dir)
+    result_path = process_pdf(pdf_path, output_dir, options=ProcessOptions())
 
     assert result_path is not None
     assert result_path.exists()
@@ -105,7 +105,9 @@ def test_process_docx_e2e_happy_path(tmp_path, monkeypatch):
     shutil.copy(src_docx, tmp_path / "sample.docx")
     
     output_dir = tmp_path / "output"
-    result_path = process_pdf(tmp_path / "sample.docx", output_dir)
+    result_path = process_pdf(
+        tmp_path / "sample.docx", output_dir, options=ProcessOptions()
+    )
 
     assert result_path is not None
     assert result_path.exists()
@@ -131,8 +133,13 @@ def test_process_pdf_with_explicit_converter(
     # We need to mock EnhancedMarkdownSerializer to avoid Pydantic issues with the mock_doc
     with patch("docling_lib.converter.EnhancedMarkdownSerializer") as MockSerializer:
         MockSerializer.return_value.serialize.return_value.text = "Explicit Content"
-        
-        result = process_pdf(pdf_path, tmp_path, converter=mock_explicit_converter)
+
+        result = process_pdf(
+            pdf_path,
+            tmp_path,
+            options=ProcessOptions(),
+            converter=mock_explicit_converter,
+        )
     
     assert result is not None
     mock_explicit_converter.convert.assert_called_once_with(pdf_path)
@@ -155,7 +162,7 @@ def test_process_pdf_unexpected_workflow_error(
     MockSerializer.return_value.serialize.side_effect = Exception("Crash")
 
     with caplog.at_level(logging.ERROR):
-        result = process_pdf(pdf_path, tmp_path)
+        result = process_pdf(pdf_path, tmp_path, options=ProcessOptions())
 
     assert result is None
     assert any("Workflow Error" in record.message or "Error converting document" in record.message 
@@ -169,6 +176,6 @@ def test_process_pdf_path_traversal_prevention(tmp_path, pdf_downloader, monkeyp
     monkeypatch.chdir(tmp_path)
     pdf_path = pdf_downloader("https://arxiv.org/pdf/2406.12430.pdf")
     malicious_dir = tmp_path / "../outside"
-    
-    result = process_pdf(pdf_path, malicious_dir)
+
+    result = process_pdf(pdf_path, malicious_dir, options=ProcessOptions())
     assert result is None
