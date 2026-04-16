@@ -50,26 +50,29 @@ async def _save_upload_temp(file: UploadFile, suffix: str) -> Path:
     Reads in chunks to maintain memory efficiency and prevent DoS.
     """
     total_size = 0
-    with tempfile.NamedTemporaryFile(
-        delete=False, suffix=suffix, dir=UPLOAD_DIR
-    ) as tmp_file:
-        # Re-read the upload stream in chunks to verify the actual size
-        while True:
-            chunk = await file.read(1024 * 1024)  # 1MB chunks
-            if not chunk:
-                break
-            total_size += len(chunk)
-            if total_size > MAX_UPLOAD_SIZE:
-                # Cleanup and raise error
-                tmp_file.close()
-                os.unlink(tmp_file.name)
-                raise HTTPException(
-                    status_code=413,
-                    detail=f"Payload Too Large. Maximum size is {MAX_UPLOAD_SIZE} bytes.",
-                )
-            await run_in_threadpool(tmp_file.write, chunk)
+    tmp_file = tempfile.NamedTemporaryFile(delete=False, suffix=suffix, dir=UPLOAD_DIR)
+    try:
+        with tmp_file:
+            # Re-read the upload stream in chunks to verify the actual size
+            while True:
+                chunk = await file.read(1024 * 1024)  # 1MB chunks
+                if not chunk:
+                    break
+                total_size += len(chunk)
+                if total_size > MAX_UPLOAD_SIZE:
+                    # Cleanup and raise error
+                    raise HTTPException(
+                        status_code=413,
+                        detail=f"Payload Too Large. Maximum size is {MAX_UPLOAD_SIZE} bytes.",
+                    )
+                await run_in_threadpool(tmp_file.write, chunk)
 
-        return Path(tmp_file.name)
+            return Path(tmp_file.name)
+    except Exception:
+        # Cleanup on any exception
+        if os.path.exists(tmp_file.name):
+            os.unlink(tmp_file.name)
+        raise
 
 
 async def _create_output_dir() -> tuple[str, Path]:
