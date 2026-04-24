@@ -133,7 +133,7 @@ async def convert_file(
         # Re-raise already formed HTTP exceptions
         raise
     except Exception as e:
-        logger.exception(f"An error occurred during conversion: {e}")
+        logger.exception(f"An error occurred during conversion: {sanitize_log_message(e)}")
         raise HTTPException(
             status_code=500, detail="An internal error occurred during conversion."
         ) from e
@@ -164,7 +164,10 @@ async def download_file(request_id: str, filename: str):
         in_output = file_path.is_relative_to(resolved_output_dir)
         in_safe = file_path.is_relative_to(safe_dir)
         if not in_output or not in_safe:
-            logger.warning(f"Unauthorized download attempt: {request_id}/{filename}")
+            logger.warning(
+                f"Unauthorized download attempt: "
+                f"{sanitize_log_message(request_id)}/{sanitize_log_message(filename)}"
+            )
             raise HTTPException(status_code=404, detail="File not found.")
 
         if not await run_in_threadpool(file_path.exists) or not await run_in_threadpool(
@@ -176,7 +179,9 @@ async def download_file(request_id: str, filename: str):
     except (OSError, ValueError, HTTPException) as e:
         if isinstance(e, HTTPException):
             raise e
-        logger.error(f"Error during file download path resolution: {e}")
+        logger.error(
+            f"Error during file download path resolution: {sanitize_log_message(e)}"
+        )
         raise HTTPException(
             status_code=400, detail="Invalid request parameters."
         ) from e
