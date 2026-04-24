@@ -1,6 +1,7 @@
 import pytest
 from fastapi import HTTPException
-from docling_lib.server import _validate_extension
+import docling_lib.server
+from docling_lib.server import _validate_extension, _create_output_dir
 
 @pytest.mark.parametrize("filename, expected_ext", [
     ("test.pdf", ".pdf"),
@@ -29,3 +30,19 @@ def test_validate_extension_invalid(filename):
         _validate_extension(filename)
     assert exc_info.value.status_code == 400
     assert "Unsupported file format" in exc_info.value.detail
+
+@pytest.mark.asyncio
+async def test_create_output_dir(tmp_path, monkeypatch):
+    """Test that _create_output_dir creates a unique directory and returns its ID and path."""
+    # Setup: Redirect OUTPUT_DIR to a temporary directory
+    monkeypatch.setattr(docling_lib.server, "OUTPUT_DIR", tmp_path)
+
+    # Act
+    request_id, request_output_dir = await _create_output_dir()
+
+    # Assert
+    assert isinstance(request_id, str)
+    assert len(request_id) == 16  # 8 bytes hex
+    assert request_output_dir == tmp_path / request_id
+    assert request_output_dir.exists()
+    assert request_output_dir.is_dir()
