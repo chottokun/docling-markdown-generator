@@ -1,7 +1,28 @@
 import pytest
 from fastapi import HTTPException
 import docling_lib.server
-from docling_lib.server import _validate_extension, _create_output_dir
+from docling_lib.server import _validate_extension, _create_output_dir, _validate_content_length
+from docling_lib.config import MAX_UPLOAD_SIZE
+
+@pytest.mark.parametrize("content_length", [
+    None,
+    0,
+    1024,
+    MAX_UPLOAD_SIZE,
+])
+def test_validate_content_length_valid(content_length):
+    # Should not raise any exception
+    _validate_content_length(content_length)
+
+@pytest.mark.parametrize("content_length", [
+    MAX_UPLOAD_SIZE + 1,
+    MAX_UPLOAD_SIZE + 1024,
+])
+def test_validate_content_length_invalid(content_length):
+    with pytest.raises(HTTPException) as exc_info:
+        _validate_content_length(content_length)
+    assert exc_info.value.status_code == 413
+    assert "Payload Too Large" in exc_info.value.detail
 
 @pytest.mark.parametrize("filename, expected_ext", [
     ("test.pdf", ".pdf"),
