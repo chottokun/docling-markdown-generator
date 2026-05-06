@@ -128,7 +128,7 @@ def test_download_file_success(tmp_path, monkeypatch):
     # Use monkeypatch to redirect OUTPUT_DIR to a temporary directory
     monkeypatch.setattr(docling_lib.server, "OUTPUT_DIR", tmp_path)
 
-    request_id = "test_request_123"
+    request_id = "testrequest123"
     filename = "test_output.md"
     content = "# Test Content"
 
