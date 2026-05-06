@@ -1,7 +1,6 @@
-import pytest
 from unittest.mock import MagicMock, patch
 from docling_lib.converter import HTMLTableMarkdownSerializer
-from docling_core.types.doc import TableItem, DoclingDocument, TextItem
+from docling_core.types.doc import TableItem, DoclingDocument
 from docling_core.transforms.serializer.markdown import SerializationResult, MarkdownTableSerializer
 from docling_core.transforms.serializer.base import Span
 
