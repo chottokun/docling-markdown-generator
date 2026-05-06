@@ -162,6 +162,14 @@ async def download_file(request_id: str, filename: str):
 
     def _get_safe_path():
         # Security: Prevent path traversal
+        # 1. Validate request_id is alphanumeric
+        if not request_id.isalnum():
+            raise HTTPException(status_code=400, detail="Invalid request parameters.")
+
+        # 2. Validate filename is a simple basename
+        if filename != Path(filename).name:
+            raise HTTPException(status_code=400, detail="Invalid request parameters.")
+
         # Resolve to absolute paths and verify anchoring to OUTPUT_DIR
         resolved_output_dir = OUTPUT_DIR.resolve()
         safe_dir = (resolved_output_dir / request_id).resolve()
