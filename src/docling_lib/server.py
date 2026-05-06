@@ -162,6 +162,11 @@ async def download_file(request_id: str, filename: str):
 
     def _get_safe_path():
         # Security: Prevent path traversal
+        if not all(c.isalnum() or c in "-_" for c in request_id):
+            raise ValueError("Invalid request_id")
+        if Path(filename).name != filename:
+            raise ValueError("Invalid filename")
+
         # Resolve to absolute paths and verify anchoring to OUTPUT_DIR
         resolved_output_dir = OUTPUT_DIR.resolve()
         safe_dir = (resolved_output_dir / request_id).resolve()
