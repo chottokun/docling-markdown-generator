@@ -4,10 +4,11 @@ import tempfile
 from pathlib import Path
 
 from fastapi import FastAPI, File, Header, HTTPException, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from starlette.concurrency import run_in_threadpool
 
-from .config import MAX_UPLOAD_SIZE, OUTPUT_DIR, UPLOAD_DIR, setup_logging
+from .config import CORS_ORIGINS, MAX_UPLOAD_SIZE, OUTPUT_DIR, UPLOAD_DIR, setup_logging
 from .converter import process_pdf
 from .utils import sanitize_log_message
 
@@ -16,6 +17,15 @@ setup_logging()
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Docling Markdown Conversion Server")
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=CORS_ORIGINS,
+    allow_credentials=True if "*" not in CORS_ORIGINS else False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Ensure directories exist
 UPLOAD_DIR.mkdir(exist_ok=True)
