@@ -88,6 +88,10 @@ class HTMLTableMarkdownSerializer(MarkdownTableSerializer):
                 item=item, doc_serializer=doc_serializer, doc=doc, **kwargs
             )
 
+        # Fast path for single-element results to avoid list comprehension and join
+        if len(res_parts) == 1:
+            return create_ser_result(text=res_parts[0].text, span_source=res_parts)
+
         text_res = "\n\n".join([r.text for r in res_parts])
         return create_ser_result(text=text_res, span_source=res_parts)
 
@@ -337,18 +341,20 @@ def process_pdf(
     # 3. Processing
     try:
         actual_options = options or DocumentConversionOptions()
+
+        # Optimization: Narrow the lock scope to only protect converter initialization.
+        # DocumentConverter.convert() is thread-safe.
         with _converter_lock:
-            # Get or initialize the shared converter
             shared_converter = _get_or_create_converter(actual_options)
 
-            if converter:
-                # Use explicit converter (already configured) but still use our
-                # saving logic
-                result = converter.convert(pdf_path)
-                doc = result.document
-                return shared_converter._save_markdown(doc, output_dir, actual_options)
+        if converter:
+            # Use explicit converter (already configured) but still use our
+            # saving logic
+            result = converter.convert(pdf_path)
+            doc = result.document
+            return shared_converter._save_markdown(doc, output_dir, actual_options)
 
-            return shared_converter.convert(pdf_path, output_dir, actual_options)
+        return shared_converter.convert(pdf_path, output_dir, actual_options)
 
     except (OSError, PermissionError) as e:
         logger.error(f"Could not create output directory: {e}")
