@@ -18,10 +18,11 @@ def verify_all_samples(filter_str=None):
     supported_extensions = [".pdf", ".docx", ".pptx", ".xlsx"]
     
     # Identify files to test
-    test_files = [f for f in test_data_dir.iterdir() if f.suffix in supported_extensions]
-    
-    if filter_str:
-        test_files = [f for f in test_files if filter_str in f.name]
+    test_files = [
+        f
+        for f in test_data_dir.iterdir()
+        if f.suffix in supported_extensions and (not filter_str or filter_str in f.name)
+    ]
 
     if not test_files:
         logger.error(f"No matching test files found in {test_data_dir}")
