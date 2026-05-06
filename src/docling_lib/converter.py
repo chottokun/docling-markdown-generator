@@ -88,7 +88,12 @@ class HTMLTableMarkdownSerializer(MarkdownTableSerializer):
                 item=item, doc_serializer=doc_serializer, doc=doc, **kwargs
             )
 
-        text_res = "\n\n".join(r.text for r in res_parts)
+        if not res_parts:
+            return create_ser_result(text="", span_source=[])
+        if len(res_parts) == 1:
+            return create_ser_result(text=res_parts[0].text, span_source=res_parts)
+
+        text_res = "\n\n".join([r.text for r in res_parts])
         return create_ser_result(text=text_res, span_source=res_parts)
 
 
