@@ -25,7 +25,15 @@ from docling_core.types.doc import (
     TableItem,
 )
 
-from .config import IMAGE_DIR_NAME, IMAGE_RESOLUTION_SCALE, MD_OUTPUT_NAME
+from .config import (
+    DO_CHART,
+    DO_CODE,
+    DO_FORMULA,
+    DO_OCR,
+    IMAGE_DIR_NAME,
+    IMAGE_RESOLUTION_SCALE,
+    MD_OUTPUT_NAME,
+)
 from .utils import sanitize_log_message
 
 # Configure logging
@@ -40,8 +48,10 @@ class DocumentConversionOptions:
     md_output_name: str = MD_OUTPUT_NAME
     image_scale: float = IMAGE_RESOLUTION_SCALE
     table_format: str = "html"
-    do_formula: bool = True
-    do_ocr: bool = True
+    do_formula: bool = DO_FORMULA
+    do_ocr: bool = DO_OCR
+    do_chart: bool = DO_CHART  # New in docling v2.x
+    do_code: bool = DO_CODE   # New in docling v2.x
 
 
 class HTMLTableMarkdownSerializer(MarkdownTableSerializer):
@@ -95,8 +105,13 @@ class EnhancedMarkdownSerializer(MarkdownDocSerializer):
         # DoclingDocument.
         if hasattr(doc, "_mock_name") or "MagicMock" in str(type(doc)):
             # Skip Pydantic validation by setting attributes directly if it's a mock
-            self.doc = doc
-            self.params = kwargs.get("params", MarkdownParams())
+            # Use object.__setattr__ to bypass Pydantic's frozen or validation logic if needed
+            object.__setattr__(self, "doc", doc)
+            object.__setattr__(self, "params", kwargs.get("params", MarkdownParams()))
+            # Initialize other fields to avoid Pydantic errors if they are accessed
+            for field in self.model_fields:
+                if not hasattr(self, field):
+                    object.__setattr__(self, field, None)
         else:
             super().__init__(doc=doc, **kwargs)
 
@@ -122,6 +137,8 @@ class PDFConverter:
         pipeline_options.images_scale = self.options.image_scale
         pipeline_options.do_formula_enrichment = self.options.do_formula
         pipeline_options.do_ocr = self.options.do_ocr
+        pipeline_options.do_chart_extraction = self.options.do_chart
+        pipeline_options.do_code_enrichment = self.options.do_code
 
         # Configure DocumentConverter with multi-format support
         self.doc_converter = DocumentConverter(

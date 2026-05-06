@@ -10,7 +10,19 @@
 | :--- | :--- | :--- |
 | `DOCLING_UPLOAD_DIR` | `uploads` | アップロードされたファイルの一時保存先 |
 | `DOCLING_OUTPUT_DIR` | `output` | 変換済みファイルの保存先 |
-| `IMAGE_RESOLUTION_SCALE` | `2.0` | 抽出される画像の解像度倍率 |
+| `DOCLING_MAX_UPLOAD_SIZE` | `20971520` | 最大アップロードサイズ（バイト単位）。デフォルトは20MB。 |
+| `DOCLING_CORS_ORIGINS` | `*` | 許可するCORSオリジンのカンマ区切りリスト。 |
+| `IMAGE_RESOLUTION_SCALE` | `2.0` | 抽出される画像の解像度倍率。 |
+
+### docling v2.x 拡張オプション
+これらのオプションを `True` に設定することで、より高度な解析が可能になります（計算リソースをより多く消費します）。
+
+| 変数名 | デフォルト値 | 説明 |
+| :--- | :--- | :--- |
+| `DOCLING_DO_FORMULA` | `True` | 数式の抽出を有効にする。 |
+| `DOCLING_DO_OCR` | `True` | OCR（光学文字認識）を有効にする。 |
+| `DOCLING_DO_CHART` | `False` | 図表（チャート）の抽出と解析を有効にする。 |
+| `DOCLING_DO_CODE` | `False` | コードブロックの高度な認識と強化を有効にする。 |
 
 ### Docker Compose での設定例
 ```yaml
@@ -18,6 +30,8 @@ services:
   app:
     environment:
       - DOCLING_OUTPUT_DIR=/app/data/output
+      - DOCLING_CORS_ORIGINS=https://app.example.com,https://api.example.com
+      - DOCLING_DO_CHART=True
       - IMAGE_RESOLUTION_SCALE=3.0
     volumes:
       - ./data:/app/data
