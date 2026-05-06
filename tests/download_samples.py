@@ -20,17 +20,23 @@ SampleUrls = {
 
 async def download_file(client, filename, url):
     out_path = os.path.join(out_dir, filename)
-    if os.path.exists(out_path):
+    if await asyncio.to_thread(os.path.exists, out_path):
         print(f"Already exists: {filename}")
         return
 
     print(f"Downloading {filename} from {url}...")
-    headers = {'User-Agent': 'Mozilla/5.0'}
+    headers = {"User-Agent": "Mozilla/5.0"}
     try:
         response = await client.get(url, headers=headers, follow_redirects=True)
         response.raise_for_status()
-        with open(out_path, 'wb') as f:
-            f.write(response.content)
+
+        # Use asyncio.to_thread to perform blocking I/O without blocking the event loop
+        def _save_to_disk():
+            with open(out_path, "wb") as f:
+                f.write(response.content)
+
+        await asyncio.to_thread(_save_to_disk)
+
         print(f"Successfully downloaded {filename}")
     except Exception as e:
         print(f"Failed to download {filename}: {e}")
