@@ -42,6 +42,7 @@ def test_validate_extension_valid(filename, expected_ext):
     ("image.png"),
     ("archive.zip"),
     ("README"),
+    (""),
     ("no_extension."),
     (".pdf"), # This is tricky, Path(".pdf").suffix is ""
     ("file."),
