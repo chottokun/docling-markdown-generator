@@ -6,11 +6,12 @@ import docling_lib.config
 import docling_lib.server
 
 def test_cors_default_origin():
-    # By default, CORS_ORIGINS is ["*"]
+    # By default, CORS_ORIGINS is now empty (more secure)
     client = TestClient(app)
     response = client.get("/", headers={"Origin": "http://example.com"})
     assert response.status_code == 200
-    assert response.headers.get("access-control-allow-origin") == "*"
+    # No CORS header should be present when origins are not matched (empty list matches nothing)
+    assert "access-control-allow-origin" not in response.headers
 
 def test_cors_custom_origin(monkeypatch):
     # Set custom origins
