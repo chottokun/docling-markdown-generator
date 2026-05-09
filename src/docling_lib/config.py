@@ -13,7 +13,10 @@ OUTPUT_DIR = Path(os.getenv("DOCLING_OUTPUT_DIR", "output"))
 
 # Security configurations
 MAX_UPLOAD_SIZE = int(os.getenv("DOCLING_MAX_UPLOAD_SIZE", 20 * 1024 * 1024))  # Default 20MB
-CORS_ORIGINS = os.getenv("DOCLING_CORS_ORIGINS", "*").split(",")
+# Default to empty list for security (must be explicitly configured)
+CORS_ORIGINS = [
+    o.strip() for o in os.getenv("DOCLING_CORS_ORIGINS", "").split(",") if o.strip()
+]
 
 # Docling v2.x Pipeline options
 DO_FORMULA = os.getenv("DOCLING_DO_FORMULA", "True").lower() == "true"
