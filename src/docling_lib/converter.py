@@ -183,21 +183,12 @@ class PDFConverter:
             )
             return None
 
-    def _save_markdown(
-        self,
-        doc: DoclingDocument,
-        output_dir: Path,
-        options: DocumentConversionOptions | None = None,
-    ) -> Path:
+    def _validate_and_resolve_paths(
+        self, output_dir: Path, image_dir_name: str, md_output_name: str
+    ) -> tuple[Path, Path]:
         """
-        Helper method to save the document as Markdown and images.
-        Uses an enhanced custom serializer based on the provided or instance configuration.
+        Validates output paths for security and resolves them.
         """
-        actual_options = options or self.options
-        image_dir_name = actual_options.image_dir_name
-        md_output_name = actual_options.md_output_name
-
-        # Security Check: Path Traversal
         try:
             resolved_output_dir = output_dir.resolve()
             resolved_images_dir = (output_dir / image_dir_name).resolve()
@@ -217,18 +208,22 @@ class PDFConverter:
                 )
                 raise ValueError("Traversal detected in markdown output name")
 
+            return resolved_images_dir, resolved_md_path
+
         except Exception as e:
             logger.error(f"Security Error during path resolution: {e}")
             raise
 
-        # Create output directory
-        output_dir.mkdir(parents=True, exist_ok=True)
-        resolved_images_dir.mkdir(parents=True, exist_ok=True)
-
+    def _serialize_to_markdown(
+        self, doc: DoclingDocument, table_format: str
+    ) -> str:
+        """
+        Serializes the document to Markdown using the enhanced serializer.
+        """
         # Configure enhanced custom serializer
         serializer = EnhancedMarkdownSerializer(
             doc=doc,
-            table_format=actual_options.table_format,
+            table_format=table_format,
             params=MarkdownParams(
                 image_mode=ImageRefMode.REFERENCED,
                 image_placeholder="<!-- image -->",
@@ -237,18 +232,56 @@ class PDFConverter:
 
         # Serialize
         ser_res = serializer.serialize()
-        md_content = ser_res.text
+        return ser_res.text
 
-        # Add Metadata as YAML Frontmatter if available
+    def _apply_metadata_frontmatter(self, doc: DoclingDocument, md_content: str) -> str:
+        """
+        Adds metadata as YAML frontmatter to the Markdown content if available.
+        """
         meta = []
         if doc.name:
             meta.append(f"title: {doc.name}")
 
         if meta:
             frontmatter = "---\n" + "\n".join(meta) + "\n---\n\n"
-            md_content = frontmatter + md_content
+            return frontmatter + md_content
 
-        # Save as markdown file
+        return md_content
+
+    def _save_markdown(
+        self,
+        doc: DoclingDocument,
+        output_dir: Path,
+        options: DocumentConversionOptions | None = None,
+    ) -> Path:
+        """
+        Helper method to save the document as Markdown and images.
+        Uses an enhanced custom serializer based on the provided or instance configuration.
+        """
+        actual_options = options or self.options
+        image_dir_name = actual_options.image_dir_name
+        md_output_name = actual_options.md_output_name
+
+        # 1. Path Resolution and Security Checks
+        resolved_images_dir, resolved_md_path = self._validate_and_resolve_paths(
+            output_dir=output_dir,
+            image_dir_name=image_dir_name,
+            md_output_name=md_output_name,
+        )
+
+        # 2. Create directories
+        output_dir.mkdir(parents=True, exist_ok=True)
+        resolved_images_dir.mkdir(parents=True, exist_ok=True)
+
+        # 3. Serialization
+        md_content = self._serialize_to_markdown(
+            doc=doc, table_format=actual_options.table_format
+        )
+
+        # 4. Metadata / Frontmatter
+        md_content = self._apply_metadata_frontmatter(doc=doc, md_content=md_content)
+
+        # 5. Save output
         resolved_md_path.write_text(md_content, encoding="utf-8")
 
         return output_dir / md_output_name
