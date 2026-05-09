@@ -1,8 +1,9 @@
+from unittest.mock import patch
+
 import pytest
-from fastapi.testclient import TestClient
-from unittest.mock import patch, MagicMock
-from pathlib import Path
 from fastapi import HTTPException
+from fastapi.testclient import TestClient
+
 import docling_lib.server
 from docling_lib.server import app, download_file
 

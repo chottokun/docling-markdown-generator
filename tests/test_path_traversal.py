@@ -1,5 +1,6 @@
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 from docling_lib.converter import DocumentConversionOptions, PDFConverter
 

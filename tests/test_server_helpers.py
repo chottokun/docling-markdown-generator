@@ -1,8 +1,14 @@
 import pytest
 from fastapi import HTTPException
+
 import docling_lib.server
-from docling_lib.server import _validate_extension, _create_output_dir, _validate_content_length
 from docling_lib.config import MAX_UPLOAD_SIZE
+from docling_lib.server import (
+    _create_output_dir,
+    _validate_content_length,
+    _validate_extension,
+)
+
 
 @pytest.mark.parametrize("content_length", [
     None,

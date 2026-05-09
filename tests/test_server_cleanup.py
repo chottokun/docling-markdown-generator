@@ -1,10 +1,11 @@
-import os
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
-from unittest.mock import MagicMock, AsyncMock, patch
-from fastapi import UploadFile, HTTPException
-from pathlib import Path
+from fastapi import UploadFile
+
 import docling_lib.server
 from docling_lib.server import _save_upload_temp
+
 
 @pytest.mark.asyncio
 async def test_save_upload_temp_cleanup_on_exception(tmp_path, monkeypatch):

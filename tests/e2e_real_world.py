@@ -1,6 +1,7 @@
-import os
-import pytest
 from pathlib import Path
+
+import pytest
+
 from docling_lib.converter import process_pdf
 
 REAL_WORLD_DATA_DIR = Path(__file__).parent / "data" / "real_world"

@@ -1,8 +1,14 @@
 from unittest.mock import MagicMock, patch
-from docling_lib.converter import HTMLTableMarkdownSerializer
-from docling_core.types.doc import TableItem, DoclingDocument
-from docling_core.transforms.serializer.markdown import SerializationResult, MarkdownTableSerializer
+
 from docling_core.transforms.serializer.base import Span
+from docling_core.transforms.serializer.markdown import (
+    MarkdownTableSerializer,
+    SerializationResult,
+)
+from docling_core.types.doc import DoclingDocument, TableItem
+
+from docling_lib.converter import HTMLTableMarkdownSerializer
+
 
 def test_html_table_serialization_success():
     """Test successful HTML table serialization."""

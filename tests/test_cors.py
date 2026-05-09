@@ -1,9 +1,9 @@
 
-import os
-import pytest
 from fastapi.testclient import TestClient
+
 import docling_lib.config
 from docling_lib.server import create_app
+
 
 def test_cors_default_origin(monkeypatch):
     # By default, CORS_ORIGINS should be empty (more secure)

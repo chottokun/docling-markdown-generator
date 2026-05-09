@@ -1,7 +1,6 @@
 import asyncio
 import time
 from pathlib import Path
-import os
 
 # Mock content (1MB)
 CONTENT = b"0" * (1024 * 1024)

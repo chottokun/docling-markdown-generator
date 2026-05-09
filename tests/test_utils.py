@@ -1,5 +1,7 @@
 import pytest
+
 from docling_lib.utils import sanitize_log_message
+
 
 @pytest.mark.parametrize(
     "input_message, expected_output",

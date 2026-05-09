@@ -1,6 +1,7 @@
 import logging
-from pathlib import Path
+
 from docling_lib.converter import _validate_input_path
+
 
 def test_validate_input_path_exists(tmp_path):
     """Test that _validate_input_path returns True when the file exists."""

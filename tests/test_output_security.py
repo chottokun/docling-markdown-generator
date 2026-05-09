@@ -2,8 +2,8 @@ import logging
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
 from docling_lib.converter import _validate_output_security
+
 
 def test_validate_output_security_valid_relative(tmp_path, monkeypatch):
     """Verify that a simple relative path returns True."""

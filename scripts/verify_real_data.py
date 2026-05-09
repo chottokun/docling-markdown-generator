@@ -1,6 +1,6 @@
+import argparse
 import logging
 import sys
-import argparse
 from pathlib import Path
 
 from docling_lib.converter import process_pdf

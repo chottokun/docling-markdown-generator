@@ -1,8 +1,9 @@
 from unittest.mock import patch
+
 from fastapi.testclient import TestClient
-from docling_lib.server import app
+
 import docling_lib.server
-import pytest
+from docling_lib.server import app
 
 client = TestClient(app)
 
