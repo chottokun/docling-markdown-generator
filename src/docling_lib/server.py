@@ -3,7 +3,7 @@ import os
 import tempfile
 from pathlib import Path
 
-from fastapi import FastAPI, File, Header, HTTPException, UploadFile
+from fastapi import APIRouter, FastAPI, File, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from starlette.concurrency import run_in_threadpool
@@ -16,20 +16,7 @@ from .utils import sanitize_log_message
 setup_logging()
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="Docling Markdown Conversion Server")
-
-# Add CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=CORS_ORIGINS,
-    allow_credentials=True if "*" not in CORS_ORIGINS else False,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Ensure directories exist
-UPLOAD_DIR.mkdir(exist_ok=True)
-OUTPUT_DIR.mkdir(exist_ok=True)
+router = APIRouter()
 
 
 def _validate_content_length(content_length: int | None):
@@ -117,7 +104,7 @@ async def _validate_and_format_response(
     }
 
 
-@app.post("/convert/")
+@router.post("/convert/")
 async def convert_file(
     file: UploadFile = File(...), content_length: int | None = Header(None)
 ):
@@ -137,7 +124,6 @@ async def convert_file(
         logger.info(f"Processing file: {sanitized_filename}")
 
         # Use our process_pdf function wrapped in run_in_threadpool for concurrency.
-        # It's now thread-safe due to the internal lock in converter.py.
         result_path = await run_in_threadpool(process_pdf, tmp_path, request_output_dir)
 
         return await _validate_and_format_response(result_path, request_id)
@@ -146,7 +132,9 @@ async def convert_file(
         # Re-raise already formed HTTP exceptions
         raise
     except Exception as e:
-        logger.exception(f"An error occurred during conversion: {sanitize_log_message(e)}")
+        logger.exception(
+            f"An error occurred during conversion: {sanitize_log_message(e)}"
+        )
         raise HTTPException(
             status_code=500, detail="An internal error occurred during conversion."
         ) from e
@@ -154,7 +142,7 @@ async def convert_file(
         await _cleanup_temp_file(tmp_path)
 
 
-@app.get("/download/{request_id}/{filename}")
+@router.get("/download/{request_id}/{filename}")
 async def download_file(request_id: str, filename: str):
     """
     Endpoint to download converted files.
@@ -205,6 +193,32 @@ async def download_file(request_id: str, filename: str):
         ) from e
 
 
-@app.get("/")
+@router.get("/")
 async def root():
     return {"message": "Welcome to the Docling Markdown Conversion Server"}
+
+
+def create_app() -> FastAPI:
+    """Factory function to create the FastAPI application."""
+    new_app = FastAPI(title="Docling Markdown Conversion Server")
+
+    # Add CORS middleware
+    new_app.add_middleware(
+        CORSMiddleware,
+        allow_origins=CORS_ORIGINS,
+        allow_credentials=True if "*" not in CORS_ORIGINS else False,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    # Ensure directories exist
+    UPLOAD_DIR.mkdir(exist_ok=True)
+    OUTPUT_DIR.mkdir(exist_ok=True)
+
+    # Include routes
+    new_app.include_router(router)
+
+    return new_app
+
+
+app = create_app()
