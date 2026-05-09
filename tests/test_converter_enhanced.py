@@ -1,9 +1,14 @@
+from unittest.mock import patch
+
 import pytest
-from unittest.mock import MagicMock, patch
-from pathlib import Path
-from docling_lib.converter import DocumentConversionOptions, PDFConverter, EnhancedMarkdownSerializer
 from docling_core.types.doc import DoclingDocument
-from docling.datamodel.pipeline_options import PdfPipelineOptions
+
+from docling_lib.converter import (
+    DocumentConversionOptions,
+    EnhancedMarkdownSerializer,
+    PDFConverter,
+)
+
 
 def test_enhanced_markdown_serializer_initialization_real_doc():
     """Test that EnhancedMarkdownSerializer initializes correctly with a real DoclingDocument."""
@@ -24,7 +29,7 @@ def test_pdf_converter_options_propagation():
     )
     
     with patch("docling_lib.converter.DocumentConverter") as mock_converter_cls:
-        converter = PDFConverter(options=options)
+        PDFConverter(options=options)
         
         # Verify PdfPipelineOptions configuration
         # In PDFConverter.__init__, PdfFormatOption is called with pipeline_options
