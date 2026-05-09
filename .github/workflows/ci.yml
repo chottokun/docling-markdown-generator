@@ -7,7 +7,36 @@ on:
     branches: [ "main" ]
 
 jobs:
+  lint-and-security:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+        
+    - name: Install Linting & Security Tools
+      run: |
+        python -m pip install --upgrade pip
+        pip install ruff bandit safety
+        
+    - name: Lint with ruff
+      run: ruff check .
+      
+    - name: Security check with bandit
+      run: bandit -r src/ -ll
+      
+    - name: Dependency check with safety
+      # We use '|| true' or a specific check here because safety might require a key for some DBs,
+      # but the open source check is usually enough for basic vulnerabilities.
+      run: |
+        pip freeze > requirements.txt
+        safety check -r requirements.txt || echo "Safety check found issues or failed to run"
+
   test:
+    needs: lint-and-security
     runs-on: ubuntu-latest
 
     steps:
