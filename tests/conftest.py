@@ -1,7 +1,7 @@
 from pathlib import Path
 
+import httpx
 import pytest
-import requests
 
 TEST_DATA_DIR = Path(__file__).parent / "test_data"
 
@@ -12,22 +12,24 @@ def file_downloader():
     A pytest fixture that provides a function to download test files.
     The downloaded files are cached in the 'test_data' directory to avoid
     re-downloading during the same test session.
+    Uses httpx.Client for connection pooling and better performance.
     """
     TEST_DATA_DIR.mkdir(exist_ok=True)
 
-    def _downloader(url: str) -> Path:
-        filename = url.split("/")[-1]
-        file_path = TEST_DATA_DIR / filename
+    with httpx.Client(timeout=30.0, follow_redirects=True) as client:
 
-        if not file_path.exists():
-            response = requests.get(url)
-            response.raise_for_status()
-            with open(file_path, "wb") as f:
-                f.write(response.content)
+        def _downloader(url: str) -> Path:
+            filename = url.split("/")[-1]
+            file_path = TEST_DATA_DIR / filename
 
-        return file_path
+            if not file_path.exists():
+                response = client.get(url)
+                response.raise_for_status()
+                file_path.write_bytes(response.content)
 
-    return _downloader
+            return file_path
+
+        yield _downloader
 
 
 @pytest.fixture(scope="session")

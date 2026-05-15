@@ -18,20 +18,6 @@ def reset_shared_converter():
     yield
     converter_mod._default_pdf_converter = None
 
-@pytest.fixture
-def pdf_downloader(tmp_path):
-    """Fixture to provide a path to a real PDF, downloading if necessary."""
-    def _downloader(url):
-        filename = url.split("/")[-1]
-        test_data_dir = Path(__file__).parent / "test_data"
-        test_data_dir.mkdir(exist_ok=True)
-        local_path = test_data_dir / filename
-        if not local_path.exists():
-            import requests
-            response = requests.get(url, timeout=30)
-            local_path.write_bytes(response.content)
-        return local_path
-    return _downloader
 
 # --- Test Cases ---
 
