@@ -82,7 +82,9 @@ class HTMLTableMarkdownSerializer(MarkdownTableSerializer):
             if table_html:
                 res_parts.append(create_ser_result(text=table_html, span_source=item))
         except Exception as e:
-            logger.warning(f"Failed to export table as HTML, falling back: {e}")
+            logger.warning(
+                f"Failed to export table as HTML, falling back: {sanitize_log_message(e)}"
+            )
             # Fallback to standard markdown table if HTML export fails
             return super().serialize(
                 item=item, doc_serializer=doc_serializer, doc=doc, **kwargs
@@ -179,7 +181,7 @@ class PDFConverter:
             raise e
         except Exception as e:
             logger.error(
-                f"Error converting document {sanitize_log_message(input_path)}: {e}"
+                f"Error converting document {sanitize_log_message(input_path)}: {sanitize_log_message(e)}"
             )
             return None
 
@@ -211,7 +213,9 @@ class PDFConverter:
             return resolved_images_dir, resolved_md_path
 
         except Exception as e:
-            logger.error(f"Security Error during path resolution: {e}")
+            logger.error(
+                f"Security Error during path resolution: {sanitize_log_message(e)}"
+            )
             raise
 
     def _serialize_to_markdown(
@@ -318,7 +322,9 @@ def _validate_output_security(output_dir: Path) -> bool:
             return False
 
     except Exception as e:
-        logger.error(f"Security Error during path resolution: {e}")
+        logger.error(
+            f"Security Error during path resolution: {sanitize_log_message(e)}"
+        )
         return False
 
     return True
@@ -389,8 +395,8 @@ def process_pdf(
             return shared_converter.convert(pdf_path, output_dir, actual_options)
 
     except (OSError, PermissionError) as e:
-        logger.error(f"Could not create output directory: {e}")
+        logger.error(f"Could not create output directory: {sanitize_log_message(e)}")
         return None
     except Exception as e:
-        logger.error(f"Workflow Error: {e}")
+        logger.error(f"Workflow Error: {sanitize_log_message(e)}")
         return None
