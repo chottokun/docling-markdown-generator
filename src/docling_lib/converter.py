@@ -238,13 +238,8 @@ class PDFConverter:
         """
         Adds metadata as YAML frontmatter to the Markdown content if available.
         """
-        meta = []
         if doc.name:
-            meta.append(f"title: {doc.name}")
-
-        if meta:
-            frontmatter = "---\n" + "\n".join(meta) + "\n---\n\n"
-            return frontmatter + md_content
+            return f"---\ntitle: {doc.name}\n---\n\n{md_content}"
 
         return md_content
 
