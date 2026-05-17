@@ -28,15 +28,16 @@ async def download_file(client, filename, url):
     print(f"Downloading {filename} from {url}...")
     headers = {"User-Agent": "Mozilla/5.0"}
     try:
-        response = await client.get(url, headers=headers, follow_redirects=True)
-        response.raise_for_status()
+        async with client.stream("GET", url, headers=headers, follow_redirects=True) as response:
+            response.raise_for_status()
 
-        # Use asyncio.to_thread to perform blocking I/O without blocking the event loop
-        def _save_to_disk():
-            with open(out_path, "wb") as f:
-                f.write(response.content)
-
-        await asyncio.to_thread(_save_to_disk)
+            # Use asyncio.to_thread to perform blocking I/O without blocking the event loop
+            f = await asyncio.to_thread(open, out_path, "wb")
+            try:
+                async for chunk in response.aiter_bytes():
+                    await asyncio.to_thread(f.write, chunk)
+            finally:
+                await asyncio.to_thread(f.close)
 
         print(f"Successfully downloaded {filename}")
     except Exception as e:
