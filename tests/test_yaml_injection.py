@@ -48,5 +48,5 @@ def test_yaml_frontmatter_injection_breakout():
     # Assert
     # Should be sanitized to one line
     assert "title: Title ---  # Injected Markdown" in result
-    # Check that there are only two '---' separators (one start, one end)
-    assert result.count("---") == 2
+    # Check that there are only two '---' separators (one start, one end) plus one in the title
+    assert result.count("---") == 3
