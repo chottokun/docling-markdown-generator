@@ -1,4 +1,5 @@
 import asyncio
+import shutil
 import time
 from pathlib import Path
 
@@ -12,15 +13,7 @@ def setup():
 
 def cleanup():
     if OUT_DIR.exists():
-        for f in OUT_DIR.glob("*"):
-            try:
-                f.unlink()
-            except:
-                pass
-        try:
-            OUT_DIR.rmdir()
-        except:
-            pass
+        shutil.rmtree(OUT_DIR, ignore_errors=True)
 
 async def sync_write(filename, content):
     out_path = OUT_DIR / filename
