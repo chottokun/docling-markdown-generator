@@ -79,6 +79,8 @@ def test_get_or_create_converter_caching():
         ("table_format", "markdown"),
         ("do_formula", not DocumentConversionOptions().do_formula),
         ("do_ocr", not DocumentConversionOptions().do_ocr),
+        ("do_chart", not DocumentConversionOptions().do_chart),
+        ("do_code", not DocumentConversionOptions().do_code),
     ],
 )
 def test_get_or_create_converter_reinit_on_heavy_options(heavy_option_attr, new_value):

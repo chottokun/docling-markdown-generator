@@ -345,6 +345,7 @@ def _get_or_create_converter(
         or _default_pdf_converter.options.do_ocr != options.do_ocr
         or _default_pdf_converter.options.do_chart != options.do_chart
         or _default_pdf_converter.options.do_code != options.do_code
+        or _default_pdf_converter.options.table_format != options.table_format
     ):
         _default_pdf_converter = PDFConverter(options=options)
     return _default_pdf_converter
