@@ -207,8 +207,8 @@ def create_app() -> FastAPI:
         CORSMiddleware,
         allow_origins=CORS_ORIGINS,
         allow_credentials=True if "*" not in CORS_ORIGINS else False,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=["GET", "POST"],
+        allow_headers=["Content-Type", "Content-Length"],
     )
 
     # Ensure directories exist

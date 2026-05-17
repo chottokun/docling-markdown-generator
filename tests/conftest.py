@@ -1,7 +1,6 @@
 from pathlib import Path
 
 import pytest
-import requests
 
 TEST_DATA_DIR = Path(__file__).parent / "test_data"
 
@@ -13,6 +12,11 @@ def file_downloader():
     The downloaded files are cached in the 'test_data' directory to avoid
     re-downloading during the same test session.
     """
+    try:
+        import requests
+    except ImportError:
+        pytest.skip("requests not installed, skipping downloader fixture")
+
     TEST_DATA_DIR.mkdir(exist_ok=True)
 
     def _downloader(url: str) -> Path:
