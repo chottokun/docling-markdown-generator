@@ -338,9 +338,10 @@ def _get_or_create_converter(
     # have changed. Document-specific options like filenames are ignored here.
     if _default_pdf_converter is None or (
         _default_pdf_converter.options.image_scale != options.image_scale
-        or _default_pdf_converter.options.table_format != options.table_format
         or _default_pdf_converter.options.do_formula != options.do_formula
         or _default_pdf_converter.options.do_ocr != options.do_ocr
+        or _default_pdf_converter.options.do_chart != options.do_chart
+        or _default_pdf_converter.options.do_code != options.do_code
     ):
         _default_pdf_converter = PDFConverter(options=options)
     return _default_pdf_converter
