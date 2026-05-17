@@ -15,7 +15,6 @@ def test_enhanced_markdown_serializer_initialization_real_doc():
     doc = DoclingDocument(name="test")
     serializer = EnhancedMarkdownSerializer(doc=doc)
     assert serializer.doc == doc
-    assert serializer._custom_table_format == "html"
     assert hasattr(serializer, "table_serializer")
 
 def test_pdf_converter_options_propagation():

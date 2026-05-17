@@ -8,6 +8,9 @@ from docling_lib.server import app
 client = TestClient(app)
 
 def test_convert_file_size_limit_header():
+    # Reset rate limit data
+    docling_lib.server._rate_limit_data.clear()
+
     # Test size limit via Content-Length header
     files = {"file": ("test.pdf", b"dummy content", "application/pdf")}
     headers = {"Content-Length": str(100 * 1024 * 1024)} # 100MB
@@ -17,6 +20,9 @@ def test_convert_file_size_limit_header():
 
 @patch("docling_lib.server._validate_extension", return_value=".pdf")
 def test_convert_file_size_limit_read(mock_ext, tmp_path, monkeypatch):
+    # Reset rate limit data to ensure this test doesn't hit it accidentally
+    docling_lib.server._rate_limit_data.clear()
+
     # Test size limit via actual read loop
     # Set a very small limit for testing
     monkeypatch.setattr(docling_lib.server, "MAX_UPLOAD_SIZE", 10)

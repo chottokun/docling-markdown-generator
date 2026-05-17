@@ -82,7 +82,9 @@ class HTMLTableMarkdownSerializer(MarkdownTableSerializer):
             if table_html:
                 res_parts.append(create_ser_result(text=table_html, span_source=item))
         except Exception as e:
-            logger.warning(f"Failed to export table as HTML, falling back: {e}")
+            logger.warning(
+                f"Failed to export table as HTML, falling back: {sanitize_log_message(e)}"
+            )
             # Fallback to standard markdown table if HTML export fails
             return super().serialize(
                 item=item, doc_serializer=doc_serializer, doc=doc, **kwargs
@@ -114,13 +116,15 @@ class EnhancedMarkdownSerializer(MarkdownDocSerializer):
             object.__setattr__(self, "doc", doc)
             object.__setattr__(self, "params", kwargs.get("params", MarkdownParams()))
             # Initialize other fields to avoid Pydantic errors if they are accessed
+            # Use getattr with a sentinel for faster lookup than hasattr while
+            # preserving logical equivalence.
+            sentinel = object()
             for field in self.model_fields:
-                if not hasattr(self, field):
+                if getattr(self, field, sentinel) is sentinel:
                     object.__setattr__(self, field, None)
         else:
             super().__init__(doc=doc, **kwargs)
 
-        self._custom_table_format = table_format
         if table_format.lower() == "html":
             self.table_serializer = HTMLTableMarkdownSerializer()
 
@@ -179,7 +183,7 @@ class PDFConverter:
             raise e
         except Exception as e:
             logger.error(
-                f"Error converting document {sanitize_log_message(input_path)}: {e}"
+                f"Error converting document {sanitize_log_message(input_path)}: {sanitize_log_message(e)}"
             )
             return None
 
@@ -211,7 +215,9 @@ class PDFConverter:
             return resolved_images_dir, resolved_md_path
 
         except Exception as e:
-            logger.error(f"Security Error during path resolution: {e}")
+            logger.error(
+                f"Security Error during path resolution: {sanitize_log_message(e)}"
+            )
             raise
 
     def _serialize_to_markdown(
@@ -239,7 +245,9 @@ class PDFConverter:
         Adds metadata as YAML frontmatter to the Markdown content if available.
         """
         if doc.name:
-            return f"---\ntitle: {doc.name}\n---\n\n{md_content}"
+            # Sanitize doc.name to prevent YAML frontmatter injection
+            safe_name = doc.name.replace("\n", " ").replace("\r", " ")
+            return f"---\ntitle: {safe_name}\n---\n\n{md_content}"
 
         return md_content
 
@@ -313,7 +321,9 @@ def _validate_output_security(output_dir: Path) -> bool:
             return False
 
     except Exception as e:
-        logger.error(f"Security Error during path resolution: {e}")
+        logger.error(
+            f"Security Error during path resolution: {sanitize_log_message(e)}"
+        )
         return False
 
     return True
@@ -333,9 +343,10 @@ def _get_or_create_converter(
     # have changed. Document-specific options like filenames are ignored here.
     if _default_pdf_converter is None or (
         _default_pdf_converter.options.image_scale != options.image_scale
-        or _default_pdf_converter.options.table_format != options.table_format
         or _default_pdf_converter.options.do_formula != options.do_formula
         or _default_pdf_converter.options.do_ocr != options.do_ocr
+        or _default_pdf_converter.options.do_chart != options.do_chart
+        or _default_pdf_converter.options.do_code != options.do_code
     ):
         _default_pdf_converter = PDFConverter(options=options)
     return _default_pdf_converter
@@ -384,8 +395,8 @@ def process_pdf(
             return shared_converter.convert(pdf_path, output_dir, actual_options)
 
     except (OSError, PermissionError) as e:
-        logger.error(f"Could not create output directory: {e}")
+        logger.error(f"Could not create output directory: {sanitize_log_message(e)}")
         return None
     except Exception as e:
-        logger.error(f"Workflow Error: {e}")
+        logger.error(f"Workflow Error: {sanitize_log_message(e)}")
         return None

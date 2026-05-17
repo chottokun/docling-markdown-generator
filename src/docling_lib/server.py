@@ -1,14 +1,25 @@
 import logging
 import os
 import tempfile
+import time
+from collections import defaultdict
 from pathlib import Path
 
-from fastapi import APIRouter, FastAPI, File, Header, HTTPException, UploadFile
+from fastapi import APIRouter, FastAPI, File, Header, HTTPException, Request, UploadFile, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from starlette.concurrency import run_in_threadpool
 
-from .config import CORS_ORIGINS, MAX_UPLOAD_SIZE, OUTPUT_DIR, UPLOAD_DIR, setup_logging
+from .config import (
+    API_KEY,
+    CORS_ORIGINS,
+    MAX_UPLOAD_SIZE,
+    OUTPUT_DIR,
+    RATE_LIMIT_REQUESTS,
+    RATE_LIMIT_WINDOW,
+    UPLOAD_DIR,
+    setup_logging,
+)
 from .converter import process_pdf
 from .utils import sanitize_log_message
 
@@ -17,6 +28,46 @@ setup_logging()
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+# --- Security: Authentication and Rate Limiting ---
+
+async def api_key_auth(x_api_key: str | None = Header(None)):
+    """
+    Dependency to validate API Key if configured.
+    """
+    if API_KEY and x_api_key != API_KEY:
+        logger.warning("Unauthorized access attempt with invalid API Key.")
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid or missing API Key.",
+        )
+
+
+# In-memory storage for rate limiting: {client_ip: [timestamp1, timestamp2, ...]}
+_rate_limit_data = defaultdict(list)
+
+
+async def rate_limiter(request: Request):
+    """
+    Simple in-memory rate limiter dependency.
+    """
+    client_ip = request.client.host if request.client else "unknown"
+    now = time.time()
+
+    # Clean up old timestamps
+    _rate_limit_data[client_ip] = [
+        ts for ts in _rate_limit_data[client_ip] if now - ts < RATE_LIMIT_WINDOW
+    ]
+
+    if len(_rate_limit_data[client_ip]) >= RATE_LIMIT_REQUESTS:
+        logger.warning(f"Rate limit exceeded for IP: {sanitize_log_message(client_ip)}")
+        raise HTTPException(
+            status_code=429,
+            detail="Too Many Requests. Please try again later.",
+        )
+
+    _rate_limit_data[client_ip].append(now)
 
 
 def _validate_content_length(content_length: int | None):
@@ -56,26 +107,30 @@ async def _save_upload_temp(file: UploadFile, suffix: str) -> Path:
         tempfile.NamedTemporaryFile, delete=False, suffix=suffix, dir=UPLOAD_DIR
     )
     tmp_path = Path(tmp_file.name)
-    try:
-        # Re-read the upload stream in chunks to verify the actual size
-        while True:
-            chunk = await file.read(1024 * 1024)  # 1MB chunks
-            if not chunk:
-                break
-            total_size += len(chunk)
-            if total_size > MAX_UPLOAD_SIZE:
-                # Cleanup and raise error
-                raise HTTPException(
-                    status_code=413,
-                    detail=f"Payload Too Large. Maximum size is {MAX_UPLOAD_SIZE} bytes.",
-                )
-            await run_in_threadpool(tmp_file.write, chunk)
 
-        await run_in_threadpool(tmp_file.close)
+    def _write_file():
+        nonlocal total_size
+        try:
+            # Re-read the upload stream in chunks to verify the actual size
+            while True:
+                # Using file.file to read synchronously within the threadpool
+                chunk = file.file.read(1024 * 1024)  # 1MB chunks
+                if not chunk:
+                    break
+                total_size += len(chunk)
+                if total_size > MAX_UPLOAD_SIZE:
+                    raise HTTPException(
+                        status_code=413,
+                        detail=f"Payload Too Large. Maximum size is {MAX_UPLOAD_SIZE} bytes.",
+                    )
+                tmp_file.write(chunk)
+        finally:
+            tmp_file.close()
+
+    try:
+        await run_in_threadpool(_write_file)
         return tmp_path
     except Exception:
-        # Ensure the file is closed before attempting cleanup
-        await run_in_threadpool(tmp_file.close)
         # Cleanup on any exception
         await _cleanup_temp_file(tmp_path)
         raise
@@ -104,7 +159,7 @@ async def _validate_and_format_response(
     }
 
 
-@router.post("/convert/")
+@router.post("/convert/", dependencies=[Depends(api_key_auth), Depends(rate_limiter)])
 async def convert_file(
     file: UploadFile = File(...), content_length: int | None = Header(None)
 ):
@@ -207,8 +262,8 @@ def create_app() -> FastAPI:
         CORSMiddleware,
         allow_origins=CORS_ORIGINS,
         allow_credentials=True if "*" not in CORS_ORIGINS else False,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=["GET", "POST"],
+        allow_headers=["Content-Type", "Content-Length"],
     )
 
     # Ensure directories exist
