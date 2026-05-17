@@ -122,7 +122,6 @@ class EnhancedMarkdownSerializer(MarkdownDocSerializer):
         else:
             super().__init__(doc=doc, **kwargs)
 
-        self._custom_table_format = table_format
         if table_format.lower() == "html":
             self.table_serializer = HTMLTableMarkdownSerializer()
 
