@@ -244,7 +244,9 @@ class PDFConverter:
         """
         meta = []
         if doc.name:
-            meta.append(f"title: {doc.name}")
+            # Sanitize doc.name to prevent YAML frontmatter injection
+            safe_name = doc.name.replace("\n", " ").replace("\r", " ")
+            meta.append(f"title: {safe_name}")
 
         if meta:
             frontmatter = "---\n" + "\n".join(meta) + "\n---\n\n"
