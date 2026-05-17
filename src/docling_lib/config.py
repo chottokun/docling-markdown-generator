@@ -18,6 +18,13 @@ CORS_ORIGINS = [
     o.strip() for o in os.getenv("DOCLING_CORS_ORIGINS", "").split(",") if o.strip()
 ]
 
+# API Key for authentication (Optional: if not set, authentication is disabled)
+API_KEY = os.getenv("DOCLING_API_KEY")
+
+# Rate limiting configurations
+RATE_LIMIT_REQUESTS = int(os.getenv("DOCLING_RATE_LIMIT_REQUESTS", "5"))
+RATE_LIMIT_WINDOW = int(os.getenv("DOCLING_RATE_LIMIT_WINDOW", "60"))
+
 # Docling v2.x Pipeline options
 DO_FORMULA = os.getenv("DOCLING_DO_FORMULA", "True").lower() == "true"
 DO_OCR = os.getenv("DOCLING_DO_OCR", "True").lower() == "true"
