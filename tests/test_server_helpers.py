@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 from fastapi import HTTPException
 
@@ -5,6 +7,7 @@ import docling_lib.server
 from docling_lib.config import MAX_UPLOAD_SIZE
 from docling_lib.server import (
     _create_output_dir,
+    _validate_and_format_response,
     _validate_content_length,
     _validate_extension,
 )
@@ -74,3 +77,37 @@ async def test_create_output_dir(tmp_path, monkeypatch):
     assert request_output_dir == tmp_path / request_id
     assert request_output_dir.exists()
     assert request_output_dir.is_dir()
+
+
+@pytest.mark.asyncio
+async def test_validate_and_format_response_none():
+    """Test that _validate_and_format_response raises 500 when result_path is None."""
+    with pytest.raises(HTTPException) as exc_info:
+        await _validate_and_format_response(None, "test_id")
+    assert exc_info.value.status_code == 500
+    assert exc_info.value.detail == "Conversion failed."
+
+
+@pytest.mark.asyncio
+async def test_validate_and_format_response_not_exists(tmp_path):
+    """Test that _validate_and_format_response raises 500 when result_path does not exist."""
+    result_path = tmp_path / "non_existent.md"
+    with pytest.raises(HTTPException) as exc_info:
+        await _validate_and_format_response(result_path, "test_id")
+    assert exc_info.value.status_code == 500
+    assert exc_info.value.detail == "Conversion failed."
+
+
+@pytest.mark.asyncio
+async def test_validate_and_format_response_success(tmp_path):
+    """Test that _validate_and_format_response returns the correct success response."""
+    result_path = tmp_path / "success.md"
+    result_path.write_text("content")
+    request_id = "test_id_123"
+
+    response = await _validate_and_format_response(result_path, request_id)
+
+    assert response["message"] == "Conversion successful"
+    assert response["markdown_file"] == "success.md"
+    assert response["output_id"] == request_id
+    assert response["download_url"] == f"/download/{request_id}/success.md"
