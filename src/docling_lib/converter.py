@@ -114,8 +114,11 @@ class EnhancedMarkdownSerializer(MarkdownDocSerializer):
             object.__setattr__(self, "doc", doc)
             object.__setattr__(self, "params", kwargs.get("params", MarkdownParams()))
             # Initialize other fields to avoid Pydantic errors if they are accessed
+            # Use getattr with a sentinel for faster lookup than hasattr while
+            # preserving logical equivalence.
+            sentinel = object()
             for field in self.model_fields:
-                if not hasattr(self, field):
+                if getattr(self, field, sentinel) is sentinel:
                     object.__setattr__(self, field, None)
         else:
             super().__init__(doc=doc, **kwargs)
