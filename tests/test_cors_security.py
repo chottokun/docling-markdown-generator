@@ -1,6 +1,6 @@
 
 from fastapi.testclient import TestClient
-from tests.mock_docling import mock_docling
+from mock_docling import mock_docling
 mock_docling()
 
 import docling_lib.config
