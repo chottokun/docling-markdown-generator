@@ -29,13 +29,19 @@ async def test_log_injection_fix_verification(caplog):
     for record in caplog.records:
         if "Processing file:" in record.message and "[INJECTED]" in record.message:
             found_log = True
-            assert "\n" not in record.message, "Vulnerability still present: newline found in log message"
-            assert "malicious [INJECTED] forged log entry.pdf" in record.message, "Filename not correctly sanitized"
+            assert "\n" not in record.message, (
+                "Vulnerability still present: newline found in log message"
+            )
+            assert "malicious [INJECTED] forged log entry.pdf" in record.message, (
+                "Filename not correctly sanitized"
+            )
             print(f"Verified! Log message is sanitized:\n{record.message}")
             break
 
     assert found_log, "Target log message not found"
 
+
 if __name__ == "__main__":
     import sys
+
     sys.exit(pytest.main([__file__]))

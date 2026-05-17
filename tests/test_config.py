@@ -10,6 +10,7 @@ def test_constants():
     assert config.IMAGE_DIR_NAME == "images"
     assert config.IMAGE_RESOLUTION_SCALE == 2.0
 
+
 @patch("logging.basicConfig")
 def test_setup_logging(mock_basicConfig):
     """Verify that setup_logging calls basicConfig with correct parameters."""

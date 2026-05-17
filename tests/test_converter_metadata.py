@@ -1,5 +1,7 @@
 from docling_core.types.doc import DoclingDocument
+
 from docling_lib.converter import PDFConverter
+
 
 def test_apply_metadata_frontmatter_with_name():
     """Test that frontmatter is added when doc.name is present."""
@@ -12,6 +14,7 @@ def test_apply_metadata_frontmatter_with_name():
     expected = "---\ntitle: Test Document\n---\n\nThis is the content."
     assert result == expected
 
+
 def test_apply_metadata_frontmatter_with_empty_name():
     """Test that frontmatter is not added when doc.name is an empty string."""
     converter = PDFConverter()
@@ -22,6 +25,7 @@ def test_apply_metadata_frontmatter_with_empty_name():
 
     assert result == md_content
 
+
 def test_apply_metadata_frontmatter_with_none_name():
     """Test that frontmatter is not added when doc.name is None."""
     converter = PDFConverter()
@@ -29,6 +33,7 @@ def test_apply_metadata_frontmatter_with_none_name():
     # Use a mock to simulate doc.name being None,
     # since DoclingDocument validation might require a string.
     from unittest.mock import MagicMock
+
     doc = MagicMock(spec=DoclingDocument)
     doc.name = None
     md_content = "This is the content."

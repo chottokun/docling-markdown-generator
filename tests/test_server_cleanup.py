@@ -1,4 +1,4 @@
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
 from fastapi import UploadFile
@@ -29,4 +29,6 @@ async def test_save_upload_temp_cleanup_on_exception(tmp_path, monkeypatch):
 
     # Verify that UPLOAD_DIR is empty (file was unlinked)
     files_remaining = list(upload_dir.iterdir())
-    assert len(files_remaining) == 0, f"Temporary files were not cleaned up: {files_remaining}"
+    assert len(files_remaining) == 0, (
+        f"Temporary files were not cleaned up: {files_remaining}"
+    )

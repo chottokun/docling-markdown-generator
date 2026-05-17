@@ -6,8 +6,9 @@ from pathlib import Path
 from docling_lib.converter import process_pdf
 
 # Configure logging to see the output
-logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
+logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
+
 
 def verify_all_samples(filter_str=None):
     project_root = Path(__file__).resolve().parent.parent
@@ -16,7 +17,7 @@ def verify_all_samples(filter_str=None):
     output_base_dir.mkdir(parents=True, exist_ok=True)
 
     supported_extensions = [".pdf", ".docx", ".pptx", ".xlsx"]
-    
+
     # Identify files to test
     test_files = [
         f
@@ -36,23 +37,29 @@ def verify_all_samples(filter_str=None):
     for test_file in test_files:
         logger.info(f"--- Processing: {test_file.name} ---")
         output_dir = output_base_dir / test_file.stem
-        
+
         try:
             result_path = process_pdf(test_file, output_dir)
-            
+
             if result_path and result_path.exists():
-                logger.info(f"SUCCESS: Generated {result_path.relative_to(project_root)}")
+                logger.info(
+                    f"SUCCESS: Generated {result_path.relative_to(project_root)}"
+                )
                 # Check for images dir
                 images_dir = output_dir / "images"
                 if images_dir.exists():
                     image_count = len(list(images_dir.glob("*.png")))
-                    logger.info(f"         Found {image_count} images in {images_dir.relative_to(project_root)}")
+                    logger.info(
+                        f"         Found {image_count} images in {images_dir.relative_to(project_root)}"
+                    )
                 success_count += 1
             else:
                 logger.error(f"FAILURE: Failed to process {test_file.name}")
                 failure_count += 1
         except Exception as e:
-            logger.exception(f"ERROR: Exception during processing of {test_file.name}: {e}")
+            logger.exception(
+                f"ERROR: Exception during processing of {test_file.name}: {e}"
+            )
             failure_count += 1
 
     logger.info("========================================")
@@ -64,8 +71,11 @@ def verify_all_samples(filter_str=None):
 
     return failure_count == 0
 
+
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Verify conversion results with real data.")
+    parser = argparse.ArgumentParser(
+        description="Verify conversion results with real data."
+    )
     parser.add_argument("--filter", type=str, help="Filter files to test by name")
     args = parser.parse_args()
 

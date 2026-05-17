@@ -9,6 +9,7 @@ from docling_lib.server import app, download_file
 
 client = TestClient(app)
 
+
 def test_download_file_oserror_in_resolution():
     """
     Test that download_file returns 400 when an OSError occurs during path resolution.
@@ -19,6 +20,7 @@ def test_download_file_oserror_in_resolution():
         assert response.status_code == 400
         assert response.json()["detail"] == "Invalid request parameters."
 
+
 def test_download_file_invalid_request_id():
     """
     Test that download_file returns 400 for non-alphanumeric request_id (with forbidden chars).
@@ -26,6 +28,7 @@ def test_download_file_invalid_request_id():
     response = client.get("/download/invalid_id!/file.md")
     assert response.status_code == 400
     assert response.json()["detail"] == "Invalid request parameters."
+
 
 @pytest.mark.asyncio
 async def test_download_file_invalid_filename():
@@ -38,6 +41,7 @@ async def test_download_file_invalid_filename():
 
     assert excinfo.value.status_code == 400
     assert excinfo.value.detail == "Invalid request parameters."
+
 
 def test_download_file_unauthorized_traversal(tmp_path, monkeypatch):
     """
@@ -55,6 +59,7 @@ def test_download_file_unauthorized_traversal(tmp_path, monkeypatch):
         response = client.get("/download/validid/file.md")
         assert response.status_code == 404
         assert response.json()["detail"] == "File not found."
+
 
 def test_download_file_not_a_file(tmp_path, monkeypatch):
     """

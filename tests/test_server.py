@@ -22,7 +22,9 @@ if not DUMMY_DOCX.exists():
 def test_read_main():
     response = client.get("/")
     assert response.status_code == 200
-    assert response.json() == {"message": "Welcome to the Docling Markdown Conversion Server"}
+    assert response.json() == {
+        "message": "Welcome to the Docling Markdown Conversion Server"
+    }
 
 
 def test_convert_file_invalid_extension():
@@ -45,7 +47,7 @@ def test_convert_file(mock_process, tmp_path, monkeypatch):
 
     # Path to the test document
     file_path = DUMMY_DOCX
-    
+
     def side_effect(input_path, request_output_dir):
         # Create a dummy result file in the expected location
         res = request_output_dir / "processed_document.md"
@@ -55,9 +57,15 @@ def test_convert_file(mock_process, tmp_path, monkeypatch):
     mock_process.side_effect = side_effect
 
     with open(file_path, "rb") as f:
-        files = {"file": (file_path.name, f, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")}
+        files = {
+            "file": (
+                file_path.name,
+                f,
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            )
+        }
         response = client.post("/convert/", files=files)
-    
+
     assert response.status_code == 200
     data = response.json()
     assert data["message"] == "Conversion successful"
@@ -86,7 +94,13 @@ def test_convert_file_failure(mock_process, tmp_path, monkeypatch):
 
     file_path = DUMMY_DOCX
     with open(file_path, "rb") as f:
-        files = {"file": (file_path.name, f, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")}
+        files = {
+            "file": (
+                file_path.name,
+                f,
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            )
+        }
         response = client.post("/convert/", files=files)
 
     assert response.status_code == 500
@@ -107,7 +121,13 @@ def test_convert_file_exception(mock_process, tmp_path, monkeypatch):
 
     file_path = DUMMY_DOCX
     with open(file_path, "rb") as f:
-        files = {"file": (file_path.name, f, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")}
+        files = {
+            "file": (
+                file_path.name,
+                f,
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            )
+        }
         response = client.post("/convert/", files=files)
 
     assert response.status_code == 500

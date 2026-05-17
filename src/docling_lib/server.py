@@ -5,7 +5,16 @@ import time
 from collections import defaultdict
 from pathlib import Path
 
-from fastapi import APIRouter, FastAPI, File, Header, HTTPException, Request, UploadFile, Depends
+from fastapi import (
+    APIRouter,
+    Depends,
+    FastAPI,
+    File,
+    Header,
+    HTTPException,
+    Request,
+    UploadFile,
+)
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from starlette.concurrency import run_in_threadpool
@@ -31,6 +40,7 @@ router = APIRouter()
 
 
 # --- Security: Authentication and Rate Limiting ---
+
 
 async def api_key_auth(x_api_key: str | None = Header(None)):
     """

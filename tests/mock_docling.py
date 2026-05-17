@@ -1,6 +1,6 @@
-
 import sys
 from types import ModuleType
+
 
 def mock_docling():
     if "docling" in sys.modules:
@@ -15,11 +15,17 @@ def mock_docling():
     docling = create_mock_module("docling")
     docling.datamodel = create_mock_module("docling.datamodel")
     docling_base = create_mock_module("docling.datamodel.base_models")
-    docling_base.InputFormat = type("InputFormat", (), {"PDF": "pdf", "DOCX": "docx", "PPTX": "pptx"})
+    docling_base.InputFormat = type(
+        "InputFormat", (), {"PDF": "pdf", "DOCX": "docx", "PPTX": "pptx"}
+    )
     create_mock_module("docling.datamodel.pipeline_options")
-    sys.modules["docling.datamodel.pipeline_options"].PdfPipelineOptions = type("PdfPipelineOptions", (), {})
+    sys.modules["docling.datamodel.pipeline_options"].PdfPipelineOptions = type(
+        "PdfPipelineOptions", (), {}
+    )
     create_mock_module("docling.datamodel.document")
-    sys.modules["docling.datamodel.document"].ConversionResult = type("ConversionResult", (), {})
+    sys.modules["docling.datamodel.document"].ConversionResult = type(
+        "ConversionResult", (), {}
+    )
     docling_conv = create_mock_module("docling.document_converter")
     docling_conv.DocumentConverter = type("DocumentConverter", (), {})
     docling_conv.PdfFormatOption = type("PdfFormatOption", (), {})
@@ -30,7 +36,9 @@ def mock_docling():
     create_mock_module("docling_core.transforms")
     create_mock_module("docling_core.transforms.serializer")
     docling_ser = create_mock_module("docling_core.transforms.serializer.markdown")
-    docling_ser.MarkdownDocSerializer = type("MarkdownDocSerializer", (), {"model_fields": {}})
+    docling_ser.MarkdownDocSerializer = type(
+        "MarkdownDocSerializer", (), {"model_fields": {}}
+    )
     docling_ser.MarkdownParams = type("MarkdownParams", (), {})
     docling_ser.MarkdownTableSerializer = type("MarkdownTableSerializer", (), {})
     docling_ser.SerializationResult = type("SerializationResult", (), {})

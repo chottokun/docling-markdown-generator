@@ -51,7 +51,7 @@ class DocumentConversionOptions:
     do_formula: bool = DO_FORMULA
     do_ocr: bool = DO_OCR
     do_chart: bool = DO_CHART  # New in docling v2.x
-    do_code: bool = DO_CODE   # New in docling v2.x
+    do_code: bool = DO_CODE  # New in docling v2.x
 
 
 class HTMLTableMarkdownSerializer(MarkdownTableSerializer):
@@ -220,9 +220,7 @@ class PDFConverter:
             )
             raise
 
-    def _serialize_to_markdown(
-        self, doc: DoclingDocument, table_format: str
-    ) -> str:
+    def _serialize_to_markdown(self, doc: DoclingDocument, table_format: str) -> str:
         """
         Serializes the document to Markdown using the enhanced serializer.
         """

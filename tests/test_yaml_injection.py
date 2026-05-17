@@ -1,5 +1,7 @@
 from unittest.mock import MagicMock
+
 from docling_lib.converter import PDFConverter
+
 
 def test_yaml_frontmatter_injection_newline():
     # Setup
@@ -18,6 +20,7 @@ def test_yaml_frontmatter_injection_newline():
     # There should NOT be a separate line starting with author:
     assert "\nauthor:" not in result
 
+
 def test_yaml_frontmatter_injection_carriage_return():
     # Setup
     converter = PDFConverter()
@@ -32,7 +35,10 @@ def test_yaml_frontmatter_injection_carriage_return():
     # Assert
     assert "title: Normal Title author: Injected Author" in result
     assert "\rauthor:" not in result
-    assert "author:" not in result.splitlines()[2] # title is on line 2 (0-indexed) if count ---
+    assert (
+        "author:" not in result.splitlines()[2]
+    )  # title is on line 2 (0-indexed) if count ---
+
 
 def test_yaml_frontmatter_injection_breakout():
     # Setup

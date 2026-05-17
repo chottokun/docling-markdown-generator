@@ -1,11 +1,12 @@
-
 from fastapi.testclient import TestClient
 from mock_docling import mock_docling
+
 mock_docling()
 
-import docling_lib.config
-import docling_lib.server
-from docling_lib.server import create_app
+import docling_lib.config  # noqa: E402
+import docling_lib.server  # noqa: E402
+from docling_lib.server import create_app  # noqa: E402
+
 
 def test_cors_restrictive_methods_and_headers(monkeypatch):
     # Set an allowed origin to trigger CORS logic
@@ -42,6 +43,7 @@ def test_cors_restrictive_methods_and_headers(monkeypatch):
     assert "POST" in response_ok.headers.get("access-control-allow-methods", "")
     assert "Content-Type" in response_ok.headers.get("access-control-allow-headers", "")
 
+
 def test_cors_default_origin(monkeypatch):
     # By default, CORS_ORIGINS should be empty (more secure)
     monkeypatch.setattr(docling_lib.config, "CORS_ORIGINS", [])
@@ -54,6 +56,7 @@ def test_cors_default_origin(monkeypatch):
     assert response.status_code == 200
     # No CORS header should be present when origins are not matched (empty list matches nothing)
     assert "access-control-allow-origin" not in response.headers
+
 
 def test_cors_custom_origin(monkeypatch):
     # Set custom origins via patching the config and server

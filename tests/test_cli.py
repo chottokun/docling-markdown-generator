@@ -18,7 +18,9 @@ def test_main_happy_path(mock_process_pdf, tmp_path, pdf_downloader, monkeypatch
     monkeypatch.chdir(tmp_path)
     pdf_path = pdf_downloader("https://arxiv.org/pdf/1706.03762.pdf")
     output_dir = tmp_path / "cli_output"
-    mock_process_pdf.return_value = output_dir / "processed_document.md"  # Simulate success
+    mock_process_pdf.return_value = (
+        output_dir / "processed_document.md"
+    )  # Simulate success
 
     result = main([str(pdf_path), "--output-dir", str(output_dir)])
 
@@ -64,7 +66,9 @@ def test_main_processing_fails(
 
 
 @patch("docling_lib.cli.process_pdf")
-def test_main_with_custom_image_dir(mock_process_pdf, tmp_path, pdf_downloader, monkeypatch):
+def test_main_with_custom_image_dir(
+    mock_process_pdf, tmp_path, pdf_downloader, monkeypatch
+):
     """
     Given: The --image-dir argument is provided.
     When: main() is called.
@@ -116,6 +120,7 @@ def test_entry_point_system_exit(mock_main, mock_sys):
     entry_point()
     mock_main.assert_called_once_with()
     mock_sys.exit.assert_called_once_with(2)
+
 
 @patch("docling_lib.cli.logger")
 @patch("docling_lib.cli.sys")

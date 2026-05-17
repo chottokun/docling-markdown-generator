@@ -1,15 +1,16 @@
-import time
 import shutil
+import time
 from pathlib import Path
-import os
 
 OUT_DIR = Path("tests/benchmark_cleanup_data")
 NUM_FILES = 2000
+
 
 def setup():
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     for i in range(NUM_FILES):
         (OUT_DIR / f"file_{i}.bin").write_bytes(b"0")
+
 
 def cleanup_old():
     if OUT_DIR.exists():
@@ -23,9 +24,11 @@ def cleanup_old():
         except:
             pass
 
+
 def cleanup_new():
     if OUT_DIR.exists():
         shutil.rmtree(OUT_DIR)
+
 
 def measure(func, name):
     setup()
@@ -34,6 +37,7 @@ def measure(func, name):
     end = time.perf_counter()
     # print(f"{name}: {end - start:.6f}s")
     return end - start
+
 
 if __name__ == "__main__":
     print(f"Benchmarking cleanup with {NUM_FILES} files...")

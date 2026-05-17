@@ -11,13 +11,14 @@ os.makedirs(out_dir, exist_ok=True)
 # Includes complex Excel structures, PowerPoint presentations, Word documents, etc.
 SampleUrls = {
     "sample1_simple.pdf": "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
-    "sample3_arxiv.pdf": "https://arxiv.org/pdf/2401.00001.pdf", 
-    "sample4_form.pdf": "https://www.irs.gov/pub/irs-pdf/fw4.pdf", 
-    "sample5_brochure.pdf": "https://www.orimi.com/pdf-test.pdf", 
+    "sample3_arxiv.pdf": "https://arxiv.org/pdf/2401.00001.pdf",
+    "sample4_form.pdf": "https://www.irs.gov/pub/irs-pdf/fw4.pdf",
+    "sample5_brochure.pdf": "https://www.orimi.com/pdf-test.pdf",
     "sample7_financial.xlsx": "https://go.microsoft.com/fwlink/?LinkID=521962",
     "sample8_word.docx": "https://filesamples.com/samples/document/docx/sample3.docx",
-    "sample10_jp_gov.pdf": "https://www.mext.go.jp/content/20200710-mxt_kouhou01-000008479_1.pdf" # Japanese government document
+    "sample10_jp_gov.pdf": "https://www.mext.go.jp/content/20200710-mxt_kouhou01-000008479_1.pdf",  # Japanese government document
 }
+
 
 async def download_file(client, filename, url):
     out_path = os.path.join(out_dir, filename)
@@ -28,7 +29,9 @@ async def download_file(client, filename, url):
     print(f"Downloading {filename} from {url}...")
     headers = {"User-Agent": "Mozilla/5.0"}
     try:
-        async with client.stream("GET", url, headers=headers, follow_redirects=True) as response:
+        async with client.stream(
+            "GET", url, headers=headers, follow_redirects=True
+        ) as response:
             response.raise_for_status()
 
             # Use asyncio.to_thread to perform blocking I/O without blocking the event loop
@@ -43,10 +46,14 @@ async def download_file(client, filename, url):
     except Exception as e:
         print(f"Failed to download {filename}: {e}")
 
+
 async def download_all():
     async with httpx.AsyncClient() as client:
-        tasks = [download_file(client, filename, url) for filename, url in SampleUrls.items()]
+        tasks = [
+            download_file(client, filename, url) for filename, url in SampleUrls.items()
+        ]
         await asyncio.gather(*tasks)
+
 
 if __name__ == "__main__":
     asyncio.run(download_all())

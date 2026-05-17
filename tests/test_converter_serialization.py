@@ -13,9 +13,12 @@ def test_serialize_to_markdown():
     table_format = "html"
 
     # We patch where they are imported and used
-    with patch("docling_lib.converter.EnhancedMarkdownSerializer") as mock_serializer_cls, \
-         patch("docling_lib.converter.MarkdownParams") as mock_params_cls:
-
+    with (
+        patch(
+            "docling_lib.converter.EnhancedMarkdownSerializer"
+        ) as mock_serializer_cls,
+        patch("docling_lib.converter.MarkdownParams") as mock_params_cls,
+    ):
         # Configure mocks
         mock_serializer_inst = mock_serializer_cls.return_value
         mock_ser_res = MagicMock()
@@ -47,6 +50,7 @@ def test_serialize_to_markdown():
         # Verify return value
         assert result == "Mocked Markdown Content"
 
+
 def test_serialize_to_markdown_different_format():
     """Test that _serialize_to_markdown handles different table formats."""
     # Setup
@@ -54,9 +58,12 @@ def test_serialize_to_markdown_different_format():
     mock_doc = MagicMock()
     table_format = "markdown"
 
-    with patch("docling_lib.converter.EnhancedMarkdownSerializer") as mock_serializer_cls, \
-         patch("docling_lib.converter.MarkdownParams") as mock_params_cls:
-
+    with (
+        patch(
+            "docling_lib.converter.EnhancedMarkdownSerializer"
+        ) as mock_serializer_cls,
+        patch("docling_lib.converter.MarkdownParams") as mock_params_cls,
+    ):
         # Configure mocks
         mock_serializer_inst = mock_serializer_cls.return_value
         mock_ser_res = MagicMock()

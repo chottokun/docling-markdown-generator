@@ -15,7 +15,7 @@ def file_downloader():
     Uses httpx.Client for connection pooling and better performance.
     """
     try:
-        import requests
+        import requests  # noqa: F401
     except ImportError:
         pytest.skip("requests not installed, skipping downloader fixture")
 

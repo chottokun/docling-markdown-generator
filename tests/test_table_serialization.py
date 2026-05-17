@@ -31,9 +31,7 @@ def test_html_table_serialization_success():
 
     # Act
     result = serializer.serialize(
-        item=mock_item,
-        doc_serializer=mock_doc_serializer,
-        doc=mock_doc
+        item=mock_item, doc_serializer=mock_doc_serializer, doc=mock_doc
     )
 
     # Assert
@@ -41,6 +39,7 @@ def test_html_table_serialization_success():
     mock_item.export_to_html.assert_called_once_with(doc=mock_doc)
     assert len(result.spans) == 1
     assert result.spans[0].item.self_ref == "#/tables/1"
+
 
 def test_html_table_serialization_fallback(caplog):
     """Test fallback to standard markdown serialization when HTML export fails."""
@@ -62,20 +61,24 @@ def test_html_table_serialization_fallback(caplog):
     fallback_result = MagicMock(spec=SerializationResult)
     fallback_result.text = "| col1 |\n| --- |\n| val1 |"
 
-    with patch.object(MarkdownTableSerializer, 'serialize', return_value=fallback_result) as mock_super_serialize:
+    with patch.object(
+        MarkdownTableSerializer, "serialize", return_value=fallback_result
+    ) as mock_super_serialize:
         # Act
         result = serializer.serialize(
-            item=mock_item,
-            doc_serializer=mock_doc_serializer,
-            doc=mock_doc
+            item=mock_item, doc_serializer=mock_doc_serializer, doc=mock_doc
         )
 
         # Assert
         assert result == fallback_result
-        assert "Failed to export table as HTML, falling back: HTML Export Failed" in caplog.text
+        assert (
+            "Failed to export table as HTML, falling back: HTML Export Failed"
+            in caplog.text
+        )
         mock_super_serialize.assert_called_once_with(
             item=mock_item, doc_serializer=mock_doc_serializer, doc=mock_doc
         )
+
 
 def test_html_table_serialization_with_captions():
     """Test HTML table serialization includes captions."""
@@ -104,9 +107,7 @@ def test_html_table_serialization_with_captions():
 
     # Act
     result = serializer.serialize(
-        item=mock_item,
-        doc_serializer=mock_doc_serializer,
-        doc=mock_doc
+        item=mock_item, doc_serializer=mock_doc_serializer, doc=mock_doc
     )
 
     # Assert

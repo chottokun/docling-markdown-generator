@@ -10,16 +10,19 @@ from docling_lib.converter import process_pdf
 
 # --- Fixtures ---
 
+
 @pytest.fixture(autouse=True)
 def reset_shared_converter():
     """Resets the shared default converter before and after each test."""
     import docling_lib.converter as converter_mod
+
     converter_mod._default_pdf_converter = None
     yield
     converter_mod._default_pdf_converter = None
 
 
 # --- Test Cases ---
+
 
 @patch("docling_lib.converter.DocumentConverter")
 @patch("docling_lib.converter.EnhancedMarkdownSerializer")
@@ -31,12 +34,12 @@ def test_process_pdf_calls_docling_api_correctly(
     """
     monkeypatch.chdir(tmp_path)
     pdf_path = pdf_downloader("https://arxiv.org/pdf/2406.12430.pdf")
-    
+
     # Setup mocks
     mock_doc = MagicMock(spec=DoclingDocument)
     mock_doc.name = "Test Document"
     MockDocumentConverter.return_value.convert.return_value.document = mock_doc
-    
+
     mock_serializer_instance = MockSerializer.return_value
     mock_serializer_instance.serialize.return_value.text = "# Mocked Markdown"
 
@@ -67,7 +70,7 @@ def test_process_pdf_e2e_happy_path(tmp_path, pdf_downloader, monkeypatch):
     monkeypatch.chdir(tmp_path)
     pdf_path = pdf_downloader("https://arxiv.org/pdf/2406.12430.pdf")
     output_dir = tmp_path / "output"
-    
+
     # This will actually run Docling
     result_path = process_pdf(pdf_path, output_dir)
 
@@ -86,10 +89,11 @@ def test_process_docx_e2e_happy_path(tmp_path, monkeypatch):
     src_docx = Path(__file__).parent / "test_data" / "word_sample.docx"
     if not src_docx.exists():
         pytest.skip("word_sample.docx not found")
-    
+
     import shutil
+
     shutil.copy(src_docx, tmp_path / "sample.docx")
-    
+
     output_dir = tmp_path / "output"
     result_path = process_pdf(tmp_path / "sample.docx", output_dir)
 
@@ -108,18 +112,18 @@ def test_process_pdf_with_explicit_converter(
     """
     monkeypatch.chdir(tmp_path)
     pdf_path = pdf_downloader("https://arxiv.org/pdf/2406.12430.pdf")
-    
+
     mock_explicit_converter = MagicMock()
     mock_doc = MagicMock(spec=DoclingDocument)
     mock_doc.name = "Explicit Doc"
     mock_explicit_converter.convert.return_value.document = mock_doc
-    
+
     # We need to mock EnhancedMarkdownSerializer to avoid Pydantic issues with the mock_doc
     with patch("docling_lib.converter.EnhancedMarkdownSerializer") as MockSerializer:
         MockSerializer.return_value.serialize.return_value.text = "Explicit Content"
-        
+
         result = process_pdf(pdf_path, tmp_path, converter=mock_explicit_converter)
-    
+
     assert result is not None
     mock_explicit_converter.convert.assert_called_once_with(pdf_path)
     # The DocumentConverter (Docling's own) is instantiated once by our shared wrapper.
@@ -144,8 +148,11 @@ def test_process_pdf_unexpected_workflow_error(
         result = process_pdf(pdf_path, tmp_path)
 
     assert result is None
-    assert any("Workflow Error" in record.message or "Error converting document" in record.message 
-               for record in caplog.records)
+    assert any(
+        "Workflow Error" in record.message
+        or "Error converting document" in record.message
+        for record in caplog.records
+    )
 
 
 def test_process_pdf_path_traversal_prevention(tmp_path, pdf_downloader, monkeypatch):
@@ -155,6 +162,6 @@ def test_process_pdf_path_traversal_prevention(tmp_path, pdf_downloader, monkeyp
     monkeypatch.chdir(tmp_path)
     pdf_path = pdf_downloader("https://arxiv.org/pdf/2406.12430.pdf")
     malicious_dir = tmp_path / "../outside"
-    
+
     result = process_pdf(pdf_path, malicious_dir)
     assert result is None
