@@ -244,15 +244,10 @@ class PDFConverter:
         """
         Adds metadata as YAML frontmatter to the Markdown content if available.
         """
-        meta = []
         if doc.name:
             # Sanitize doc.name to prevent YAML frontmatter injection
             safe_name = doc.name.replace("\n", " ").replace("\r", " ")
-            meta.append(f"title: {safe_name}")
-
-        if meta:
-            frontmatter = "---\n" + "\n".join(meta) + "\n---\n\n"
-            return frontmatter + md_content
+            return f"---\ntitle: {safe_name}\n---\n\n{md_content}"
 
         return md_content
 
