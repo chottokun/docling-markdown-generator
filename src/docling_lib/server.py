@@ -107,26 +107,30 @@ async def _save_upload_temp(file: UploadFile, suffix: str) -> Path:
         tempfile.NamedTemporaryFile, delete=False, suffix=suffix, dir=UPLOAD_DIR
     )
     tmp_path = Path(tmp_file.name)
-    try:
-        # Re-read the upload stream in chunks to verify the actual size
-        while True:
-            chunk = await file.read(1024 * 1024)  # 1MB chunks
-            if not chunk:
-                break
-            total_size += len(chunk)
-            if total_size > MAX_UPLOAD_SIZE:
-                # Cleanup and raise error
-                raise HTTPException(
-                    status_code=413,
-                    detail=f"Payload Too Large. Maximum size is {MAX_UPLOAD_SIZE} bytes.",
-                )
-            await run_in_threadpool(tmp_file.write, chunk)
 
-        await run_in_threadpool(tmp_file.close)
+    def _write_file():
+        nonlocal total_size
+        try:
+            # Re-read the upload stream in chunks to verify the actual size
+            while True:
+                # Using file.file to read synchronously within the threadpool
+                chunk = file.file.read(1024 * 1024)  # 1MB chunks
+                if not chunk:
+                    break
+                total_size += len(chunk)
+                if total_size > MAX_UPLOAD_SIZE:
+                    raise HTTPException(
+                        status_code=413,
+                        detail=f"Payload Too Large. Maximum size is {MAX_UPLOAD_SIZE} bytes.",
+                    )
+                tmp_file.write(chunk)
+        finally:
+            tmp_file.close()
+
+    try:
+        await run_in_threadpool(_write_file)
         return tmp_path
     except Exception:
-        # Ensure the file is closed before attempting cleanup
-        await run_in_threadpool(tmp_file.close)
         # Cleanup on any exception
         await _cleanup_temp_file(tmp_path)
         raise
