@@ -295,6 +295,19 @@ class PDFConverter:
 
         return md_content
 
+    def _prepare_output_directories(self, output_dir: Path, images_dir: Path) -> None:
+        """
+        Ensures that the output and images directories exist.
+        """
+        output_dir.mkdir(parents=True, exist_ok=True)
+        images_dir.mkdir(parents=True, exist_ok=True)
+
+    def _write_markdown_file(self, md_path: Path, content: str) -> None:
+        """
+        Writes the Markdown content to the specified path.
+        """
+        md_path.write_text(content, encoding="utf-8")
+
     def _save_markdown(
         self,
         doc: DoclingDocument,
@@ -317,8 +330,7 @@ class PDFConverter:
         )
 
         # 2. Create directories
-        output_dir.mkdir(parents=True, exist_ok=True)
-        resolved_images_dir.mkdir(parents=True, exist_ok=True)
+        self._prepare_output_directories(output_dir, resolved_images_dir)
 
         # 3. Serialization
         md_content = self._serialize_to_markdown(
@@ -329,7 +341,7 @@ class PDFConverter:
         md_content = self._apply_metadata_frontmatter(doc=doc, md_content=md_content)
 
         # 5. Save output
-        resolved_md_path.write_text(md_content, encoding="utf-8")
+        self._write_markdown_file(resolved_md_path, md_content)
 
         return output_dir / md_output_name
 
