@@ -107,38 +107,39 @@ async def _cleanup_temp_file(tmp_path: Path | None):
         await run_in_threadpool(tmp_path.unlink)
 
 
+def _write_upload_to_disk(file: UploadFile, tmp_file):
+    """Helper to write upload file content to a temporary file with size validation."""
+    total_size = 0
+    try:
+        # Re-read the upload stream in chunks to verify the actual size
+        while True:
+            # Using file.file to read synchronously within the threadpool
+            chunk = file.file.read(1024 * 1024)  # 1MB chunks
+            if not chunk:
+                break
+            total_size += len(chunk)
+            if total_size > MAX_UPLOAD_SIZE:
+                raise HTTPException(
+                    status_code=413,
+                    detail=f"Payload Too Large. Maximum size is {MAX_UPLOAD_SIZE} bytes.",
+                )
+            tmp_file.write(chunk)
+    finally:
+        tmp_file.close()
+
+
 async def _save_upload_temp(file: UploadFile, suffix: str) -> Path:
     """
     Save the uploaded file to a temporary location with size validation.
     Reads in chunks to maintain memory efficiency and prevent DoS.
     """
-    total_size = 0
     tmp_file = await run_in_threadpool(
         tempfile.NamedTemporaryFile, delete=False, suffix=suffix, dir=UPLOAD_DIR
     )
     tmp_path = Path(tmp_file.name)
 
-    def _write_file():
-        nonlocal total_size
-        try:
-            # Re-read the upload stream in chunks to verify the actual size
-            while True:
-                # Using file.file to read synchronously within the threadpool
-                chunk = file.file.read(1024 * 1024)  # 1MB chunks
-                if not chunk:
-                    break
-                total_size += len(chunk)
-                if total_size > MAX_UPLOAD_SIZE:
-                    raise HTTPException(
-                        status_code=413,
-                        detail=f"Payload Too Large. Maximum size is {MAX_UPLOAD_SIZE} bytes.",
-                    )
-                tmp_file.write(chunk)
-        finally:
-            tmp_file.close()
-
     try:
-        await run_in_threadpool(_write_file)
+        await run_in_threadpool(_write_upload_to_disk, file, tmp_file)
         return tmp_path
     except Exception:
         # Cleanup on any exception
@@ -207,28 +208,32 @@ async def convert_file(
         await _cleanup_temp_file(tmp_path)
 
 
+def _get_safe_path(request_id: str, filename: str):
+    """
+    Security helper: Prevent path traversal and resolve safe paths.
+    """
+    # Security: Prevent path traversal
+    if not all(c.isalnum() or c in "-_" for c in request_id):
+        raise ValueError("Invalid request_id")
+    if Path(filename).name != filename:
+        raise ValueError("Invalid filename")
+
+    # Resolve to absolute paths and verify anchoring to OUTPUT_DIR
+    resolved_output_dir = OUTPUT_DIR.resolve()
+    safe_dir = (resolved_output_dir / request_id).resolve()
+    file_path = (safe_dir / filename).resolve()
+    return resolved_output_dir, safe_dir, file_path
+
+
 @router.get("/download/{request_id}/{filename}")
 async def download_file(request_id: str, filename: str):
     """
     Endpoint to download converted files.
     """
 
-    def _get_safe_path():
-        # Security: Prevent path traversal
-        if not all(c.isalnum() or c in "-_" for c in request_id):
-            raise ValueError("Invalid request_id")
-        if Path(filename).name != filename:
-            raise ValueError("Invalid filename")
-
-        # Resolve to absolute paths and verify anchoring to OUTPUT_DIR
-        resolved_output_dir = OUTPUT_DIR.resolve()
-        safe_dir = (resolved_output_dir / request_id).resolve()
-        file_path = (safe_dir / filename).resolve()
-        return resolved_output_dir, safe_dir, file_path
-
     try:
         resolved_output_dir, safe_dir, file_path = await run_in_threadpool(
-            _get_safe_path
+            _get_safe_path, request_id, filename
         )
 
         # Check if the file is within its assigned request directory and OUTPUT_DIR
