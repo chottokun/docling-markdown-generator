@@ -32,6 +32,8 @@ DO_FORMULA = os.getenv("DOCLING_DO_FORMULA", "True").lower() == "true"
 DO_OCR = os.getenv("DOCLING_DO_OCR", "True").lower() == "true"
 DO_CHART = os.getenv("DOCLING_DO_CHART", "False").lower() == "true"
 DO_CODE = os.getenv("DOCLING_DO_CODE", "False").lower() == "true"
+USE_GPU = os.getenv("DOCLING_USE_GPU", "True").lower() == "true"
+
 
 
 def setup_logging():

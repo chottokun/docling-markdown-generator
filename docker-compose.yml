@@ -6,9 +6,11 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      # ホスト側のソースコードをマウントしてホットリロードを有効化
+      # 各ディレクトリを個別にマウントし、コンテナ内の仮想環境（.venv）の上書きを防ぐ
       - ./src:/app/src
-      # 変換データの永続化
+      - ./tests:/app/tests
+      - ./scripts:/app/scripts
+      - ./output:/app/output
       - docling_data:/app/data
     environment:
       - DOCLING_UPLOAD_DIR=/app/data/uploads

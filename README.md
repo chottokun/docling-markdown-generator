@@ -61,11 +61,26 @@ docker-compose up -d --build
 
 ## 🧪 テストと検証
 
-TDDに基づき、以下のテストスイートを運用しています：
+TDDに基づき、以下のテストスイートおよび検証プロセスを運用しています：
 
 - **Unit Tests**: モジュールごとのロジック検証（`uv run pytest tests/test_converter_units.py`）。
 - **E2E Real World**: 実データを用いたEnd-to-End検証（`CUDA_VISIBLE_DEVICES="" uv run pytest tests/e2e_real_world.py`）。
 - **Security Tests**: 脆弱性再現スクリプトによる回帰テスト（`tests/test_security_auth_rate_limit.py` 等）。
+- **Excel/Matrix Tests (Docker経由)**: 複雑なマトリクスを持つExcelファイル等の高精度変換検証。コンテナ内の依存関係を使用して以下のコマンドで実行できます：
+  ```bash
+  # Dockerコンテナ内でExcelの高精度検証を実行
+  docker compose run --user root --entrypoint "python scripts/verify_excel.py" docling-server
+  ```
 
----
-**License**: MIT (docling, FastAPI 等の依存先に準拠)
+## 📄 ライセンス
+
+本プロジェクトは **MIT License** の下で公開されています。
+
+主要な使用ライブラリおよびそのライセンス：
+- **docling** (v2.x): MIT License
+- **docling-core**: MIT License
+- **fastapi**: MIT License
+- **pytorch (torch)**: BSD-3-Clause License
+- **uvicorn**: BSD-3-Clause License
+- **python-multipart**: Apache-2.0 License
+

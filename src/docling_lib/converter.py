@@ -4,10 +4,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+import torch
+from docling.datamodel.accelerator_options import AcceleratorDevice, AcceleratorOptions
 from docling.datamodel.base_models import InputFormat
 from docling.datamodel.pipeline_options import PdfPipelineOptions
 from docling.document_converter import (
     DocumentConverter,
+    ExcelFormatOption,
     PdfFormatOption,
     PowerpointFormatOption,
     WordFormatOption,
@@ -33,11 +36,41 @@ from .config import (
     IMAGE_DIR_NAME,
     IMAGE_RESOLUTION_SCALE,
     MD_OUTPUT_NAME,
+    USE_GPU,
 )
 from .utils import sanitize_log_message
 
 # Configure logging
 logger = logging.getLogger(__name__)
+
+
+def is_cuda_compatible() -> bool:
+    """
+    Checks if CUDA is configured to be used, available, and compatible with PyTorch.
+    Performs a brief real tensor operation on GPU to catch incompatible compute
+    capability mismatches at startup.
+    """
+    if not USE_GPU:
+        logger.info("GPU usage is disabled via configuration (USE_GPU=False).")
+        return False
+
+    try:
+        if torch.cuda.is_available():
+            # Run a dummy tensor operation to verify execution capability
+            device = torch.device("cuda")
+            x = torch.zeros(1, device=device)
+            torch.cuda.synchronize()
+            logger.info("CUDA is fully available and compatible with the current GPU.")
+            return True
+        logger.info("CUDA is not available on this system.")
+        return False
+    except Exception as e:
+        logger.warning(
+            f"CUDA is detected but not compatible with this PyTorch build. "
+            f"Falling back to CPU. Details: {sanitize_log_message(e)}"
+        )
+        return False
+
 
 
 @dataclass
@@ -149,12 +182,25 @@ class PDFConverter:
         pipeline_options.do_chart_extraction = self.options.do_chart
         pipeline_options.do_code_enrichment = self.options.do_code
 
+        # Configure accelerator options (GPU fallback to CPU)
+        if is_cuda_compatible():
+            acc_device = AcceleratorDevice.AUTO
+        else:
+            acc_device = AcceleratorDevice.CPU
+
+        pipeline_options.accelerator_options = AcceleratorOptions(
+            device=acc_device
+        )
+
         # Configure DocumentConverter with multi-format support
         self.doc_converter = DocumentConverter(
             format_options={
                 InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options),
                 InputFormat.DOCX: WordFormatOption(pipeline_options=pipeline_options),
                 InputFormat.PPTX: PowerpointFormatOption(
+                    pipeline_options=pipeline_options
+                ),
+                InputFormat.XLSX: ExcelFormatOption(
                     pipeline_options=pipeline_options
                 ),
             }

@@ -50,3 +50,14 @@ GPUサポート (CUDA等) が利用可能な環境であれば自動的に高速
 ```bash
 uv run python scripts/verify_real_data.py
 ```
+
+#### 2.3.1. 複雑なExcelマトリクスファイルの検証 (Docker環境)
+
+経済産業省の技術マトリクスのような極めて複雑なExcelファイルの変換結果をDockerコンテナ環境で検証する場合、専用スクリプト `scripts/verify_excel.py` を以下のコマンドで実行できます。
+
+```bash
+# Dockerコンテナ内でExcel技術マトリクスの高精度検証を実行し、標準出力にプレビューを表示する
+docker compose run --user root --entrypoint "python scripts/verify_excel.py" docling-server
+```
+
+変換に成功すると、プロジェクトの `./output/gijutsu_matrix/` ディレクトリに高精度な Markdown ファイル（結合セルを HTML `<table>` で再現したもの）が保存され、ホスト側からも直接目視検証が可能です。
