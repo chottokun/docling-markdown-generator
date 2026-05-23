@@ -20,7 +20,7 @@ jobs:
     - name: Install Linting & Security Tools
       run: |
         python -m pip install --upgrade pip
-        pip install ruff bandit safety
+        pip install ruff bandit pip-audit
         
     - name: Lint with ruff
       run: ruff check .
@@ -28,12 +28,11 @@ jobs:
     - name: Security check with bandit
       run: bandit -r src/ -ll
       
-    - name: Dependency check with safety
-      # We use '|| true' or a specific check here because safety might require a key for some DBs,
-      # but the open source check is usually enough for basic vulnerabilities.
-      run: |
-        pip freeze > requirements.txt
-        safety check -r requirements.txt || echo "Safety check found issues or failed to run"
+    - name: Install project package
+      run: pip install .
+      
+    - name: Dependency audit with pip-audit
+      run: pip-audit
 
   test:
     needs: lint-and-security
@@ -65,3 +64,23 @@ jobs:
         # Run tests (excluding the environment-specific CUDA test if necessary, 
         # but standard CPU fallback should handle the e2e test on GitHub Actions)
         pytest
+
+  docker-security:
+    needs: lint-and-security
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Build local Docker image
+      run: |
+        docker build -t docling-markdown-generator:latest .
+        
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: 'docling-markdown-generator:latest'
+        format: 'table'
+        exit-code: '1'
+        ignore-unfixed: true
+        vuln-type: 'os,library'
+        severity: 'CRITICAL,HIGH'
