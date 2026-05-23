@@ -35,7 +35,6 @@ def measure(func, name):
     start = time.perf_counter()
     func()
     end = time.perf_counter()
-    # print(f"{name}: {end - start:.6f}s")
     return end - start
 
 
