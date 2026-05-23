@@ -17,11 +17,11 @@ def cleanup_old():
         for f in OUT_DIR.glob("*"):
             try:
                 f.unlink()
-            except Exception:
+            except OSError:
                 pass
         try:
             OUT_DIR.rmdir()
-        except Exception:
+        except OSError:
             pass
 
 

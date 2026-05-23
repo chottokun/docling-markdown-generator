@@ -1,6 +1,7 @@
 import io
 import logging
-from unittest.mock import MagicMock
+from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi import UploadFile
@@ -19,11 +20,24 @@ async def test_log_injection_fix_verification(caplog):
     mock_file.filename = malicious_filename
     mock_file.file = io.BytesIO(b"%PDF-1.4 dummy")
 
-    # We expect an exception or some result, but we're looking at logs
-    try:
+    # We mock the internal calls to avoid actual file I/O and dependencies,
+    # ensuring the test focuses on the logging behavior without silent failures.
+    with (
+        patch(
+            "docling_lib.server._save_upload_temp",
+            new_callable=AsyncMock,
+            return_value=Path("tmp"),
+        ),
+        patch(
+            "docling_lib.server._create_output_dir",
+            new_callable=AsyncMock,
+            return_value=("id", Path("out")),
+        ),
+        patch("docling_lib.server.run_in_threadpool", new_callable=AsyncMock),
+        patch("docling_lib.server._validate_and_format_response", new_callable=AsyncMock),
+        patch("docling_lib.server._cleanup_temp_file", new_callable=AsyncMock),
+    ):
         await convert_file(mock_file)
-    except Exception:
-        pass
 
     found_log = False
     for record in caplog.records:
