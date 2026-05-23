@@ -1,6 +1,10 @@
 from unittest.mock import patch
 
 import pytest
+from tests.mock_docling import mock_docling
+
+# Call mock_docling before importing cli to handle missing dependencies
+mock_docling()
 
 from docling_lib.cli import entry_point, main
 from docling_lib.converter import DocumentConversionOptions

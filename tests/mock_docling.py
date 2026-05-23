@@ -8,22 +8,35 @@ def mock_docling():
 
     # Mock docling and other missing dependencies
     def create_mock_module(name):
+        if name in sys.modules:
+            return sys.modules[name]
         m = ModuleType(name)
         sys.modules[name] = m
         return m
 
+    torch = create_mock_module("torch")
+    torch.cuda = create_mock_module("torch.cuda")
+    torch.cuda.is_available = lambda: False
+    torch.cuda.synchronize = lambda: None
+    torch.device = lambda x: x
+    torch.zeros = lambda *args, **kwargs: None
+
     docling = create_mock_module("docling")
-    docling.datamodel = create_mock_module("docling.datamodel")
+    docling_dm = create_mock_module("docling.datamodel")
     docling_base = create_mock_module("docling.datamodel.base_models")
     docling_base.InputFormat = type(
         "InputFormat", (), {"PDF": "pdf", "DOCX": "docx", "PPTX": "pptx"}
     )
-    create_mock_module("docling.datamodel.pipeline_options")
-    sys.modules["docling.datamodel.pipeline_options"].PdfPipelineOptions = type(
+    docling_acc = create_mock_module("docling.datamodel.accelerator_options")
+    docling_acc.AcceleratorDevice = type("AcceleratorDevice", (), {"AUTO": "auto", "CPU": "cpu"})
+    docling_acc.AcceleratorOptions = type("AcceleratorOptions", (), {})
+
+    docling_pipe = create_mock_module("docling.datamodel.pipeline_options")
+    docling_pipe.PdfPipelineOptions = type(
         "PdfPipelineOptions", (), {}
     )
-    create_mock_module("docling.datamodel.document")
-    sys.modules["docling.datamodel.document"].ConversionResult = type(
+    docling_doc = create_mock_module("docling.datamodel.document")
+    docling_doc.ConversionResult = type(
         "ConversionResult", (), {}
     )
     docling_conv = create_mock_module("docling.document_converter")
@@ -31,6 +44,7 @@ def mock_docling():
     docling_conv.PdfFormatOption = type("PdfFormatOption", (), {})
     docling_conv.PowerpointFormatOption = type("PowerpointFormatOption", (), {})
     docling_conv.WordFormatOption = type("WordFormatOption", (), {})
+    docling_conv.ExcelFormatOption = type("ExcelFormatOption", (), {})
 
     create_mock_module("docling_core")
     create_mock_module("docling_core.transforms")
