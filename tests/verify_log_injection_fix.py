@@ -37,7 +37,7 @@ async def test_log_injection_fix_verification(caplog):
         patch("docling_lib.server._validate_and_format_response", new_callable=AsyncMock),
         patch("docling_lib.server._cleanup_temp_file", new_callable=AsyncMock),
     ):
-        await convert_file(mock_file)
+        await convert_file(mock_file, content_length=None)
 
     found_log = False
     for record in caplog.records:

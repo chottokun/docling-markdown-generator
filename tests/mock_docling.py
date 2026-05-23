@@ -25,11 +25,13 @@ def mock_docling():
     docling_dm = create_mock_module("docling.datamodel")
     docling_base = create_mock_module("docling.datamodel.base_models")
     docling_base.InputFormat = type(
-        "InputFormat", (), {"PDF": "pdf", "DOCX": "docx", "PPTX": "pptx"}
+        "InputFormat", (), {"PDF": "pdf", "DOCX": "docx", "PPTX": "pptx", "XLSX": "xlsx"}
     )
     docling_acc = create_mock_module("docling.datamodel.accelerator_options")
     docling_acc.AcceleratorDevice = type("AcceleratorDevice", (), {"AUTO": "auto", "CPU": "cpu"})
-    docling_acc.AcceleratorOptions = type("AcceleratorOptions", (), {})
+    docling_acc.AcceleratorOptions = type(
+        "AcceleratorOptions", (), {"__init__": lambda self, *args, **kwargs: None}
+    )
 
     docling_pipe = create_mock_module("docling.datamodel.pipeline_options")
     docling_pipe.PdfPipelineOptions = type(
@@ -40,11 +42,11 @@ def mock_docling():
         "ConversionResult", (), {}
     )
     docling_conv = create_mock_module("docling.document_converter")
-    docling_conv.DocumentConverter = type("DocumentConverter", (), {})
-    docling_conv.PdfFormatOption = type("PdfFormatOption", (), {})
-    docling_conv.PowerpointFormatOption = type("PowerpointFormatOption", (), {})
-    docling_conv.WordFormatOption = type("WordFormatOption", (), {})
-    docling_conv.ExcelFormatOption = type("ExcelFormatOption", (), {})
+    docling_conv.DocumentConverter = type("DocumentConverter", (), {"__init__": lambda self, *args, **kwargs: None})
+    docling_conv.PdfFormatOption = type("PdfFormatOption", (), {"__init__": lambda self, *args, **kwargs: None})
+    docling_conv.PowerpointFormatOption = type("PowerpointFormatOption", (), {"__init__": lambda self, *args, **kwargs: None})
+    docling_conv.WordFormatOption = type("WordFormatOption", (), {"__init__": lambda self, *args, **kwargs: None})
+    docling_conv.ExcelFormatOption = type("ExcelFormatOption", (), {"__init__": lambda self, *args, **kwargs: None})
 
     create_mock_module("docling_core")
     create_mock_module("docling_core.transforms")

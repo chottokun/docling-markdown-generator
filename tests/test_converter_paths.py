@@ -1,8 +1,10 @@
 import logging
 from pathlib import Path
+import pytest
 from unittest.mock import MagicMock, patch
 
-import pytest
+from tests.mock_docling import mock_docling
+mock_docling()
 
 from docling_lib.converter import PDFConverter
 
