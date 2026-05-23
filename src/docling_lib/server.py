@@ -1,5 +1,6 @@
 import logging
 import os
+import secrets
 import tempfile
 import time
 from collections import defaultdict
@@ -46,12 +47,13 @@ async def api_key_auth(x_api_key: str | None = Header(None)):
     """
     Dependency to validate API Key if configured.
     """
-    if API_KEY and x_api_key != API_KEY:
-        logger.warning("Unauthorized access attempt with invalid API Key.")
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid or missing API Key.",
-        )
+    if API_KEY:
+        if x_api_key is None or not secrets.compare_digest(x_api_key, API_KEY):
+            logger.warning("Unauthorized access attempt with invalid API Key.")
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid or missing API Key.",
+            )
 
 
 # In-memory storage for rate limiting: {client_ip: [timestamp1, timestamp2, ...]}
