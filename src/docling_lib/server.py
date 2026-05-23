@@ -204,28 +204,32 @@ async def convert_file(
         await _cleanup_temp_file(tmp_path)
 
 
+def _get_safe_path(request_id: str, filename: str) -> tuple[Path, Path, Path]:
+    """
+    Security helper: Prevent path traversal and resolve safe paths.
+    """
+    # Security: Prevent path traversal
+    if not all(c.isalnum() or c in "-_" for c in request_id):
+        raise ValueError("Invalid request_id")
+    if Path(filename).name != filename:
+        raise ValueError("Invalid filename")
+
+    # Resolve to absolute paths and verify anchoring to OUTPUT_DIR
+    resolved_output_dir = OUTPUT_DIR.resolve()
+    safe_dir = (resolved_output_dir / request_id).resolve()
+    file_path = (safe_dir / filename).resolve()
+    return resolved_output_dir, safe_dir, file_path
+
+
 @router.get("/download/{request_id}/{filename}")
 async def download_file(request_id: str, filename: str):
     """
     Endpoint to download converted files.
     """
 
-    def _get_safe_path():
-        # Security: Prevent path traversal
-        if not all(c.isalnum() or c in "-_" for c in request_id):
-            raise ValueError("Invalid request_id")
-        if Path(filename).name != filename:
-            raise ValueError("Invalid filename")
-
-        # Resolve to absolute paths and verify anchoring to OUTPUT_DIR
-        resolved_output_dir = OUTPUT_DIR.resolve()
-        safe_dir = (resolved_output_dir / request_id).resolve()
-        file_path = (safe_dir / filename).resolve()
-        return resolved_output_dir, safe_dir, file_path
-
     try:
         resolved_output_dir, safe_dir, file_path = await run_in_threadpool(
-            _get_safe_path
+            _get_safe_path, request_id, filename
         )
 
         # Check if the file is within its assigned request directory and OUTPUT_DIR
