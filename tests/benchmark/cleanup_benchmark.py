@@ -14,15 +14,7 @@ def setup():
 
 def cleanup_old():
     if OUT_DIR.exists():
-        for f in OUT_DIR.glob("*"):
-            try:
-                f.unlink()
-            except Exception:
-                pass
-        try:
-            OUT_DIR.rmdir()
-        except Exception:
-            pass
+        shutil.rmtree(OUT_DIR, ignore_errors=True)
 
 
 def cleanup_new():
