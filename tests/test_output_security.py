@@ -52,3 +52,16 @@ def test_validate_output_security_exception(tmp_path, monkeypatch, caplog):
             assert (
                 "Security Error during path resolution: Simulated error" in caplog.text
             )
+
+
+def test_validate_output_security_cwd_exception(tmp_path, monkeypatch, caplog):
+    """Verify handling of exceptions when Path.cwd() fails."""
+    monkeypatch.chdir(tmp_path)
+    with patch(
+        "docling_lib.converter.Path.cwd",
+        side_effect=OSError("CWD Access Denied"),
+    ):
+        with caplog.at_level(logging.ERROR):
+            result = _validate_output_security(Path("output"))
+            assert result is False
+            assert "Security Error during path resolution: CWD Access Denied" in caplog.text
