@@ -58,7 +58,7 @@ def is_cuda_compatible() -> bool:
         if torch.cuda.is_available():
             # Run a dummy tensor operation to verify execution capability
             device = torch.device("cuda")
-            x = torch.zeros(1, device=device)
+            _x = torch.zeros(1, device=device)
             torch.cuda.synchronize()
             logger.info("CUDA is fully available and compatible with the current GPU.")
             return True

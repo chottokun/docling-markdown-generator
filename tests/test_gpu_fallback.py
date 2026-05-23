@@ -1,7 +1,7 @@
-import logging
 from unittest.mock import patch
-import pytest
+
 import torch
+
 import docling_lib.config as config
 from docling_lib.converter import is_cuda_compatible
 

@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 # Ensure src is in python path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from docling_lib.converter import process_pdf, DocumentConversionOptions
+from docling_lib.converter import process_pdf, DocumentConversionOptions  # noqa: E402, I001
 
 def main():
     project_root = Path(__file__).resolve().parent.parent
