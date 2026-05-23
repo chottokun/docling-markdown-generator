@@ -118,13 +118,11 @@ async def _save_upload_temp(file: UploadFile, suffix: str) -> Path:
     )
     tmp_path = Path(tmp_file.name)
 
-    def _write_file():
-        nonlocal total_size
+    try:
         try:
-            # Re-read the upload stream in chunks to verify the actual size
+            # Rewrite the loop to use async read directly
             while True:
-                # Using file.file to read synchronously within the threadpool
-                chunk = file.file.read(1024 * 1024)  # 1MB chunks
+                chunk = await file.read(1024 * 1024)  # 1MB chunks
                 if not chunk:
                     break
                 total_size += len(chunk)
@@ -133,12 +131,9 @@ async def _save_upload_temp(file: UploadFile, suffix: str) -> Path:
                         status_code=413,
                         detail=f"Payload Too Large. Maximum size is {MAX_UPLOAD_SIZE} bytes.",
                     )
-                tmp_file.write(chunk)
+                await run_in_threadpool(tmp_file.write, chunk)
         finally:
-            tmp_file.close()
-
-    try:
-        await run_in_threadpool(_write_file)
+            await run_in_threadpool(tmp_file.close)
         return tmp_path
     except Exception:
         # Cleanup on any exception
