@@ -11,8 +11,8 @@ version = "0.1.0"
 description = "A library to generate markdown with embedded figures from PDF files."
 requires-python = ">=3.11, <4.0"
 dependencies = [
-    "docling>=2.95.0",
-    "docling-core>=2.77.0",
+    "docling>=2.97.0",
+    "docling-core>=2.80.0",
     "fastapi>=0.136.1",
     "uvicorn>=0.46.0",
     "python-multipart>=0.0.27",

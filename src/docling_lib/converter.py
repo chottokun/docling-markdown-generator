@@ -11,10 +11,28 @@ from docling.datamodel.pipeline_options import PdfPipelineOptions
 from docling.document_converter import (
     DocumentConverter,
     ExcelFormatOption,
+    HTMLFormatOption,
+    ImageFormatOption,
+    MarkdownFormatOption,
     PdfFormatOption,
     PowerpointFormatOption,
     WordFormatOption,
 )
+# New format options for docling v2.x
+try:
+    from docling.document_converter import (
+        EmailFormatOption,
+        EpubFormatOption,
+        LatexFormatOption,
+        XBRLFormatOption,
+    )
+except ImportError:
+    # Fallback for older docling versions
+    XBRLFormatOption = None
+    EmailFormatOption = None
+    EpubFormatOption = None
+    LatexFormatOption = None
+
 from docling_core.transforms.serializer.markdown import (
     MarkdownDocSerializer,
     MarkdownParams,
@@ -193,18 +211,46 @@ class PDFConverter:
         )
 
         # Configure DocumentConverter with multi-format support
-        self.doc_converter = DocumentConverter(
-            format_options={
-                InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options),
-                InputFormat.DOCX: WordFormatOption(pipeline_options=pipeline_options),
-                InputFormat.PPTX: PowerpointFormatOption(
+        format_options = {
+            InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options),
+            InputFormat.DOCX: WordFormatOption(pipeline_options=pipeline_options),
+            InputFormat.PPTX: PowerpointFormatOption(
+                pipeline_options=pipeline_options
+            ),
+            InputFormat.XLSX: ExcelFormatOption(pipeline_options=pipeline_options),
+            InputFormat.HTML: HTMLFormatOption(pipeline_options=pipeline_options),
+            InputFormat.IMAGE: ImageFormatOption(pipeline_options=pipeline_options),
+            InputFormat.MD: MarkdownFormatOption(pipeline_options=pipeline_options),
+        }
+
+        # Add new formats if available in the installed docling version
+        if XBRLFormatOption:
+            # New versions of docling use XML_XBRL
+            attr_name = "XML_XBRL" if hasattr(InputFormat, "XML_XBRL") else "XBRL"
+            if hasattr(InputFormat, attr_name):
+                format_options[getattr(InputFormat, attr_name)] = XBRLFormatOption(
                     pipeline_options=pipeline_options
-                ),
-                InputFormat.XLSX: ExcelFormatOption(
-                    pipeline_options=pipeline_options
-                ),
-            }
-        )
+                )
+        if EmailFormatOption:
+            format_options[InputFormat.EMAIL] = EmailFormatOption(
+                pipeline_options=pipeline_options
+            )
+        if EpubFormatOption:
+            format_options[InputFormat.EPUB] = EpubFormatOption(
+                pipeline_options=pipeline_options
+            )
+        if LatexFormatOption:
+            format_options[InputFormat.LATEX] = LatexFormatOption(
+                pipeline_options=pipeline_options
+            )
+        # WebVTT typically uses the same pipeline or has specific options in newer docling
+        vtt_attr = "VTT" if hasattr(InputFormat, "VTT") else "WEBVTT"
+        if hasattr(InputFormat, vtt_attr):
+            format_options[getattr(InputFormat, vtt_attr)] = HTMLFormatOption(
+                pipeline_options=pipeline_options
+            )
+
+        self.doc_converter = DocumentConverter(format_options=format_options)
 
     def convert(
         self,
@@ -340,10 +386,32 @@ class PDFConverter:
         # 4. Metadata / Frontmatter
         md_content = self._apply_metadata_frontmatter(doc=doc, md_content=md_content)
 
-        # 5. Save output
+        # 5. Save images
+        self._save_images(doc, resolved_images_dir)
+
+        # 6. Save output
         self._write_markdown_file(resolved_md_path, md_content)
 
         return output_dir / md_output_name
+
+    def _save_images(self, doc: DoclingDocument, images_dir: Path) -> None:
+        """
+        Saves images extracted from the document to the specified directory.
+        """
+        # Iterate over pictures in the document
+        for i, element in enumerate(doc.pictures):
+            if element.image and element.image.pil_image:
+                # We use picture_{i+1}.png as a default naming convention
+                # In a more advanced version, we could use the image's original name or hash
+                image_filename = f"picture_{i+1}.png"
+                image_path = images_dir / image_filename
+                try:
+                    element.image.pil_image.save(image_path)
+                    logger.debug(f"Saved image: {image_path}")
+                except Exception as e:
+                    logger.warning(
+                        f"Failed to save image {image_path}: {sanitize_log_message(e)}"
+                    )
 
 
 # Global shared converter instance for reuse

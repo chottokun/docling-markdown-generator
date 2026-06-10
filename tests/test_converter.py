@@ -38,6 +38,7 @@ def test_process_pdf_calls_docling_api_correctly(
     # Setup mocks
     mock_doc = MagicMock(spec=DoclingDocument)
     mock_doc.name = "Test Document"
+    mock_doc.pictures = []  # _save_images()がiterateするため空リストを設定
     MockDocumentConverter.return_value.convert.return_value.document = mock_doc
 
     mock_serializer_instance = MockSerializer.return_value
@@ -116,6 +117,7 @@ def test_process_pdf_with_explicit_converter(
     mock_explicit_converter = MagicMock()
     mock_doc = MagicMock(spec=DoclingDocument)
     mock_doc.name = "Explicit Doc"
+    mock_doc.pictures = []  # _save_images()がiterateするため空リストを設定
     mock_explicit_converter.convert.return_value.document = mock_doc
 
     # We need to mock EnhancedMarkdownSerializer to avoid Pydantic issues with the mock_doc

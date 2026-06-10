@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from fastapi import UploadFile
@@ -18,10 +18,9 @@ async def test_save_upload_temp_cleanup_on_exception(tmp_path, monkeypatch):
     upload_dir.mkdir()
     monkeypatch.setattr(docling_lib.server, "UPLOAD_DIR", upload_dir)
 
-    # Mock UploadFile to raise an exception during read
+    # Mock UploadFile to raise an exception during read（awaitされるのでAsyncMock必須）
     mock_file = MagicMock(spec=UploadFile)
-    mock_file.file = MagicMock()
-    mock_file.file.read = MagicMock(side_effect=Exception("Read error"))
+    mock_file.read = AsyncMock(side_effect=Exception("Read error"))
 
     # The call should propagate the exception
     with pytest.raises(Exception, match="Read error"):

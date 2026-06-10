@@ -20,10 +20,12 @@ setup_logging()
 def setup_parser():
     """Sets up and returns the argument parser for the CLI."""
     parser = argparse.ArgumentParser(
-        description="Extract markdown, figures, and tables from documents (PDF, DOCX, PPTX) with high accuracy."
+        description="Extract markdown, figures, and tables from documents (PDF, DOCX, PPTX, XLSX, HTML, XBRL, Email, etc.) with high accuracy."
     )
     parser.add_argument(
-        "pdf_file", type=Path, help="Path to the input document file (PDF, DOCX, PPTX)."
+        "pdf_file",
+        type=Path,
+        help="Path to the input document file (PDF, DOCX, PPTX, XLSX, HTML, XBRL, Email, EPUB, LaTeX, WebVTT).",
     )
     parser.add_argument(
         "-o",

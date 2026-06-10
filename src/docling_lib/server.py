@@ -93,7 +93,25 @@ def _validate_content_length(content_length: int | None):
 
 def _validate_extension(filename: str) -> str:
     """Validate the file extension and return it if valid."""
-    allowed_extensions = {".pdf", ".docx", ".pptx", ".xlsx"}
+    allowed_extensions = {
+        ".pdf",
+        ".docx",
+        ".pptx",
+        ".xlsx",
+        ".html",
+        ".htm",
+        ".md",
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".tiff",
+        ".xbrl",
+        ".eml",
+        ".msg",
+        ".epub",
+        ".tex",
+        ".vtt",
+    }
     file_ext = Path(filename).suffix.lower()
     if file_ext not in allowed_extensions:
         raise HTTPException(

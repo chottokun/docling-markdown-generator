@@ -50,6 +50,10 @@ def test_validate_content_length_invalid(content_length):
         ("Document.Docx", ".docx"),
         ("multi.dot.file.pdf", ".pdf"),
         ("path/to/file.xlsx", ".xlsx"),
+        ("image.png", ".png"),
+        ("photo.jpg", ".jpg"),
+        ("page.html", ".html"),
+        ("document.epub", ".epub"),
     ],
 )
 def test_validate_extension_valid(filename, expected_ext):
@@ -60,7 +64,6 @@ def test_validate_extension_valid(filename, expected_ext):
     "filename",
     [
         ("test.txt"),
-        ("image.png"),
         ("archive.zip"),
         ("README"),
         (""),

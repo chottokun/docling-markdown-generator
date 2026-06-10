@@ -3,6 +3,21 @@ from types import ModuleType
 
 
 def mock_docling():
+    """
+    doclingがインストールされていない環境向けのスタブを注入する。
+    実際のdoclingがインストール済みの場合は何もしない。
+    """
+    # 実際のdoclingがインポート可能かチェック
+    try:
+        import importlib.util
+        spec = importlib.util.find_spec("docling")
+        if spec is not None and spec.origin is not None:
+            # 実際のdoclingがインストール済み → モック不要
+            return
+    except (ModuleNotFoundError, ValueError):
+        pass
+
+    # doclingが未インストールの場合のみスタブを注入
     if "docling" in sys.modules:
         return
 
@@ -25,7 +40,22 @@ def mock_docling():
     docling_dm = create_mock_module("docling.datamodel")
     docling_base = create_mock_module("docling.datamodel.base_models")
     docling_base.InputFormat = type(
-        "InputFormat", (), {"PDF": "pdf", "DOCX": "docx", "PPTX": "pptx", "XLSX": "xlsx"}
+        "InputFormat",
+        (),
+        {
+            "PDF": "pdf",
+            "DOCX": "docx",
+            "PPTX": "pptx",
+            "XLSX": "xlsx",
+            "HTML": "html",
+            "IMAGE": "image",
+            "MD": "md",
+            "EMAIL": "email",
+            "EPUB": "epub",
+            "LATEX": "latex",
+            "XML_XBRL": "xml_xbrl",
+            "VTT": "vtt",
+        },
     )
     docling_acc = create_mock_module("docling.datamodel.accelerator_options")
     docling_acc.AcceleratorDevice = type("AcceleratorDevice", (), {"AUTO": "auto", "CPU": "cpu"})
@@ -41,27 +71,24 @@ def mock_docling():
     docling_doc.ConversionResult = type(
         "ConversionResult", (), {}
     )
+
+    # フォーマットオプション用のダミークラスファクトリ
+    def _fmt_opt(name):
+        return type(name, (), {"__init__": lambda self, *args, **kwargs: None})
+
     docling_conv = create_mock_module("docling.document_converter")
-    docling_conv.DocumentConverter = type("DocumentConverter", (), {"__init__": lambda self, *args, **kwargs: None})
-    docling_conv.PdfFormatOption = type("PdfFormatOption", (), {"__init__": lambda self, *args, **kwargs: None})
-    docling_conv.PowerpointFormatOption = type("PowerpointFormatOption", (), {"__init__": lambda self, *args, **kwargs: None})
-    docling_conv.WordFormatOption = type("WordFormatOption", (), {"__init__": lambda self, *args, **kwargs: None})
-    docling_conv.ExcelFormatOption = type("ExcelFormatOption", (), {"__init__": lambda self, *args, **kwargs: None})
+    docling_conv.DocumentConverter = _fmt_opt("DocumentConverter")
+    docling_conv.PdfFormatOption = _fmt_opt("PdfFormatOption")
+    docling_conv.PowerpointFormatOption = _fmt_opt("PowerpointFormatOption")
+    docling_conv.WordFormatOption = _fmt_opt("WordFormatOption")
+    docling_conv.ExcelFormatOption = _fmt_opt("ExcelFormatOption")
+    docling_conv.HTMLFormatOption = _fmt_opt("HTMLFormatOption")
+    docling_conv.ImageFormatOption = _fmt_opt("ImageFormatOption")
+    docling_conv.MarkdownFormatOption = _fmt_opt("MarkdownFormatOption")
+    docling_conv.EmailFormatOption = _fmt_opt("EmailFormatOption")
+    docling_conv.EpubFormatOption = _fmt_opt("EpubFormatOption")
+    docling_conv.LatexFormatOption = _fmt_opt("LatexFormatOption")
+    docling_conv.XBRLFormatOption = _fmt_opt("XBRLFormatOption")
 
-    create_mock_module("docling_core")
-    create_mock_module("docling_core.transforms")
-    create_mock_module("docling_core.transforms.serializer")
-    docling_ser = create_mock_module("docling_core.transforms.serializer.markdown")
-    docling_ser.MarkdownDocSerializer = type(
-        "MarkdownDocSerializer", (), {"model_fields": {}}
-    )
-    docling_ser.MarkdownParams = type("MarkdownParams", (), {})
-    docling_ser.MarkdownTableSerializer = type("MarkdownTableSerializer", (), {})
-    docling_ser.SerializationResult = type("SerializationResult", (), {})
-    docling_ser.create_ser_result = lambda **kwargs: None
-
-    create_mock_module("docling_core.types")
-    docling_types = create_mock_module("docling_core.types.doc")
-    docling_types.DoclingDocument = type("DoclingDocument", (), {})
-    docling_types.ImageRefMode = type("ImageRefMode", (), {"REFERENCED": "referenced"})
-    docling_types.TableItem = type("TableItem", (), {})
+    # docling_coreは実際にインストール済みのためモック不要
+    # （モックするとtest_table_serialization.pyなど実際のdocling_coreを使うテストが壊れる）
