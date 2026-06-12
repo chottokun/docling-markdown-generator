@@ -239,7 +239,7 @@ def _get_safe_path(request_id: str, filename: str) -> tuple[Path, Path, Path]:
     return resolved_output_dir, safe_dir, file_path
 
 
-@router.get("/download/{request_id}/{filename}")
+@router.get("/download/{request_id}/{filename}", dependencies=[Depends(api_key_auth)])
 async def download_file(request_id: str, filename: str):
     """
     Endpoint to download converted files.
