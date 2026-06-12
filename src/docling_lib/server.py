@@ -3,7 +3,7 @@ import os
 import secrets
 import tempfile
 import time
-from collections import defaultdict
+from collections import defaultdict, deque
 from pathlib import Path
 
 from fastapi import (
@@ -56,8 +56,8 @@ async def api_key_auth(x_api_key: str | None = Header(None)):
             )
 
 
-# In-memory storage for rate limiting: {client_ip: [timestamp1, timestamp2, ...]}
-_rate_limit_data = defaultdict(list)
+# In-memory storage for rate limiting: {client_ip: deque([timestamp1, timestamp2, ...])}
+_rate_limit_data = defaultdict(deque)
 
 
 async def rate_limiter(request: Request):
@@ -68,18 +68,18 @@ async def rate_limiter(request: Request):
     now = time.time()
 
     # Clean up old timestamps
-    _rate_limit_data[client_ip] = [
-        ts for ts in _rate_limit_data[client_ip] if now - ts < RATE_LIMIT_WINDOW
-    ]
+    dq = _rate_limit_data[client_ip]
+    while dq and now - dq[0] >= RATE_LIMIT_WINDOW:
+        dq.popleft()
 
-    if len(_rate_limit_data[client_ip]) >= RATE_LIMIT_REQUESTS:
+    if len(dq) >= RATE_LIMIT_REQUESTS:
         logger.warning(f"Rate limit exceeded for IP: {sanitize_log_message(client_ip)}")
         raise HTTPException(
             status_code=429,
             detail="Too Many Requests. Please try again later.",
         )
 
-    _rate_limit_data[client_ip].append(now)
+    dq.append(now)
 
 
 def _validate_content_length(content_length: int | None):
