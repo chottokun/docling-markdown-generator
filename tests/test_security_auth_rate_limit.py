@@ -134,3 +134,44 @@ def test_rate_limiting_window():
                             # Third request -> Success
                             response = client.post("/convert/", files=files)
                             assert response.status_code != 429
+
+
+def test_download_auth_enabled(tmp_path, monkeypatch):
+    monkeypatch.setattr(docling_lib.server, "OUTPUT_DIR", tmp_path)
+    with patch("docling_lib.server.API_KEY", "test-api-key"):
+        client = TestClient(app)
+
+        # Missing API Key
+        response = client.get("/download/validid/file.md")
+        assert response.status_code == 401
+
+        # Wrong API Key
+        response = client.get(
+            "/download/validid/file.md", headers={"X-API-Key": "wrong-key"}
+        )
+        assert response.status_code == 401
+
+
+def test_download_rate_limiting(tmp_path, monkeypatch):
+    monkeypatch.setattr(docling_lib.server, "OUTPUT_DIR", tmp_path)
+    docling_lib.server._rate_limit_data.clear()
+
+    with patch("docling_lib.server.RATE_LIMIT_REQUESTS", 2):
+        with patch("docling_lib.server.RATE_LIMIT_WINDOW", 60):
+            client = TestClient(app)
+
+            # The dependencies run BEFORE the handler. If rate limiting is not triggered,
+            # we will get 400 or 404 (since parameters / files are mock/invalid), but NOT 429.
+            # If rate limiting is triggered, we get 429.
+            
+            # First request
+            response = client.get("/download/validid/file.md")
+            assert response.status_code != 429
+
+            # Second request
+            response = client.get("/download/validid/file.md")
+            assert response.status_code != 429
+
+            # Third request -> Rate limited
+            response = client.get("/download/validid/file.md")
+            assert response.status_code == 429
