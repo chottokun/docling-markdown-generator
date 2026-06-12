@@ -132,17 +132,16 @@ async def _save_upload_temp(file: UploadFile, suffix: str) -> Path:
     Save the uploaded file to a temporary location with size validation.
     Reads in chunks to maintain memory efficiency and prevent DoS.
     """
-    total_size = 0
     tmp_file = await run_in_threadpool(
         tempfile.NamedTemporaryFile, delete=False, suffix=suffix, dir=UPLOAD_DIR
     )
     tmp_path = Path(tmp_file.name)
 
-    try:
+    def _save_blocking():
+        total_size = 0
         try:
-            # Rewrite the loop to use async read directly
             while True:
-                chunk = await file.read(1024 * 1024)  # 1MB chunks
+                chunk = file.file.read(1024 * 1024)  # 1MB chunks
                 if not chunk:
                     break
                 total_size += len(chunk)
@@ -151,9 +150,12 @@ async def _save_upload_temp(file: UploadFile, suffix: str) -> Path:
                         status_code=413,
                         detail=f"Payload Too Large. Maximum size is {MAX_UPLOAD_SIZE} bytes.",
                     )
-                await run_in_threadpool(tmp_file.write, chunk)
+                tmp_file.write(chunk)
         finally:
-            await run_in_threadpool(tmp_file.close)
+            tmp_file.close()
+
+    try:
+        await run_in_threadpool(_save_blocking)
         return tmp_path
     except Exception:
         # Cleanup on any exception
