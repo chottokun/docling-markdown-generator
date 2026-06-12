@@ -118,3 +118,96 @@ def test_html_table_serialization_with_captions():
     assert len(result.spans) == 2
     assert any(span.item.self_ref == "#/texts/2" for span in result.spans)
     assert any(span.item.self_ref == "#/tables/1" for span in result.spans)
+
+
+def test_html_table_serialization_empty():
+    """Test HTML table serialization when both captions and HTML export are empty."""
+    serializer = HTMLTableMarkdownSerializer()
+
+    # Setup mocks
+    mock_item = MagicMock(spec=TableItem)
+    mock_item.export_to_html.return_value = ""
+
+    mock_doc = MagicMock(spec=DoclingDocument)
+
+    mock_doc_serializer = MagicMock()
+    mock_caption_res = MagicMock(spec=SerializationResult)
+    mock_caption_res.text = ""
+    mock_caption_res.spans = []
+    mock_doc_serializer.serialize_captions.return_value = mock_caption_res
+
+    # Act
+    result = serializer.serialize(
+        item=mock_item, doc_serializer=mock_doc_serializer, doc=mock_doc
+    )
+
+    # Assert
+    assert result.text == ""
+    assert result.spans == []
+
+
+def test_html_table_serialization_fallback_kwargs():
+    """Test that kwargs are propagated during fallback."""
+    serializer = HTMLTableMarkdownSerializer()
+
+    # Setup mocks
+    mock_item = MagicMock(spec=TableItem)
+    mock_item.export_to_html.side_effect = Exception("HTML Export Failed")
+
+    mock_doc = MagicMock(spec=DoclingDocument)
+
+    mock_doc_serializer = MagicMock()
+    mock_caption_res = MagicMock(spec=SerializationResult)
+    mock_caption_res.text = ""
+    mock_caption_res.spans = []
+    mock_doc_serializer.serialize_captions.return_value = mock_caption_res
+
+    custom_kwargs = {"custom_arg": "value", "another_arg": 123}
+
+    with patch.object(
+        MarkdownTableSerializer, "serialize", return_value=MagicMock()
+    ) as mock_super_serialize:
+        # Act
+        serializer.serialize(
+            item=mock_item,
+            doc_serializer=mock_doc_serializer,
+            doc=mock_doc,
+            **custom_kwargs,
+        )
+
+        # Assert
+        mock_super_serialize.assert_called_once_with(
+            item=mock_item,
+            doc_serializer=mock_doc_serializer,
+            doc=mock_doc,
+            **custom_kwargs,
+        )
+
+
+def test_html_table_serialization_no_html_content():
+    """Test HTML table serialization when export_to_html returns None or empty."""
+    serializer = HTMLTableMarkdownSerializer()
+
+    # Case 1: export_to_html returns None
+    mock_item = MagicMock(spec=TableItem)
+    mock_item.export_to_html.return_value = None
+
+    mock_doc = MagicMock(spec=DoclingDocument)
+    mock_doc_serializer = MagicMock()
+    mock_caption_res = MagicMock(spec=SerializationResult)
+    mock_caption_res.text = "Caption"
+    mock_caption_res.spans = []
+    mock_doc_serializer.serialize_captions.return_value = mock_caption_res
+
+    result = serializer.serialize(
+        item=mock_item, doc_serializer=mock_doc_serializer, doc=mock_doc
+    )
+    # Should only contain caption
+    assert result.text == "Caption"
+
+    # Case 2: export_to_html returns empty string
+    mock_item.export_to_html.return_value = ""
+    result = serializer.serialize(
+        item=mock_item, doc_serializer=mock_doc_serializer, doc=mock_doc
+    )
+    assert result.text == "Caption"
