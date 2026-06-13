@@ -1,11 +1,10 @@
 import asyncio
-import time
-import tempfile
-import os
-from pathlib import Path
-from starlette.concurrency import run_in_threadpool
-from fastapi import UploadFile
 import shutil
+import tempfile
+import time
+from pathlib import Path
+
+from starlette.concurrency import run_in_threadpool
 
 # Simulate a large file
 CHUNK_SIZE = 1024 * 1024  # 1MB

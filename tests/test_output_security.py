@@ -3,6 +3,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from tests.mock_docling import mock_docling
+
 mock_docling()
 
 from docling_lib.converter import _validate_output_security

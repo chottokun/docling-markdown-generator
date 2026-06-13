@@ -18,6 +18,7 @@ from docling.document_converter import (
     PowerpointFormatOption,
     WordFormatOption,
 )
+
 # New format options for docling v2.x
 try:
     from docling.document_converter import (
@@ -211,6 +212,14 @@ class PDFConverter:
         )
 
         # Configure DocumentConverter with multi-format support
+        format_options = self._get_format_options(pipeline_options)
+
+        self.doc_converter = DocumentConverter(format_options=format_options)
+
+    def _get_format_options(self, pipeline_options: PdfPipelineOptions) -> dict:
+        """
+        Constructs the format options dictionary based on available imports.
+        """
         format_options = {
             InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options),
             InputFormat.DOCX: WordFormatOption(pipeline_options=pipeline_options),
@@ -250,7 +259,7 @@ class PDFConverter:
                 pipeline_options=pipeline_options
             )
 
-        self.doc_converter = DocumentConverter(format_options=format_options)
+        return format_options
 
     def convert(
         self,

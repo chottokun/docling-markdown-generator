@@ -3,7 +3,7 @@ import os
 import secrets
 import tempfile
 import time
-from collections import defaultdict
+from collections import defaultdict, deque
 from pathlib import Path
 
 from fastapi import (
@@ -56,8 +56,8 @@ async def api_key_auth(x_api_key: str | None = Header(None)):
             )
 
 
-# In-memory storage for rate limiting: {client_ip: [timestamp1, timestamp2, ...]}
-_rate_limit_data = defaultdict(list)
+# In-memory storage for rate limiting: {client_ip: deque([timestamp1, timestamp2, ...])}
+_rate_limit_data = defaultdict(deque)
 
 
 async def rate_limiter(request: Request):
@@ -68,18 +68,18 @@ async def rate_limiter(request: Request):
     now = time.time()
 
     # Clean up old timestamps
-    _rate_limit_data[client_ip] = [
-        ts for ts in _rate_limit_data[client_ip] if now - ts < RATE_LIMIT_WINDOW
-    ]
+    dq = _rate_limit_data[client_ip]
+    while dq and now - dq[0] >= RATE_LIMIT_WINDOW:
+        dq.popleft()
 
-    if len(_rate_limit_data[client_ip]) >= RATE_LIMIT_REQUESTS:
+    if len(dq) >= RATE_LIMIT_REQUESTS:
         logger.warning(f"Rate limit exceeded for IP: {sanitize_log_message(client_ip)}")
         raise HTTPException(
             status_code=429,
             detail="Too Many Requests. Please try again later.",
         )
 
-    _rate_limit_data[client_ip].append(now)
+    dq.append(now)
 
 
 def _validate_content_length(content_length: int | None):
@@ -132,17 +132,16 @@ async def _save_upload_temp(file: UploadFile, suffix: str) -> Path:
     Save the uploaded file to a temporary location with size validation.
     Reads in chunks to maintain memory efficiency and prevent DoS.
     """
-    total_size = 0
     tmp_file = await run_in_threadpool(
         tempfile.NamedTemporaryFile, delete=False, suffix=suffix, dir=UPLOAD_DIR
     )
     tmp_path = Path(tmp_file.name)
 
-    try:
+    def _save_blocking():
+        total_size = 0
         try:
-            # Rewrite the loop to use async read directly
             while True:
-                chunk = await file.read(1024 * 1024)  # 1MB chunks
+                chunk = file.file.read(1024 * 1024)  # 1MB chunks
                 if not chunk:
                     break
                 total_size += len(chunk)
@@ -151,9 +150,12 @@ async def _save_upload_temp(file: UploadFile, suffix: str) -> Path:
                         status_code=413,
                         detail=f"Payload Too Large. Maximum size is {MAX_UPLOAD_SIZE} bytes.",
                     )
-                await run_in_threadpool(tmp_file.write, chunk)
+                tmp_file.write(chunk)
         finally:
-            await run_in_threadpool(tmp_file.close)
+            tmp_file.close()
+
+    try:
+        await run_in_threadpool(_save_blocking)
         return tmp_path
     except Exception:
         # Cleanup on any exception
@@ -239,7 +241,10 @@ def _get_safe_path(request_id: str, filename: str) -> tuple[Path, Path, Path]:
     return resolved_output_dir, safe_dir, file_path
 
 
-@router.get("/download/{request_id}/{filename}")
+@router.get(
+    "/download/{request_id}/{filename}",
+    dependencies=[Depends(api_key_auth), Depends(rate_limiter)],
+)
 async def download_file(request_id: str, filename: str):
     """
     Endpoint to download converted files.

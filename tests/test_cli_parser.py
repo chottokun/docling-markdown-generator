@@ -1,5 +1,7 @@
-import pytest
 from pathlib import Path
+
+import pytest
+
 from tests.mock_docling import mock_docling
 
 # Call mock_docling before importing cli to handle missing dependencies
@@ -7,6 +9,7 @@ mock_docling()
 
 from docling_lib.cli import setup_parser
 from docling_lib.config import IMAGE_DIR_NAME, IMAGE_RESOLUTION_SCALE, MD_OUTPUT_NAME
+
 
 def test_setup_parser_defaults():
     """Test that setup_parser returns a parser with expected default values."""
