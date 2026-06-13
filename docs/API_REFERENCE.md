@@ -34,19 +34,24 @@ curl -X POST -F "file=@sample.pdf" http://localhost:8000/convert/
 
 - **URL**: `/download/{request_id}/{filename}`
 - **Method**: `GET`
+- **Headers**:
+  - `X-API-Key` (Optional): サーバーでAPIキーが設定されている場合に必須。
 - **Path Parameters**:
   - `request_id`: 変換時に割り振られた一意のID
   - `filename`: 取得するファイル名（例: `processed_document.md` や `images/image_1.png`）
+- **Rate Limit**: `/convert/` エンドポイントと同様にIPベースのレート制限が適用されます。
 
 ### cURL 例
 ```bash
-curl -O http://localhost:8000/download/1a2b3c4d5e6f/processed_document.md
+curl -H "X-API-Key: your_api_key_here" -O http://localhost:8000/download/1a2b3c4d5e6f/processed_document.md
 ```
 
 ## 3. エラーコード
 
 - **400 Bad Request**: サポートされていない拡張子、または無効なリクエストパラメータ。
+- **401 Unauthorized**: 無効または未指定のAPIキー。
 - **404 Not Found**: ファイルが存在しない、または無許可のパスアクセス（Path Traversal対策）。
+- **429 Too Many Requests**: 短時間での過剰なリクエスト送信によるレート制限の超過。
 - **500 Internal Server Error**: 変換エンジンの内部エラー。
 
 ## 4. セキュリティと並行処理
