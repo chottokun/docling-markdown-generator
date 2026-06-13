@@ -1,7 +1,10 @@
-import pytest
-from unittest.mock import MagicMock
 from pathlib import Path
+from unittest.mock import MagicMock
+
+import pytest
+
 from docling_lib.server import _cleanup_temp_file
+
 
 @pytest.mark.asyncio
 async def test_cleanup_temp_file_none():

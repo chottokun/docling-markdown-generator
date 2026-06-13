@@ -1,10 +1,10 @@
 import asyncio
-import time
-import tempfile
-import os
-from pathlib import Path
-from starlette.concurrency import run_in_threadpool
 import shutil
+import tempfile
+import time
+from pathlib import Path
+
+from starlette.concurrency import run_in_threadpool
 
 # Mocking parts of the server
 MAX_UPLOAD_SIZE = 200 * 1024 * 1024

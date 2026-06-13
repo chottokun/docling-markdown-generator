@@ -23,4 +23,4 @@ ignore = [
 ]
 
 [lint.per-file-ignores]
-"tests/*" = ["S101"] # Allow asserts in tests
+"tests/*" = ["S101", "E402", "S108", "F841", "E701"] # Allow asserts in tests

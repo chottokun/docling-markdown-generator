@@ -1,10 +1,10 @@
 import logging
-from pathlib import Path
 from unittest.mock import MagicMock
 
-import pytest
 from docling_core.types.doc import DoclingDocument
-from docling_lib.converter import PDFConverter, DocumentConversionOptions
+
+from docling_lib.converter import DocumentConversionOptions, PDFConverter
+
 
 def test_save_images_exception_logging(tmp_path, caplog):
     """
