@@ -182,6 +182,10 @@ def test_html_table_serialization_fallback_kwargs():
             doc=mock_doc,
             **custom_kwargs,
         )
+        mock_doc_serializer.serialize_captions.assert_called_once_with(
+            item=mock_item,
+            **custom_kwargs,
+        )
 
 
 def test_html_table_serialization_no_html_content():
