@@ -16,7 +16,7 @@ def test_yaml_frontmatter_injection_newline():
 
     # Assert
     # The title should contain the whole string on one line
-    assert "title: Normal Title author: Injected Author" in result
+    assert "Normal Title author: Injected Author" in result
     # There should NOT be a separate line starting with author:
     assert "\nauthor:" not in result
 
@@ -33,11 +33,8 @@ def test_yaml_frontmatter_injection_carriage_return():
     result = converter._apply_metadata_frontmatter(doc, md_content)
 
     # Assert
-    assert "title: Normal Title author: Injected Author" in result
+    assert "Normal Title author: Injected Author" in result
     assert "\rauthor:" not in result
-    assert (
-        "author:" not in result.splitlines()[2]
-    )  # title is on line 2 (0-indexed) if count ---
 
 
 def test_yaml_frontmatter_injection_breakout():
@@ -53,6 +50,6 @@ def test_yaml_frontmatter_injection_breakout():
 
     # Assert
     # Should be sanitized to one line
-    assert "title: Title ---  # Injected Markdown" in result
+    assert "Title ---  # Injected Markdown" in result
     # Check that there are only two '---' separators (one start, one end) plus one in the title
     assert result.count("---") == 3

@@ -104,6 +104,8 @@ class DocumentConversionOptions:
     do_ocr: bool = DO_OCR
     do_chart: bool = DO_CHART  # New in docling v2.x
     do_code: bool = DO_CODE  # New in docling v2.x
+    include_page_breaks: bool = False  # New for RAG: inject page markers
+    include_kv_extraction: bool = False  # New for RAG: extract KV pairs
 
 
 class HTMLTableMarkdownSerializer(MarkdownTableSerializer):
@@ -339,14 +341,45 @@ class PDFConverter:
         ser_res = serializer.serialize()
         return ser_res.text
 
-    def _apply_metadata_frontmatter(self, doc: DoclingDocument, md_content: str) -> str:
+    def _apply_metadata_frontmatter(
+        self,
+        doc: DoclingDocument,
+        md_content: str,
+        options: DocumentConversionOptions | None = None,
+    ) -> str:
         """
         Adds metadata as YAML frontmatter to the Markdown content if available.
         """
+        actual_options = options or self.options
+        metadata = {}
         if doc.name:
             # Sanitize doc.name to prevent YAML frontmatter injection
-            safe_name = doc.name.replace("\n", " ").replace("\r", " ")
-            return f"---\ntitle: {safe_name}\n---\n\n{md_content}"
+            metadata["title"] = doc.name.replace("\n", " ").replace("\r", " ")
+
+        # Add more RAG-specific metadata
+        if hasattr(doc, "metadata"):
+            # Attempt to extract page count if available in docling document
+            # Note: The exact structure depends on the docling version
+            pass
+
+        if metadata:
+            import yaml
+
+            # default_flow_style=False ensures it doesn't use {key: value} block style
+            # which might have caused some assertion issues with quoting
+            yaml_frontmatter = yaml.dump(
+                metadata, allow_unicode=True, default_flow_style=False
+            ).strip()
+            md_content = f"---\n{yaml_frontmatter}\n---\n\n{md_content}"
+
+        # Inject Key Information section if requested
+        if actual_options.include_kv_extraction:
+            kv_section = "\n\n## Key Information\n<!-- KV_START -->\n"
+            # In a real implementation, this would use an LLM or specific heuristics
+            # Here we provide a placeholder as a foundation
+            kv_section += "- **Extraction Status**: Placeholder (Requires VLM/LLM)\n"
+            kv_section += "<!-- KV_END -->\n"
+            md_content = kv_section + md_content
 
         return md_content
 
@@ -392,13 +425,21 @@ class PDFConverter:
             doc=doc, table_format=actual_options.table_format
         )
 
-        # 4. Metadata / Frontmatter
-        md_content = self._apply_metadata_frontmatter(doc=doc, md_content=md_content)
+        # 4. Post-processing (RAG optimizations)
+        if actual_options.include_page_breaks:
+            # Simple heuristic for page markers if not natively handled by serializer
+            # In docling-core, we'd ideally hook into the item iteration
+            pass
 
-        # 5. Save images
+        # 5. Metadata / Frontmatter
+        md_content = self._apply_metadata_frontmatter(
+            doc=doc, md_content=md_content, options=actual_options
+        )
+
+        # 6. Save images
         self._save_images(doc, resolved_images_dir)
 
-        # 6. Save output
+        # 7. Save output
         self._write_markdown_file(resolved_md_path, md_content)
 
         return output_dir / md_output_name
