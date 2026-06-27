@@ -1,5 +1,6 @@
 import logging
 import threading
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -407,20 +408,25 @@ class PDFConverter:
         """
         Saves images extracted from the document to the specified directory.
         """
-        # Iterate over pictures in the document
-        for i, element in enumerate(doc.pictures):
-            if element.image and element.image.pil_image:
-                # We use picture_{i+1}.png as a default naming convention
-                # In a more advanced version, we could use the image's original name or hash
-                image_filename = f"picture_{i+1}.png"
-                image_path = images_dir / image_filename
-                try:
-                    element.image.pil_image.save(image_path)
-                    logger.debug(f"Saved image: {image_path}")
-                except Exception as e:
-                    logger.warning(
-                        f"Failed to save image {image_path}: {sanitize_log_message(e)}"
-                    )
+
+        def save_image(i, element):
+            # We use picture_{i+1}.png as a default naming convention
+            # In a more advanced version, we could use the image's original name or hash
+            image_filename = f"picture_{i+1}.png"
+            image_path = images_dir / image_filename
+            try:
+                element.image.pil_image.save(image_path)
+                logger.debug(f"Saved image: {image_path}")
+            except Exception as e:
+                logger.warning(
+                    f"Failed to save image {image_path}: {sanitize_log_message(e)}"
+                )
+
+        # Iterate over pictures in the document in parallel
+        with ThreadPoolExecutor() as executor:
+            for i, element in enumerate(doc.pictures):
+                if element.image and element.image.pil_image:
+                    executor.submit(save_image, i, element)
 
 
 # Global shared converter instance for reuse
