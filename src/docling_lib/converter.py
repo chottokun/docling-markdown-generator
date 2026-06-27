@@ -10,29 +10,18 @@ from docling.datamodel.base_models import InputFormat
 from docling.datamodel.pipeline_options import PdfPipelineOptions
 from docling.document_converter import (
     DocumentConverter,
+    EmailFormatOption,
+    EpubFormatOption,
     ExcelFormatOption,
     HTMLFormatOption,
     ImageFormatOption,
+    LatexFormatOption,
     MarkdownFormatOption,
     PdfFormatOption,
     PowerpointFormatOption,
     WordFormatOption,
+    XBRLFormatOption,
 )
-
-# New format options for docling v2.x
-try:
-    from docling.document_converter import (
-        EmailFormatOption,
-        EpubFormatOption,
-        LatexFormatOption,
-        XBRLFormatOption,
-    )
-except ImportError:
-    # Fallback for older docling versions
-    XBRLFormatOption = None
-    EmailFormatOption = None
-    EpubFormatOption = None
-    LatexFormatOption = None
 
 from docling_core.transforms.serializer.markdown import (
     MarkdownDocSerializer,
@@ -218,48 +207,22 @@ class PDFConverter:
 
     def _get_format_options(self, pipeline_options: PdfPipelineOptions) -> dict:
         """
-        Constructs the format options dictionary based on available imports.
+        Constructs the format options dictionary.
         """
-        format_options = {
+        return {
             InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options),
             InputFormat.DOCX: WordFormatOption(pipeline_options=pipeline_options),
-            InputFormat.PPTX: PowerpointFormatOption(
-                pipeline_options=pipeline_options
-            ),
+            InputFormat.PPTX: PowerpointFormatOption(pipeline_options=pipeline_options),
             InputFormat.XLSX: ExcelFormatOption(pipeline_options=pipeline_options),
             InputFormat.HTML: HTMLFormatOption(pipeline_options=pipeline_options),
             InputFormat.IMAGE: ImageFormatOption(pipeline_options=pipeline_options),
             InputFormat.MD: MarkdownFormatOption(pipeline_options=pipeline_options),
+            InputFormat.EMAIL: EmailFormatOption(pipeline_options=pipeline_options),
+            InputFormat.EPUB: EpubFormatOption(pipeline_options=pipeline_options),
+            InputFormat.LATEX: LatexFormatOption(pipeline_options=pipeline_options),
+            InputFormat.XML_XBRL: XBRLFormatOption(pipeline_options=pipeline_options),
+            InputFormat.VTT: HTMLFormatOption(pipeline_options=pipeline_options),
         }
-
-        # Add new formats if available in the installed docling version
-        if XBRLFormatOption:
-            # New versions of docling use XML_XBRL
-            attr_name = "XML_XBRL" if hasattr(InputFormat, "XML_XBRL") else "XBRL"
-            if hasattr(InputFormat, attr_name):
-                format_options[getattr(InputFormat, attr_name)] = XBRLFormatOption(
-                    pipeline_options=pipeline_options
-                )
-        if EmailFormatOption:
-            format_options[InputFormat.EMAIL] = EmailFormatOption(
-                pipeline_options=pipeline_options
-            )
-        if EpubFormatOption:
-            format_options[InputFormat.EPUB] = EpubFormatOption(
-                pipeline_options=pipeline_options
-            )
-        if LatexFormatOption:
-            format_options[InputFormat.LATEX] = LatexFormatOption(
-                pipeline_options=pipeline_options
-            )
-        # WebVTT typically uses the same pipeline or has specific options in newer docling
-        vtt_attr = "VTT" if hasattr(InputFormat, "VTT") else "WEBVTT"
-        if hasattr(InputFormat, vtt_attr):
-            format_options[getattr(InputFormat, vtt_attr)] = HTMLFormatOption(
-                pipeline_options=pipeline_options
-            )
-
-        return format_options
 
     def convert(
         self,
