@@ -24,22 +24,19 @@ async def test_cleanup_temp_file_exists(tmp_path):
 
 @pytest.mark.asyncio
 async def test_cleanup_temp_file_not_exists():
-    """Verify that _cleanup_temp_file does not attempt to unlink if the file does not exist."""
+    """Verify that _cleanup_temp_file attempts to unlink even if the file does not exist."""
     mock_path = MagicMock(spec=Path)
-    mock_path.exists.return_value = False
 
     await _cleanup_temp_file(mock_path)
 
-    mock_path.exists.assert_called_once()
-    mock_path.unlink.assert_not_called()
+    mock_path.unlink.assert_called_once_with(missing_ok=True)
+
 
 @pytest.mark.asyncio
 async def test_cleanup_temp_file_unlink_called():
-    """Verify that _cleanup_temp_file calls unlink if exists returns True."""
+    """Verify that _cleanup_temp_file calls unlink with missing_ok=True."""
     mock_path = MagicMock(spec=Path)
-    mock_path.exists.return_value = True
 
     await _cleanup_temp_file(mock_path)
 
-    mock_path.exists.assert_called_once()
-    mock_path.unlink.assert_called_once()
+    mock_path.unlink.assert_called_once_with(missing_ok=True)

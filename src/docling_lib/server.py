@@ -91,6 +91,11 @@ def _validate_content_length(content_length: int | None):
         )
 
 
+def _is_valid_file(path: Path) -> bool:
+    """Check if a path exists and is a file."""
+    return path.exists() and path.is_file()
+
+
 def _validate_extension(filename: str) -> str:
     """Validate the file extension and return it if valid."""
     allowed_extensions = {
@@ -123,8 +128,8 @@ def _validate_extension(filename: str) -> str:
 
 async def _cleanup_temp_file(tmp_path: Path | None):
     """Cleanup temporary input file."""
-    if tmp_path and await run_in_threadpool(tmp_path.exists):
-        await run_in_threadpool(tmp_path.unlink)
+    if tmp_path:
+        await run_in_threadpool(tmp_path.unlink, missing_ok=True)
 
 
 async def _save_upload_temp(file: UploadFile, suffix: str) -> Path:
@@ -265,9 +270,7 @@ async def download_file(request_id: str, filename: str):
             )
             raise HTTPException(status_code=404, detail="File not found.")
 
-        if not await run_in_threadpool(file_path.exists) or not await run_in_threadpool(
-            file_path.is_file
-        ):
+        if not await run_in_threadpool(_is_valid_file, file_path):
             raise HTTPException(status_code=404, detail="File not found.")
 
         return FileResponse(file_path)
