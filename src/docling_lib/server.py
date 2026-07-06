@@ -21,6 +21,7 @@ from fastapi.responses import FileResponse
 from starlette.concurrency import run_in_threadpool
 
 from .config import (
+    ALLOWED_EXTENSIONS,
     API_KEY,
     CORS_ORIGINS,
     MAX_UPLOAD_SIZE,
@@ -93,30 +94,11 @@ def _validate_content_length(content_length: int | None):
 
 def _validate_extension(filename: str) -> str:
     """Validate the file extension and return it if valid."""
-    allowed_extensions = {
-        ".pdf",
-        ".docx",
-        ".pptx",
-        ".xlsx",
-        ".html",
-        ".htm",
-        ".md",
-        ".png",
-        ".jpg",
-        ".jpeg",
-        ".tiff",
-        ".xbrl",
-        ".eml",
-        ".msg",
-        ".epub",
-        ".tex",
-        ".vtt",
-    }
     file_ext = Path(filename).suffix.lower()
-    if file_ext not in allowed_extensions:
+    if file_ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(
             status_code=400,
-            detail=f"Unsupported file format. Supported: {allowed_extensions}",
+            detail=f"Unsupported file format. Supported: {ALLOWED_EXTENSIONS}",
         )
     return file_ext
 
