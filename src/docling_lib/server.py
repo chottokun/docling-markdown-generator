@@ -60,11 +60,31 @@ async def api_key_auth(x_api_key: str | None = Header(None)):
 _rate_limit_data = defaultdict(deque)
 
 
+def _get_client_ip(request: Request) -> str:
+    """
+    Helper to extract client IP, considering proxy headers.
+    """
+    # Check X-Forwarded-For header
+    x_forwarded_for = request.headers.get("X-Forwarded-For")
+    if x_forwarded_for:
+        # X-Forwarded-For can be a comma-separated list.
+        # The leftmost IP is the original client.
+        return x_forwarded_for.split(",")[0].strip()
+
+    # Check X-Real-IP header
+    x_real_ip = request.headers.get("X-Real-IP")
+    if x_real_ip:
+        return x_real_ip.strip()
+
+    # Fallback to connection IP
+    return request.client.host if request.client else "unknown"
+
+
 async def rate_limiter(request: Request):
     """
     Simple in-memory rate limiter dependency.
     """
-    client_ip = request.client.host if request.client else "unknown"
+    client_ip = _get_client_ip(request)
     now = time.time()
 
     # Clean up old timestamps
