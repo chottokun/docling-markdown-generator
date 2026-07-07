@@ -99,6 +99,8 @@ async def test_rate_limiter_multiple_clients():
 async def test_rate_limiter_missing_client():
     """Test that the rate limiter handles requests where request.client is None."""
     mock_request = MagicMock(spec=Request)
+    # Ensure header checks return None to trigger connection IP / client fallback
+    mock_request.headers.get.return_value = None
     mock_request.client = None
 
     limit = 2

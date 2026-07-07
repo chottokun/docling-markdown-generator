@@ -19,10 +19,9 @@ async def test_save_upload_temp_cleanup_on_exception(tmp_path, monkeypatch):
     monkeypatch.setattr(docling_lib.server, "UPLOAD_DIR", upload_dir)
 
     # Mock UploadFile to raise an exception during read
+    from unittest.mock import AsyncMock
     mock_file = MagicMock(spec=UploadFile)
-    # Mock the underlying file object for synchronous reading
-    mock_file.file = MagicMock()
-    mock_file.file.read.side_effect = Exception("Read error")
+    mock_file.read = AsyncMock(side_effect=Exception("Read error"))
 
     # The call should propagate the exception
     with pytest.raises(Exception, match="Read error"):

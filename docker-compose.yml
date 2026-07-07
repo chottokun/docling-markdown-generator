@@ -4,7 +4,7 @@ services:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "8000:8000"
+      - "8090:8000"
     volumes:
       # 各ディレクトリを個別にマウントし、コンテナ内の仮想環境（.venv）の上書きを防ぐ
       - ./src:/app/src
