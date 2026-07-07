@@ -54,6 +54,16 @@ def test_validate_content_length_invalid(content_length):
         ("photo.jpg", ".jpg"),
         ("page.html", ".html"),
         ("document.epub", ".epub"),
+        (" test.pdf", ".pdf"),  # Leading space is preserved by Path.suffix but it finds the extension
+        ("report.tex", ".tex"),
+        ("subtitle.vtt", ".vtt"),
+        ("data.xbrl", ".xbrl"),
+        ("email.eml", ".eml"),
+        ("message.msg", ".msg"),
+        ("image.tiff", ".tiff"),
+        ("image.jpeg", ".jpeg"),
+        ("page.htm", ".htm"),
+        ("README.md", ".md"),
     ],
 )
 def test_validate_extension_valid(filename, expected_ext):
@@ -70,6 +80,9 @@ def test_validate_extension_valid(filename, expected_ext):
         ("no_extension."),
         (".pdf"),  # This is tricky, Path(".pdf").suffix is ""
         ("file."),
+        ("test.pdf "),  # Trailing space
+        ("test.pdf\n"),  # Newline
+        ("test.exe.pdf.txt"),  # Double extension where last is invalid
     ],
 )
 def test_validate_extension_invalid(filename):
