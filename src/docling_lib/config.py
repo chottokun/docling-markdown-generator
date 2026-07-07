@@ -3,6 +3,25 @@ import os
 from pathlib import Path
 
 # --- Constants ---
+ALLOWED_EXTENSIONS = {
+    ".pdf",
+    ".docx",
+    ".pptx",
+    ".xlsx",
+    ".html",
+    ".htm",
+    ".md",
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".tiff",
+    ".xbrl",
+    ".eml",
+    ".msg",
+    ".epub",
+    ".tex",
+    ".vtt",
+}
 MD_OUTPUT_NAME = "processed_document.md"
 IMAGE_DIR_NAME = "images"
 IMAGE_RESOLUTION_SCALE = 2.0  # Higher value for better image quality
