@@ -9,104 +9,106 @@ from docling_lib.server import rate_limiter
 
 
 @pytest.fixture(autouse=True)
-def clear_rate_limit_data():
-    """Ensure rate limit data is cleared before each test."""
+def reset_rate_limit_data():
+    """Reset the in-memory rate limit data before each test."""
     docling_lib.server._rate_limit_data.clear()
 
 
 @pytest.mark.asyncio
 async def test_rate_limiter_success():
-    """Test that requests within the limit succeed."""
-    request = MagicMock(spec=Request)
-    request.client.host = "127.0.0.1"
+    """Test that multiple requests within the limit succeed."""
+    mock_request = MagicMock(spec=Request)
+    mock_request.client.host = "1.2.3.4"
 
-    with patch("docling_lib.server.RATE_LIMIT_REQUESTS", 2):
-        with patch("docling_lib.server.RATE_LIMIT_WINDOW", 60):
-            # First request
-            await rate_limiter(request)
-            # Second request
-            await rate_limiter(request)
-            # Should not raise any exception
+    with patch("docling_lib.server.RATE_LIMIT_REQUESTS", 5):
+        for _ in range(5):
+            # Should not raise
+            await rate_limiter(mock_request)
 
 
 @pytest.mark.asyncio
 async def test_rate_limiter_exceeded():
-    """Test that requests exceeding the limit raise 429."""
-    request = MagicMock(spec=Request)
-    request.client.host = "127.0.0.1"
+    """Test that an HTTPException with status code 429 is raised when the limit is exceeded."""
+    mock_request = MagicMock(spec=Request)
+    mock_request.client.host = "1.2.3.4"
 
-    with patch("docling_lib.server.RATE_LIMIT_REQUESTS", 1):
-        with patch("docling_lib.server.RATE_LIMIT_WINDOW", 60):
-            # First request
-            await rate_limiter(request)
+    limit = 3
+    with patch("docling_lib.server.RATE_LIMIT_REQUESTS", limit):
+        for _ in range(limit):
+            await rate_limiter(mock_request)
 
-            # Second request -> Exceeded
-            with pytest.raises(HTTPException) as exc_info:
-                await rate_limiter(request)
+        with pytest.raises(HTTPException) as exc_info:
+            await rate_limiter(mock_request)
 
-            assert exc_info.value.status_code == 429
-            assert "Too Many Requests" in exc_info.value.detail
+        assert exc_info.value.status_code == 429
+        assert "Too Many Requests" in exc_info.value.detail
 
 
 @pytest.mark.asyncio
 async def test_rate_limiter_window_expiration():
-    """Test that old timestamps are purged and allow new requests."""
-    request = MagicMock(spec=Request)
-    request.client.host = "127.0.0.1"
+    """Test that the rate limit bucket resets after the window expires."""
+    mock_request = MagicMock(spec=Request)
+    mock_request.client.host = "1.2.3.4"
 
-    with patch("docling_lib.server.RATE_LIMIT_REQUESTS", 1):
-        with patch("docling_lib.server.RATE_LIMIT_WINDOW", 10):
-            with patch("time.time") as mock_time:
-                mock_time.return_value = 100
-                # First request at t=100
-                await rate_limiter(request)
+    limit = 2
+    window = 60
 
-                # Second request at t=105 -> Still within window, should fail
-                mock_time.return_value = 105
-                with pytest.raises(HTTPException):
-                    await rate_limiter(request)
+    start_time = 1000.0
 
-                # Third request at t=111 -> Window expired (111-100 > 10), should succeed
-                mock_time.return_value = 111
-                await rate_limiter(request)
+    with patch("docling_lib.server.RATE_LIMIT_REQUESTS", limit):
+        with patch("docling_lib.server.RATE_LIMIT_WINDOW", window):
+            with patch("time.time", return_value=start_time):
+                # Fill the limit
+                for _ in range(limit):
+                    await rate_limiter(mock_request)
 
+                # Verify it's blocked
+                with pytest.raises(HTTPException) as exc_info:
+                    await rate_limiter(mock_request)
+                assert exc_info.value.status_code == 429
 
-@pytest.mark.asyncio
-async def test_rate_limiter_unknown_client():
-    """Test that rate limiter handles requests with no client info."""
-    request = MagicMock(spec=Request)
-    request.client = None
-
-    with patch("docling_lib.server.RATE_LIMIT_REQUESTS", 1):
-        # First request
-        await rate_limiter(request)
-
-        # Second request -> Exceeded for "unknown"
-        with pytest.raises(HTTPException) as exc_info:
-            await rate_limiter(request)
-        assert exc_info.value.status_code == 429
+            # Simulate time passage beyond the window
+            with patch("time.time", return_value=start_time + window + 1):
+                # Should succeed now
+                await rate_limiter(mock_request)
 
 
 @pytest.mark.asyncio
 async def test_rate_limiter_multiple_clients():
-    """Test that rate limits are tracked independently for different IPs."""
-    request1 = MagicMock(spec=Request)
-    request1.client.host = "1.1.1.1"
+    """Test that different IPs have independent rate limits."""
+    mock_request_1 = MagicMock(spec=Request)
+    mock_request_1.client.host = "1.1.1.1"
 
-    request2 = MagicMock(spec=Request)
-    request2.client.host = "2.2.2.2"
+    mock_request_2 = MagicMock(spec=Request)
+    mock_request_2.client.host = "2.2.2.2"
 
-    with patch("docling_lib.server.RATE_LIMIT_REQUESTS", 1):
-        # request1 succeeds
-        await rate_limiter(request1)
+    limit = 2
+    with patch("docling_lib.server.RATE_LIMIT_REQUESTS", limit):
+        # Exceed limit for client 1
+        for _ in range(limit):
+            await rate_limiter(mock_request_1)
 
-        # request2 succeeds (different IP)
-        await rate_limiter(request2)
-
-        # request1 fails
         with pytest.raises(HTTPException):
-            await rate_limiter(request1)
+            await rate_limiter(mock_request_1)
 
-        # request2 fails
-        with pytest.raises(HTTPException):
-            await rate_limiter(request2)
+        # Client 2 should still be able to make requests
+        await rate_limiter(mock_request_2)
+
+
+@pytest.mark.asyncio
+async def test_rate_limiter_missing_client():
+    """Test that the rate limiter handles requests where request.client is None."""
+    mock_request = MagicMock(spec=Request)
+    mock_request.client = None
+
+    limit = 2
+    with patch("docling_lib.server.RATE_LIMIT_REQUESTS", limit):
+        await rate_limiter(mock_request)
+        await rate_limiter(mock_request)
+
+        # Should be blocked now under "unknown" IP
+        with pytest.raises(HTTPException) as exc_info:
+            await rate_limiter(mock_request)
+        assert exc_info.value.status_code == 429
+        # Check if the log message (if we could capture it) or state uses "unknown"
+        assert "unknown" in docling_lib.server._rate_limit_data
