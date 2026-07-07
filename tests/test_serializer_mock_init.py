@@ -1,6 +1,12 @@
 from unittest.mock import MagicMock
-from docling_lib.converter import EnhancedMarkdownSerializer, HTMLTableMarkdownSerializer
+
 from docling_core.transforms.serializer.markdown import MarkdownParams
+
+from docling_lib.converter import (
+    EnhancedMarkdownSerializer,
+    HTMLTableMarkdownSerializer,
+)
+
 
 def test_enhanced_markdown_serializer_with_mock_doc():
     """

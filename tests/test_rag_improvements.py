@@ -1,16 +1,16 @@
 
 import unittest
-from pathlib import Path
-from unittest.mock import MagicMock, patch
-import sys
-import os
+from unittest.mock import MagicMock
 
 # Mock docling and torch before importing PDFConverter
 from tests.mock_docling import mock_docling
+
 mock_docling()
 
-from docling_lib.converter import PDFConverter, DocumentConversionOptions
 from docling_core.types.doc import DoclingDocument
+
+from docling_lib.converter import DocumentConversionOptions, PDFConverter
+
 
 class TestRAGImprovements(unittest.TestCase):
     def setUp(self):

@@ -23,7 +23,6 @@ from docling.document_converter import (
     WordFormatOption,
     XBRLFormatOption,
 )
-
 from docling_core.transforms.serializer.markdown import (
     MarkdownDocSerializer,
     MarkdownParams,

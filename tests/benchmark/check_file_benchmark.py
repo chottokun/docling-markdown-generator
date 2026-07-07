@@ -1,9 +1,10 @@
 import asyncio
+import tempfile
 import time
 from pathlib import Path
+
 from starlette.concurrency import run_in_threadpool
-import tempfile
-import os
+
 
 async def baseline(file_path, iterations):
     start = time.perf_counter()

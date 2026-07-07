@@ -1,5 +1,6 @@
 import docling_lib
-from docling_lib.converter import PDFConverter, DocumentConversionOptions, process_pdf
+from docling_lib.converter import DocumentConversionOptions, PDFConverter, process_pdf
+
 
 def test_exports():
     """Verify that docling_lib correctly exports the primary API."""

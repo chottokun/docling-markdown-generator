@@ -1,8 +1,10 @@
-import pytest
-from fastapi.testclient import TestClient
 from unittest.mock import patch
+
+from fastapi.testclient import TestClient
+
 import docling_lib.server
 from docling_lib.server import app
+
 
 def test_rate_limit_respects_x_forwarded_for():
     # Reset rate limit data
