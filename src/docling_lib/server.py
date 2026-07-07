@@ -137,11 +137,11 @@ async def _save_upload_temp(file: UploadFile, suffix: str) -> Path:
     )
     tmp_path = Path(tmp_file.name)
 
-    def _save_blocking():
+    try:
         total_size = 0
         try:
             while True:
-                chunk = file.file.read(1024 * 1024)  # 1MB chunks
+                chunk = await file.read(1024 * 1024)  # 1MB chunks
                 if not chunk:
                     break
                 total_size += len(chunk)
@@ -150,12 +150,10 @@ async def _save_upload_temp(file: UploadFile, suffix: str) -> Path:
                         status_code=413,
                         detail=f"Payload Too Large. Maximum size is {MAX_UPLOAD_SIZE} bytes.",
                     )
-                tmp_file.write(chunk)
+                await run_in_threadpool(tmp_file.write, chunk)
         finally:
-            tmp_file.close()
+            await run_in_threadpool(tmp_file.close)
 
-    try:
-        await run_in_threadpool(_save_blocking)
         return tmp_path
     except Exception:
         # Cleanup on any exception
