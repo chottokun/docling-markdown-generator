@@ -8,6 +8,9 @@
 ```yaml
 ---
 title: ドキュメントのタイトル
+# 今後の拡張予定
+# document_type: 契約書
+# page_count: 10
 ---
 ```
 これにより、LLMは文書全体の文脈（どの文書を読んでいるか）を即座に把握できます。
@@ -38,7 +41,21 @@ Doclingの解析により、図に関連付けられたテキスト（図表番�
 - **数式 (LaTeX)**: 科学技術文書に含まれる数式は、最新のVLMモデル（CodeFormulaV2等）を用いて高精度な **LaTeX 形式** で抽出・変換されます。これにより、LLMは数式の論理的意味を正確に解釈可能です。
 - **リスト**: 箇条書きや番号付きリストが正確に再現されます。
 
-## 4. サポートフォーマット
+## 4. RAG最適化機能 (RAG Optimization)
+
+RAGでの利用を想定した以下の拡張機能が利用可能です。
+
+### Key Information (Markdown KV)
+`include_kv_extraction` を有効にすると、ドキュメントから抽出された主要な属性が Markdown のリスト形式で挿入されます。
+```markdown
+## Key Information
+- **Extraction Status**: Placeholder
+```
+
+### ページ境界マーカー (Page Markers)
+`include_page_breaks` を有効にすることで、セグメンテーション（チャンキング）を容易にするマーカーが挿入されます（将来の拡張）。
+
+## 5. サポートフォーマット
 以下のファイルから同様の品質のMarkdownを生成可能です。
 - **PDF**: 高精度なレイアウト解析。
 - **Office (DOCX, PPTX)**: スタイルに基づいた構造化。
