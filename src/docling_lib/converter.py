@@ -148,27 +148,49 @@ class EnhancedMarkdownSerializer(MarkdownDocSerializer):
     2. Provides a foundation for future image alt-text enhancement (OCR/VLM).
     """
 
+    def _is_mock(self, doc: Any) -> bool:
+        """
+        Check if the document is a MagicMock, which requires special handling
+        to bypass Pydantic validation.
+        """
+        return hasattr(doc, "_mock_name") or "MagicMock" in str(type(doc))
+
+    def _init_from_mock(self, doc: Any, **kwargs: Any) -> None:
+        """
+        Initialize the serializer from a mock object, bypassing Pydantic
+        validation and frozen model logic.
+        """
+        # Skip Pydantic validation by setting attributes directly if it's a mock
+        # Use object.__setattr__ to bypass Pydantic's frozen or validation logic if needed
+        object.__setattr__(self, "doc", doc)
+        object.__setattr__(self, "params", kwargs.get("params", MarkdownParams()))
+
+        # Initialize other fields to avoid Pydantic errors if they are accessed
+        # Use getattr with a sentinel for faster lookup than hasattr while
+        # preserving logical equivalence.
+        sentinel = object()
+        for field in self.model_fields:
+            if getattr(self, field, sentinel) is sentinel:
+                object.__setattr__(self, field, None)
+
     def __init__(self, doc: DoclingDocument, table_format: str = "html", **kwargs):
         # In tests, doc might be a MagicMock. Pydantic models (like
         # MarkdownDocSerializer) may fail validation if they don't see a real
         # DoclingDocument.
-        if hasattr(doc, "_mock_name") or "MagicMock" in str(type(doc)):
-            # Skip Pydantic validation by setting attributes directly if it's a mock
-            # Use object.__setattr__ to bypass Pydantic's frozen or validation logic if needed
-            object.__setattr__(self, "doc", doc)
-            object.__setattr__(self, "params", kwargs.get("params", MarkdownParams()))
-            # Initialize other fields to avoid Pydantic errors if they are accessed
-            # Use getattr with a sentinel for faster lookup than hasattr while
-            # preserving logical equivalence.
-            sentinel = object()
-            for field in self.model_fields:
-                if getattr(self, field, sentinel) is sentinel:
-                    object.__setattr__(self, field, None)
+        if self._is_mock(doc):
+            self._init_from_mock(doc, **kwargs)
         else:
             super().__init__(doc=doc, **kwargs)
 
         if table_format.lower() == "html":
-            self.table_serializer = HTMLTableMarkdownSerializer()
+            # If we initialized from a mock, we must use object.__setattr__
+            # to set table_serializer, otherwise Pydantic will complain.
+            if self._is_mock(doc):
+                object.__setattr__(
+                    self, "table_serializer", HTMLTableMarkdownSerializer()
+                )
+            else:
+                self.table_serializer = HTMLTableMarkdownSerializer()
 
 
 class PDFConverter:
