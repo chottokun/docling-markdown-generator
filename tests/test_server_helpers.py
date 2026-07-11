@@ -8,6 +8,7 @@ from docling_lib.server import (
     _validate_and_format_response,
     _validate_content_length,
     _validate_extension,
+    _is_valid_file,
 )
 
 
@@ -141,3 +142,20 @@ async def test_validate_and_format_response_success(tmp_path):
     assert response["markdown_file"] == "success.md"
     assert response["output_id"] == request_id
     assert response["download_url"] == f"/download/{request_id}/success.md"
+
+
+def test_is_valid_file(tmp_path):
+    """Test that _is_valid_file correctly validates path existence and file status."""
+    # 1. Existing file should return True
+    valid_file = tmp_path / "test.txt"
+    valid_file.write_text("hello")
+    assert _is_valid_file(valid_file) is True
+
+    # 2. Non-existent file should return False
+    non_existent_file = tmp_path / "non_existent.txt"
+    assert _is_valid_file(non_existent_file) is False
+
+    # 3. Existing directory should return False
+    directory_path = tmp_path / "test_dir"
+    directory_path.mkdir()
+    assert _is_valid_file(directory_path) is False
