@@ -28,6 +28,7 @@ from .config import (
     OUTPUT_DIR,
     RATE_LIMIT_REQUESTS,
     RATE_LIMIT_WINDOW,
+    TRUST_PROXIES,
     UPLOAD_DIR,
     setup_logging,
 )
@@ -63,19 +64,20 @@ _rate_limit_data = defaultdict(deque)
 
 def _get_client_ip(request: Request) -> str:
     """
-    Helper to extract client IP, considering proxy headers.
+    Helper to extract client IP, considering proxy headers if TRUST_PROXIES is enabled.
     """
-    # Check X-Forwarded-For header
-    x_forwarded_for = request.headers.get("X-Forwarded-For")
-    if x_forwarded_for:
-        # X-Forwarded-For can be a comma-separated list.
-        # The leftmost IP is the original client.
-        return x_forwarded_for.split(",")[0].strip()
+    if TRUST_PROXIES:
+        # Check X-Forwarded-For header
+        x_forwarded_for = request.headers.get("X-Forwarded-For")
+        if x_forwarded_for:
+            # X-Forwarded-For can be a comma-separated list.
+            # The leftmost IP is the original client.
+            return x_forwarded_for.split(",")[0].strip()
 
-    # Check X-Real-IP header
-    x_real_ip = request.headers.get("X-Real-IP")
-    if x_real_ip:
-        return x_real_ip.strip()
+        # Check X-Real-IP header
+        x_real_ip = request.headers.get("X-Real-IP")
+        if x_real_ip:
+            return x_real_ip.strip()
 
     # Fallback to connection IP
     return request.client.host if request.client else "unknown"

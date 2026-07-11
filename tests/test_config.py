@@ -40,6 +40,7 @@ def test_environment_variable_overrides():
         "DOCLING_API_KEY": "test_api_key",
         "DOCLING_RATE_LIMIT_REQUESTS": "10",
         "DOCLING_RATE_LIMIT_WINDOW": "120",
+        "DOCLING_TRUST_PROXIES": "True",
         "DOCLING_DO_FORMULA": "False",
         "DOCLING_DO_OCR": "false",
         "DOCLING_DO_CHART": "True",
@@ -57,6 +58,7 @@ def test_environment_variable_overrides():
             assert config.API_KEY == "test_api_key"
             assert config.RATE_LIMIT_REQUESTS == 10
             assert config.RATE_LIMIT_WINDOW == 120
+            assert config.TRUST_PROXIES is True
             assert config.DO_FORMULA is False
             assert config.DO_OCR is False
             assert config.DO_CHART is True
@@ -79,6 +81,7 @@ def test_environment_variable_defaults():
             assert config.API_KEY is None
             assert config.RATE_LIMIT_REQUESTS == 5
             assert config.RATE_LIMIT_WINDOW == 60
+            assert config.TRUST_PROXIES is False
             assert config.DO_FORMULA is True
             assert config.DO_OCR is True
             assert config.DO_CHART is False
