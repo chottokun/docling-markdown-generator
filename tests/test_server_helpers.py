@@ -8,6 +8,7 @@ from docling_lib.server import (
     _validate_and_format_response,
     _validate_content_length,
     _validate_extension,
+    _get_safe_path,
 )
 
 
@@ -141,3 +142,57 @@ async def test_validate_and_format_response_success(tmp_path):
     assert response["markdown_file"] == "success.md"
     assert response["output_id"] == request_id
     assert response["download_url"] == f"/download/{request_id}/success.md"
+
+
+@pytest.mark.parametrize(
+    "request_id, filename",
+    [
+        ("abc123XYZ", "report.md"),
+        ("abc-123_xyz", "output.txt"),
+        ("12345", "test.pdf"),
+    ],
+)
+def test_get_safe_path_valid(request_id, filename, tmp_path, monkeypatch):
+    """Test that _get_safe_path succeeds and resolves paths correctly with valid parameters."""
+    monkeypatch.setattr("docling_lib.server.OUTPUT_DIR", tmp_path)
+
+    resolved_output_dir, safe_dir, file_path = _get_safe_path(request_id, filename)
+
+    assert resolved_output_dir == tmp_path.resolve()
+    assert safe_dir == (tmp_path / request_id).resolve()
+    assert file_path == (tmp_path / request_id / filename).resolve()
+
+
+@pytest.mark.parametrize(
+    "request_id",
+    [
+        "abc/def",
+        "abc..def",
+        "abc.def",
+        "abc def",
+        "abc#def",
+        "abc\\def",
+        "abc?",
+    ],
+)
+def test_get_safe_path_invalid_request_id(request_id):
+    """Test that _get_safe_path raises ValueError for invalid request_id patterns."""
+    with pytest.raises(ValueError, match="Invalid request_id"):
+        _get_safe_path(request_id, "test.md")
+
+
+@pytest.mark.parametrize(
+    "filename",
+    [
+        "sub/file.txt",
+        "../file.txt",
+        "./file.txt",
+        "/absolute/path",
+        "file/",
+        ".",
+    ],
+)
+def test_get_safe_path_invalid_filename(filename):
+    """Test that _get_safe_path raises ValueError for invalid filename patterns."""
+    with pytest.raises(ValueError, match="Invalid filename"):
+        _get_safe_path("valid_id", filename)
