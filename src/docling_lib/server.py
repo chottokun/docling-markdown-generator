@@ -114,7 +114,7 @@ def _validate_content_length(content_length: int | None):
 
 def _is_valid_file(path: Path) -> bool:
     """Check if a path exists and is a file."""
-    return path.exists() and path.is_file()
+    return path.is_file()
 
 
 def _validate_extension(filename: str) -> str:
