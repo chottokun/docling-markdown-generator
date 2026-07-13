@@ -45,6 +45,10 @@ API_KEY = os.getenv("DOCLING_API_KEY")
 # Rate limiting configurations
 RATE_LIMIT_REQUESTS = int(os.getenv("DOCLING_RATE_LIMIT_REQUESTS", "5"))
 RATE_LIMIT_WINDOW = int(os.getenv("DOCLING_RATE_LIMIT_WINDOW", "60"))
+# Trusted proxies list for rate limiting IP headers (e.g. "127.0.0.1, 10.0.0.0/8, *")
+TRUSTED_PROXIES = [
+    p.strip() for p in os.getenv("DOCLING_TRUSTED_PROXIES", "").split(",") if p.strip()
+]
 
 # Docling v2.x Pipeline options
 DO_FORMULA = os.getenv("DOCLING_DO_FORMULA", "True").lower() == "true"

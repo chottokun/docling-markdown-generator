@@ -20,6 +20,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from starlette.concurrency import run_in_threadpool
 
+import ipaddress
 from .config import (
     ALLOWED_EXTENSIONS,
     API_KEY,
@@ -28,6 +29,7 @@ from .config import (
     OUTPUT_DIR,
     RATE_LIMIT_REQUESTS,
     RATE_LIMIT_WINDOW,
+    TRUSTED_PROXIES,
     UPLOAD_DIR,
     setup_logging,
 )
@@ -61,24 +63,54 @@ async def api_key_auth(x_api_key: str | None = Header(None)):
 _rate_limit_data = defaultdict(deque)
 
 
+def _is_trusted_proxy(ip_str: str | None) -> bool:
+    """
+    Check if the given IP address string is a trusted proxy.
+    Supports exact IPs, CIDR blocks, wildcards (*), and direct string matches (e.g. 'testclient').
+    """
+    if not ip_str:
+        return False
+
+    ip_str = ip_str.strip()
+
+    for proxy in TRUSTED_PROXIES:
+        if proxy == "*":
+            return True
+        if proxy == ip_str:
+            return True
+
+        try:
+            net = ipaddress.ip_network(proxy, strict=False)
+            ip = ipaddress.ip_address(ip_str)
+            if ip in net:
+                return True
+        except ValueError:
+            continue
+
+    return False
+
+
 def _get_client_ip(request: Request) -> str:
     """
-    Helper to extract client IP, considering proxy headers.
+    Helper to extract client IP, considering proxy headers only if from a trusted proxy.
     """
-    # Check X-Forwarded-For header
-    x_forwarded_for = request.headers.get("X-Forwarded-For")
-    if x_forwarded_for:
-        # X-Forwarded-For can be a comma-separated list.
-        # The leftmost IP is the original client.
-        return x_forwarded_for.split(",")[0].strip()
+    connection_ip = request.client.host if request.client else "unknown"
 
-    # Check X-Real-IP header
-    x_real_ip = request.headers.get("X-Real-IP")
-    if x_real_ip:
-        return x_real_ip.strip()
+    if _is_trusted_proxy(connection_ip):
+        # Check X-Forwarded-For header
+        x_forwarded_for = request.headers.get("X-Forwarded-For")
+        if x_forwarded_for:
+            # X-Forwarded-For can be a comma-separated list.
+            # The leftmost IP is the original client.
+            return x_forwarded_for.split(",")[0].strip()
+
+        # Check X-Real-IP header
+        x_real_ip = request.headers.get("X-Real-IP")
+        if x_real_ip:
+            return x_real_ip.strip()
 
     # Fallback to connection IP
-    return request.client.host if request.client else "unknown"
+    return connection_ip
 
 
 async def rate_limiter(request: Request):
