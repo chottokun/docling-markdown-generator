@@ -107,3 +107,40 @@ def test_rate_limit_trusts_specific_cidr_proxies():
 
                     response2 = client.get("/download/id2/file2.md", headers={"X-Forwarded-For": "2.2.2.2"})
                     assert response2.status_code != 429
+
+
+def test_rate_limit_ignores_invalid_ip_format_in_trusted_proxies():
+    # Reset rate limit data
+    docling_lib.server._rate_limit_data.clear()
+
+    with patch("docling_lib.server.RATE_LIMIT_REQUESTS", 1):
+        with patch("docling_lib.server.RATE_LIMIT_WINDOW", 60):
+            with patch("docling_lib.server.API_KEY", None):
+                # 'invalid_cidr_format' in trusted proxies should not crash the server and 'testclient' should still work
+                with patch("docling_lib.server.TRUSTED_PROXIES", ["invalid_cidr_format", "testclient"]):
+                    client = TestClient(app)
+
+                    response1 = client.get("/download/id1/file1.md", headers={"X-Forwarded-For": "1.1.1.1"})
+                    assert response1.status_code != 429
+
+                    response2 = client.get("/download/id2/file2.md", headers={"X-Forwarded-For": "2.2.2.2"})
+                    assert response2.status_code != 429
+
+
+def test_rate_limit_trusted_proxies_ipv6():
+    # Reset rate limit data
+    docling_lib.server._rate_limit_data.clear()
+
+    with patch("docling_lib.server.RATE_LIMIT_REQUESTS", 1):
+        with patch("docling_lib.server.RATE_LIMIT_WINDOW", 60):
+            with patch("docling_lib.server.API_KEY", None):
+                # IPv6 range in trusted proxies
+                with patch("docling_lib.server.TRUSTED_PROXIES", ["2001:db8::/32", "testclient"]):
+                    client = TestClient(app)
+
+                    # Headers honored since 'testclient' is in the trusted proxy list
+                    response1 = client.get("/download/id1/file1.md", headers={"X-Forwarded-For": "2001:db8::1"})
+                    assert response1.status_code != 429
+
+                    response2 = client.get("/download/id2/file2.md", headers={"X-Forwarded-For": "2001:db8::2"})
+                    assert response2.status_code != 429
