@@ -1,5 +1,5 @@
 import logging
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from docling_core.types.doc import DoclingDocument
 
@@ -31,6 +31,7 @@ def test_save_images_exception_logging(tmp_path, caplog):
     # sanitize_log_message replaces \n with space
     assert "Save failed with newline" in caplog.text
     mock_picture.image.pil_image.save.assert_called_once()
+
 
 def test_save_images_continues_after_failure(tmp_path, caplog):
     """
@@ -67,3 +68,44 @@ def test_save_images_continues_after_failure(tmp_path, caplog):
     # Verify the second one was called with the correct path
     expected_path2 = images_dir / "picture_2.png"
     mock_picture2.image.pil_image.save.assert_called_with(expected_path2)
+
+
+def test_save_markdown_image_save_failure(tmp_path, caplog):
+    """
+    Verify that when save_markdown_with_images (which executes _save_markdown) encounters
+    an exception during image saving, the entire saving flow completes successfully, does not
+    propagate/raise the error, and correctly logs the warning message.
+    """
+    # Setup
+    converter = PDFConverter(options=DocumentConversionOptions())
+    output_dir = tmp_path / "output"
+
+    # Mock document
+    mock_doc = MagicMock(spec=DoclingDocument)
+    mock_doc.name = "Test Document"
+
+    # Add a mock image that fails to save
+    mock_picture = MagicMock()
+    mock_picture.image.pil_image.save.side_effect = Exception("Markdown flow image save failure")
+    mock_doc.pictures = [mock_picture]
+
+    # Mock EnhancedMarkdownSerializer to avoid complex serialization logic and Pydantic issues
+    with patch("docling_lib.converter.EnhancedMarkdownSerializer") as MockSerializer:
+        mock_serializer_instance = MockSerializer.return_value
+        mock_serializer_instance.serialize.return_value.text = "# Mock Document Content"
+
+        with caplog.at_level(logging.WARNING):
+            res_path = converter._save_markdown(mock_doc, output_dir)
+
+    # Assert that the output file is still written successfully
+    expected_md_path = output_dir / "processed_document.md"
+    assert res_path == expected_md_path
+    assert expected_md_path.exists()
+    assert expected_md_path.read_text(encoding="utf-8") == "---\ntitle: Test Document\n---\n\n# Mock Document Content"
+
+    # Assert that the image save warning was logged
+    assert "Failed to save image" in caplog.text
+    assert "Markdown flow image save failure" in caplog.text
+
+    # Assert the image save was indeed attempted
+    mock_picture.image.pil_image.save.assert_called_once()
