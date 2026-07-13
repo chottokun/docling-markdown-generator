@@ -34,10 +34,10 @@ OUTPUT_DIR = Path(os.getenv("DOCLING_OUTPUT_DIR", "output"))
 MAX_UPLOAD_SIZE = int(
     os.getenv("DOCLING_MAX_UPLOAD_SIZE", 20 * 1024 * 1024)
 )  # Default 20MB
-# Default to empty list for security (must be explicitly configured)
-CORS_ORIGINS = [
+# Default to empty set for security (must be explicitly configured)
+CORS_ORIGINS = set(
     o.strip() for o in os.getenv("DOCLING_CORS_ORIGINS", "").split(",") if o.strip()
-]
+)
 
 # API Key for authentication (Optional: if not set, authentication is disabled)
 API_KEY = os.getenv("DOCLING_API_KEY")
