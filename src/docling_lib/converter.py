@@ -27,6 +27,7 @@ from docling_core.transforms.serializer.markdown import (
     MarkdownDocSerializer,
     MarkdownParams,
     MarkdownTableSerializer,
+    MarkdownPictureSerializer,
     SerializationResult,
     create_ser_result,
 )
@@ -34,6 +35,7 @@ from docling_core.types.doc import (
     DoclingDocument,
     ImageRefMode,
     TableItem,
+    PictureItem,
 )
 
 from .config import (
@@ -45,6 +47,13 @@ from .config import (
     IMAGE_RESOLUTION_SCALE,
     MD_OUTPUT_NAME,
     USE_GPU,
+    DOCLING_TABLE_FORMAT,
+    DOCLING_VLM_ENABLED,
+    DOCLING_VLM_MODEL,
+    DOCLING_VLM_ENDPOINT,
+    DOCLING_VLM_PROMPT,
+    DOCLING_INCLUDE_PAGE_BREAKS,
+    DOCLING_INCLUDE_KV_EXTRACTION,
 )
 from .utils import sanitize_log_message
 
@@ -88,13 +97,65 @@ class DocumentConversionOptions:
     image_dir_name: str = IMAGE_DIR_NAME
     md_output_name: str = MD_OUTPUT_NAME
     image_scale: float = IMAGE_RESOLUTION_SCALE
-    table_format: str = "html"
+    table_format: str = DOCLING_TABLE_FORMAT
     do_formula: bool = DO_FORMULA
     do_ocr: bool = DO_OCR
     do_chart: bool = DO_CHART  # New in docling v2.x
     do_code: bool = DO_CODE  # New in docling v2.x
-    include_page_breaks: bool = False  # New for RAG: inject page markers
-    include_kv_extraction: bool = False  # New for RAG: extract KV pairs
+    include_page_breaks: bool = DOCLING_INCLUDE_PAGE_BREAKS  # New for RAG: inject page markers
+    include_kv_extraction: bool = DOCLING_INCLUDE_KV_EXTRACTION  # New for RAG: extract KV pairs
+    vlm_enabled: bool = DOCLING_VLM_ENABLED
+    vlm_model: str = DOCLING_VLM_MODEL
+    vlm_endpoint: str = DOCLING_VLM_ENDPOINT
+    vlm_prompt: str = DOCLING_VLM_PROMPT
+
+
+class CustomMarkdownPictureSerializer(MarkdownPictureSerializer):
+    """
+    Custom Picture Serializer that uses VLM to generate captions
+    and appends them to the markdown text.
+    """
+
+    def __init__(
+        self,
+        vlm_enabled: bool = False,
+        vlm_model: str = "qwen2-vl:2b",
+        vlm_endpoint: str = "http://localhost:11434",
+        vlm_prompt: str = "この画像の詳細な説明文を日本語で作成してください。",
+        **kwargs: Any,
+    ):
+        super().__init__(**kwargs)
+        self.vlm_enabled = vlm_enabled
+        self.vlm_model = vlm_model
+        self.vlm_endpoint = vlm_endpoint
+        self.vlm_prompt = vlm_prompt
+
+    def serialize(
+        self,
+        *,
+        item: PictureItem,
+        doc_serializer: Any,
+        doc: DoclingDocument,
+        **kwargs: Any,
+    ) -> SerializationResult:
+        res = super().serialize(
+            item=item, doc_serializer=doc_serializer, doc=doc, **kwargs
+        )
+
+        if self.vlm_enabled and item.image and item.image.pil_image:
+            from .vlm import generate_caption_sync
+
+            caption = generate_caption_sync(
+                image=item.image.pil_image,
+                model=self.vlm_model,
+                endpoint=self.vlm_endpoint,
+                prompt=self.vlm_prompt,
+            )
+            if caption:
+                caption_block = f"\n\n<!-- VLM_CAPTION_START -->\n{caption}\n<!-- VLM_CAPTION_END -->"
+                res.text = res.text + caption_block
+
+        return res
 
 
 class HTMLTableMarkdownSerializer(MarkdownTableSerializer):
@@ -174,7 +235,16 @@ class EnhancedMarkdownSerializer(MarkdownDocSerializer):
             if field not in self_dict:
                 object.__setattr__(self, field, None)
 
-    def __init__(self, doc: DoclingDocument, table_format: str = "html", **kwargs):
+    def __init__(
+        self,
+        doc: DoclingDocument,
+        table_format: str = "html",
+        vlm_enabled: bool = False,
+        vlm_model: str = "qwen2-vl:2b",
+        vlm_endpoint: str = "http://localhost:11434",
+        vlm_prompt: str = "この画像の詳細な説明文を日本語で作成してください。",
+        **kwargs,
+    ):
         # In tests, doc might be a MagicMock. Pydantic models (like
         # MarkdownDocSerializer) may fail validation if they don't see a real
         # DoclingDocument.
@@ -192,6 +262,48 @@ class EnhancedMarkdownSerializer(MarkdownDocSerializer):
                 )
             else:
                 self.table_serializer = HTMLTableMarkdownSerializer()
+        else:
+            from docling_core.transforms.serializer.markdown import MarkdownTableSerializer
+            if self._is_mock(doc):
+                object.__setattr__(
+                    self, "table_serializer", MarkdownTableSerializer()
+                )
+            else:
+                self.table_serializer = MarkdownTableSerializer()
+
+        pic_serializer = CustomMarkdownPictureSerializer(
+            vlm_enabled=vlm_enabled,
+            vlm_model=vlm_model,
+            vlm_endpoint=vlm_endpoint,
+            vlm_prompt=vlm_prompt,
+        )
+        if self._is_mock(doc):
+            object.__setattr__(self, "picture_serializer", pic_serializer)
+        else:
+            self.picture_serializer = pic_serializer
+
+    def serialize_doc(
+        self,
+        *,
+        parts: list[SerializationResult],
+        **kwargs: Any,
+    ) -> SerializationResult:
+        orig_placeholder = self.params.page_break_placeholder
+        self.params.page_break_placeholder = None
+
+        res = super().serialize_doc(parts=parts, **kwargs)
+
+        self.params.page_break_placeholder = orig_placeholder
+
+        if orig_placeholder is not None:
+            text_res = res.text
+            for full_match, prev_page_nr, next_page_nr in self._get_page_breaks(text=text_res):
+                text_res = text_res.replace(
+                    full_match, f"<!-- PAGE_BREAK: Page {next_page_nr} -->"
+                )
+            res.text = text_res
+
+        return res
 
 
 class PDFConverter:
@@ -213,6 +325,10 @@ class PDFConverter:
         pipeline_options.do_ocr = self.options.do_ocr
         pipeline_options.do_chart_extraction = self.options.do_chart
         pipeline_options.do_code_enrichment = self.options.do_code
+
+        if self.options.include_page_breaks:
+            pipeline_options.generate_page_images = True
+            pipeline_options.generate_parsed_pages = True
 
         # Configure accelerator options (GPU fallback to CPU)
         if is_cuda_compatible():
@@ -308,17 +424,30 @@ class PDFConverter:
             )
             raise
 
-    def _serialize_to_markdown(self, doc: DoclingDocument, table_format: str) -> str:
+    def _serialize_to_markdown(
+        self,
+        doc: DoclingDocument,
+        table_format: str,
+        options: DocumentConversionOptions | None = None,
+    ) -> str:
         """
         Serializes the document to Markdown using the enhanced serializer.
         """
+        actual_options = options or self.options
         # Configure enhanced custom serializer
         serializer = EnhancedMarkdownSerializer(
             doc=doc,
             table_format=table_format,
+            vlm_enabled=actual_options.vlm_enabled,
+            vlm_model=actual_options.vlm_model,
+            vlm_endpoint=actual_options.vlm_endpoint,
+            vlm_prompt=actual_options.vlm_prompt,
             params=MarkdownParams(
                 image_mode=ImageRefMode.REFERENCED,
                 image_placeholder="<!-- image -->",
+                page_break_placeholder="<!-- PAGE_BREAK_MARKER -->"
+                if actual_options.include_page_breaks
+                else None,
             ),
         )
 
@@ -407,14 +536,14 @@ class PDFConverter:
 
         # 3. Serialization
         md_content = self._serialize_to_markdown(
-            doc=doc, table_format=actual_options.table_format
+            doc=doc, table_format=actual_options.table_format, options=actual_options
         )
 
         # 4. Post-processing (RAG optimizations)
         if actual_options.include_page_breaks:
-            # Simple heuristic for page markers if not natively handled by serializer
-            # In docling-core, we'd ideally hook into the item iteration
-            pass
+            # Prepend the page break marker for Page 1 if it is not already present
+            if not md_content.strip().startswith("<!-- PAGE_BREAK: Page 1 -->"):
+                md_content = "<!-- PAGE_BREAK: Page 1 -->\n\n" + md_content
 
         # 5. Metadata / Frontmatter
         md_content = self._apply_metadata_frontmatter(
