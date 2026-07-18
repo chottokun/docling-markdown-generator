@@ -2,26 +2,24 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-# Mock docling and torch before importing PDFConverter
 from tests.mock_docling import mock_docling
 
 mock_docling()
 
 from PIL import Image
+from docling_core.transforms.serializer.markdown import MarkdownParams
 from docling_core.types.doc import (
     DoclingDocument,
     ImageRef,
+    ImageRefMode,
     PictureItem,
     Size,
-    ImageRefMode,
 )
-
-from docling_core.transforms.serializer.markdown import MarkdownParams
 from docling_lib.converter import (
+    CustomMarkdownPictureSerializer,
     DocumentConversionOptions,
     EnhancedMarkdownSerializer,
     PDFConverter,
-    CustomMarkdownPictureSerializer,
 )
 from docling_lib.vlm import generate_caption, generate_caption_sync
 

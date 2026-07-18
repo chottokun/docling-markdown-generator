@@ -1,18 +1,18 @@
-import pytest
-from fastapi import HTTPException
-
-import docling_lib.server
-from docling_lib.config import MAX_UPLOAD_SIZE
 from unittest.mock import MagicMock, patch
-from fastapi import Request
+
+import pytest
+from fastapi import HTTPException, Request
+
+from docling_lib.config import MAX_UPLOAD_SIZE
+import docling_lib.server
 from docling_lib.server import (
     _create_output_dir,
+    _get_client_ip,
+    _get_safe_path,
+    _is_valid_file,
     _validate_and_format_response,
     _validate_content_length,
     _validate_extension,
-    _is_valid_file,
-    _get_safe_path,
-    _get_client_ip,
 )
 
 

@@ -26,16 +26,16 @@ from docling.document_converter import (
 from docling_core.transforms.serializer.markdown import (
     MarkdownDocSerializer,
     MarkdownParams,
-    MarkdownTableSerializer,
     MarkdownPictureSerializer,
+    MarkdownTableSerializer,
     SerializationResult,
     create_ser_result,
 )
 from docling_core.types.doc import (
     DoclingDocument,
     ImageRefMode,
-    TableItem,
     PictureItem,
+    TableItem,
 )
 
 from .config import (
@@ -43,19 +43,19 @@ from .config import (
     DO_CODE,
     DO_FORMULA,
     DO_OCR,
+    DOCLING_CUDA_FLASH_ATTENTION,
+    DOCLING_INCLUDE_KV_EXTRACTION,
+    DOCLING_INCLUDE_PAGE_BREAKS,
+    DOCLING_NUM_THREADS,
+    DOCLING_TABLE_FORMAT,
+    DOCLING_VLM_ENABLED,
+    DOCLING_VLM_ENDPOINT,
+    DOCLING_VLM_MODEL,
+    DOCLING_VLM_PROMPT,
     IMAGE_DIR_NAME,
     IMAGE_RESOLUTION_SCALE,
     MD_OUTPUT_NAME,
     USE_GPU,
-    DOCLING_NUM_THREADS,
-    DOCLING_CUDA_FLASH_ATTENTION,
-    DOCLING_TABLE_FORMAT,
-    DOCLING_VLM_ENABLED,
-    DOCLING_VLM_MODEL,
-    DOCLING_VLM_ENDPOINT,
-    DOCLING_VLM_PROMPT,
-    DOCLING_INCLUDE_PAGE_BREAKS,
-    DOCLING_INCLUDE_KV_EXTRACTION,
 )
 from .utils import sanitize_log_message
 
@@ -278,7 +278,6 @@ class EnhancedMarkdownSerializer(MarkdownDocSerializer):
             else:
                 self.table_serializer = HTMLTableMarkdownSerializer()
         else:
-            from docling_core.transforms.serializer.markdown import MarkdownTableSerializer
             if self._is_mock(doc):
                 object.__setattr__(
                     self, "table_serializer", MarkdownTableSerializer()

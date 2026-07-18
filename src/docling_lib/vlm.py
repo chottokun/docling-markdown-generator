@@ -1,8 +1,9 @@
 import base64
 import io
 import logging
-import httpx
+
 from PIL import Image
+import httpx
 
 from .utils import sanitize_log_message
 

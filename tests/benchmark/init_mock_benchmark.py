@@ -1,5 +1,6 @@
 import time
 from unittest.mock import MagicMock
+
 from docling_lib.converter import EnhancedMarkdownSerializer
 
 def run_benchmark(iterations=10000):
