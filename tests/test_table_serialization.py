@@ -215,3 +215,47 @@ def test_html_table_serialization_no_html_content():
         item=mock_item, doc_serializer=mock_doc_serializer, doc=mock_doc
     )
     assert result.text == "Caption"
+
+
+def test_serialize_table_to_html_export_failure(caplog):
+    """
+    Test specifically named for _serialize_table_to_html HTML export failure.
+    Verifies that when item.export_to_html raises an Exception, the exception
+    is handled gracefully, a warning is logged, and it falls back to the
+    super-class serialize implementation.
+    """
+    serializer = HTMLTableMarkdownSerializer()
+
+    # Setup mocks
+    mock_item = MagicMock(spec=TableItem)
+    mock_item.export_to_html.side_effect = Exception("HTML Export Failure Simulation")
+
+    mock_doc = MagicMock(spec=DoclingDocument)
+
+    mock_doc_serializer = MagicMock()
+    mock_caption_res = MagicMock(spec=SerializationResult)
+    mock_caption_res.text = ""
+    mock_caption_res.spans = []
+    mock_doc_serializer.serialize_captions.return_value = mock_caption_res
+
+    # Expected fallback markdown result
+    fallback_result = MagicMock(spec=SerializationResult)
+    fallback_result.text = "| mock_col |\n| --- |\n| mock_val |"
+
+    with patch.object(
+        MarkdownTableSerializer, "serialize", return_value=fallback_result
+    ) as mock_super_serialize:
+        # Act
+        result = serializer.serialize(
+            item=mock_item, doc_serializer=mock_doc_serializer, doc=mock_doc
+        )
+
+        # Assert
+        assert result == fallback_result
+        assert (
+            "Failed to export table as HTML, falling back: HTML Export Failure Simulation"
+            in caplog.text
+        )
+        mock_super_serialize.assert_called_once_with(
+            item=mock_item, doc_serializer=mock_doc_serializer, doc=mock_doc
+        )
