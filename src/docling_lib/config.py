@@ -62,12 +62,14 @@ DOCLING_CUDA_FLASH_ATTENTION = os.getenv("DOCLING_CUDA_FLASH_ATTENTION", "False"
 # New configurations for Ollama, Page Break and Table format
 DOCLING_TABLE_FORMAT = os.getenv("DOCLING_TABLE_FORMAT", "html")
 DOCLING_VLM_ENABLED = os.getenv("DOCLING_VLM_ENABLED", "False").lower() == "true"
+DOCLING_VLM_PROVIDER = os.getenv("DOCLING_VLM_PROVIDER", "ollama")
+DOCLING_VLM_API_KEY = os.getenv("DOCLING_VLM_API_KEY", "")
 DOCLING_VLM_MODEL = os.getenv("DOCLING_VLM_MODEL", "qwen2-vl:2b")
 DOCLING_VLM_ENDPOINT = os.getenv("DOCLING_VLM_ENDPOINT", "http://localhost:11434")
 DOCLING_VLM_PROMPT = os.getenv("DOCLING_VLM_PROMPT", "この画像の詳細な説明文を日本語で作成してください。")
+DOCLING_VLM_MAX_CONCURRENT = int(os.getenv("DOCLING_VLM_MAX_CONCURRENT", "5"))
 DOCLING_INCLUDE_PAGE_BREAKS = os.getenv("DOCLING_INCLUDE_PAGE_BREAKS", "False").lower() == "true"
 DOCLING_INCLUDE_KV_EXTRACTION = os.getenv("DOCLING_INCLUDE_KV_EXTRACTION", "False").lower() == "true"
-
 
 
 def setup_logging():

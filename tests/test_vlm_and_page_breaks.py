@@ -111,9 +111,12 @@ class TestVLMAndPageBreaks(unittest.TestCase):
         self.assertIn("<!-- VLM_CAPTION_END -->", res.text)
         mock_caption_sync.assert_called_once_with(
             image=pic_item.image.pil_image,
+            provider="ollama",
+            api_key="",
             model="qwen2-vl:2b",
             endpoint="http://localhost:11434",
             prompt="画像の説明をして",
+            vlm_max_concurrent=5,
         )
 
     def test_page_break_rendering_direct(self):
@@ -220,9 +223,12 @@ class TestVLMAndPageBreaks(unittest.TestCase):
         self.assertEqual(captions, {"#/body/0": "Prefetched Caption!"})
         mock_caption_sync.assert_called_once_with(
             image=pic_item.image.pil_image,
+            provider="ollama",
+            api_key="",
             model="qwen2-vl:2b",
             endpoint="http://localhost:11434",
             prompt="Prefetch prompt",
+            vlm_max_concurrent=5,
         )
 
 
