@@ -175,3 +175,44 @@ def test_download_file_resolution_error():
         response = client.get("/download/some_id/some_file.md")
         assert response.status_code == 400
         assert response.json()["detail"] == "Invalid request parameters."
+
+
+def test_convert_file_read_exception():
+    """
+    Test that the convert_file endpoint returns 500 when an exception occurs
+    while reading the uploaded file in chunks inside _save_upload_temp.
+    """
+    # Reset rate limit data to avoid issues
+    docling_lib.server._rate_limit_data.clear()
+
+    with patch("tempfile.SpooledTemporaryFile.read", side_effect=Exception("Mocked read error")):
+        files = {"file": ("test.pdf", b"dummy content", "application/pdf")}
+        response = client.post("/convert/", files=files)
+        assert response.status_code == 500
+        assert "An internal error occurred during conversion." in response.json()["detail"]
+
+
+def test_convert_file_write_exception():
+    """
+    Test that the convert_file endpoint returns 500 when an exception occurs
+    while writing to the temporary file inside _save_upload_temp.
+    """
+    # Reset rate limit data to avoid issues
+    docling_lib.server._rate_limit_data.clear()
+
+    class MockTempFile:
+        def __init__(self, *args, **kwargs):
+            self.name = "dummy_temp_file_name.pdf"
+
+        def write(self, chunk):
+            raise IOError("Mocked write error: disk full")
+
+        def close(self):
+            pass
+
+    with patch("tempfile.NamedTemporaryFile", side_effect=MockTempFile), patch("pathlib.Path.unlink") as mock_unlink:
+        files = {"file": ("test.pdf", b"dummy content", "application/pdf")}
+        response = client.post("/convert/", files=files)
+        assert response.status_code == 500
+        assert "An internal error occurred during conversion." in response.json()["detail"]
+        mock_unlink.assert_called_once()
