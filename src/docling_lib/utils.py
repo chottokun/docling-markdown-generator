@@ -33,7 +33,7 @@ def serialize_table_data_to_markdown(table_data) -> str:
         r_start = cell.start_row_offset_idx
         c_start = cell.start_col_offset_idx
         if 0 <= r_start < num_rows and 0 <= c_start < num_cols:
-            grid[r_start][c_start] = cell.text.replace("\n", " ").strip() if cell.text else ""
+            grid[r_start][c_start] = cell.text.replace("\n", " ").replace("|", "\\|").strip() if cell.text else ""
 
     lines = []
     if num_rows > 0:

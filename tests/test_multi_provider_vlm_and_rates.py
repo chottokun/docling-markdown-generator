@@ -7,6 +7,10 @@ from PIL import Image
 from tests.mock_docling import mock_docling
 mock_docling()
 
+from docling_core.types.doc import (
+    TableCell,
+    TableData,
+)
 from docling_lib.converter import (
     DocumentConversionOptions,
     PDFConverter,
@@ -16,6 +20,7 @@ from docling_lib.vlm import (
     generate_caption_sync,
     get_semaphore,
 )
+from docling_lib.utils import serialize_table_data_to_markdown
 
 
 class TestMultiProviderVLMAndRates(unittest.TestCase):
@@ -113,33 +118,75 @@ class TestMultiProviderVLMAndRates(unittest.TestCase):
         self.assertIn("key=gem-test-key", url_called)
         self.assertIn("gemini-1.5-flash", url_called)
 
-    def test_semaphore_rate_limiting(self):
+    def test_semaphore_rate_limiting_isolation(self):
         """
-        Verify that dynamic rate-limiting semaphore enforces concurrency limits.
+        Verify that rate-limiting semaphores are isolated per provider & endpoint.
         """
-        sem1 = get_semaphore(3)
-        sem2 = get_semaphore(3)
-        self.assertIs(sem1, sem2)  # Should reuse cache
+        sem1 = get_semaphore(3, provider="ollama", endpoint="http://localhost:11434")
+        sem2 = get_semaphore(3, provider="ollama", endpoint="http://localhost:11434")
+        self.assertIs(sem1, sem2)  # Same params -> Same semaphore
 
-        # Test acquiring and releasing
-        self.assertTrue(sem1.acquire(blocking=False))
-        self.assertTrue(sem1.acquire(blocking=False))
-        self.assertTrue(sem1.acquire(blocking=False))
-        # 4th should block / fail since limit is 3
-        self.assertFalse(sem1.acquire(blocking=False))
+        # Different provider -> Different semaphore
+        sem3 = get_semaphore(3, provider="openai", endpoint="https://api.openai.com/v1")
+        self.assertIsNot(sem1, sem3)
 
-        sem1.release()
+        # Test acquiring limit
         self.assertTrue(sem1.acquire(blocking=False))
+        self.assertTrue(sem1.acquire(blocking=False))
+        self.assertTrue(sem1.acquire(blocking=False))
+        self.assertFalse(sem1.acquire(blocking=False))  # Exceeded limit of 3
+
+        # sem3 should be completely untouched and isolated
+        self.assertTrue(sem3.acquire(blocking=False))
+
+        # Cleanup
         sem1.release()
         sem1.release()
         sem1.release()
+        sem3.release()
+
+    @patch("httpx.Client")
+    def test_default_endpoints_adjustment(self, mock_client_cls):
+        """
+        Verify default endpoints are automatically adjusted based on selected provider.
+        """
+        mock_client = mock_client_cls.return_value.__enter__.return_value
+        mock_response = MagicMock()
+        mock_response.json.return_value = {"content": [{"text": "OK"}]}
+        mock_response.raise_for_status = MagicMock()
+        mock_client.post.return_value = mock_response
+
+        img = Image.new("RGB", (5, 5))
+        # Call with default Ollama endpoint but selected "anthropic" provider
+        generate_caption_sync(
+            image=img,
+            provider="anthropic",
+            endpoint="http://localhost:11434",  # left as default
+        )
+        url_called = mock_client.post.call_args[0][0]
+        # Should be automatically adjusted to Anthropic URL
+        self.assertTrue(url_called.startswith("https://api.anthropic.com"))
+
+    def test_escape_pipe_characters_in_markdown_table(self):
+        """
+        Verify serialize_table_data_to_markdown escapes pipe characters in table cell text.
+        """
+        cells = [
+            TableCell(start_row_offset_idx=0, end_row_offset_idx=1, start_col_offset_idx=0, end_col_offset_idx=1, text="Header | Name"),
+            TableCell(start_row_offset_idx=1, end_row_offset_idx=2, start_col_offset_idx=0, end_col_offset_idx=1, text="Alice | Bob"),
+        ]
+        td = TableData(table_cells=cells, num_rows=2, num_cols=1)
+        md = serialize_table_data_to_markdown(td)
+
+        self.assertIn("Header \\| Name", md)
+        self.assertIn("Alice \\| Bob", md)
+        self.assertNotIn("Header | Name", md)
 
     def test_fastapi_endpoint_params_mapping(self):
         """
         Verify server's Form dependency get_conversion_request correctly instantiates
         all of the new parameters and maps them to DocumentConversionRequest model.
         """
-        from fastapi import Form
         from docling_lib.server import get_conversion_request
 
         # Run direct call of the Form parser dependency with custom parameters

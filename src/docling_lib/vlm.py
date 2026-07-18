@@ -1,3 +1,4 @@
+import asyncio
 import base64
 import io
 import logging
@@ -9,19 +10,27 @@ from .utils import sanitize_log_message
 
 logger = logging.getLogger(__name__)
 
-# Cache of threading semaphores based on max_concurrent limit
+# Cache of threading semaphores based on (provider, endpoint, max_concurrent)
 _semaphores_lock = threading.Lock()
 _semaphores = {}
 
 
-def get_semaphore(max_concurrent: int) -> threading.Semaphore:
+def get_semaphore(
+    max_concurrent: int, provider: str = "ollama", endpoint: str = ""
+) -> threading.Semaphore:
     """
-    Retrieves or creates a thread-safe BoundedSemaphore to enforce VLM rate limiting.
+    Retrieves or creates a thread-safe Semaphore to enforce VLM rate limiting,
+    isolated per provider, endpoint, and concurrency limit.
     """
     with _semaphores_lock:
-        if max_concurrent not in _semaphores:
-            _semaphores[max_concurrent] = threading.Semaphore(max_concurrent)
-        return _semaphores[max_concurrent]
+        key = (
+            provider.strip().lower() if provider else "ollama",
+            endpoint.strip().lower() if endpoint else "",
+            max_concurrent,
+        )
+        if key not in _semaphores:
+            _semaphores[key] = threading.Semaphore(max_concurrent)
+        return _semaphores[key]
 
 
 def _encode_image_to_base64(image: Image.Image) -> str:
@@ -191,10 +200,22 @@ async def generate_caption(
     # Force defaults if parameters are None/empty to match backward-compatible tests
     if not provider:
         provider = "ollama"
+    provider_lower = provider.strip().lower()
+
     if not model:
         model = "qwen2-vl:2b"
-    if not endpoint:
-        endpoint = "http://localhost:11434"
+
+    # Automatically adjust default endpoints for other cloud providers
+    if not endpoint or (endpoint == "http://localhost:11434" and provider_lower != "ollama"):
+        if provider_lower == "ollama":
+            endpoint = "http://localhost:11434"
+        elif provider_lower in ("openai", "vllm", "llama.cpp"):
+            endpoint = "https://api.openai.com/v1"
+        elif provider_lower == "anthropic":
+            endpoint = "https://api.anthropic.com"
+        elif provider_lower in ("google", "gemini"):
+            endpoint = "https://generativelanguage.googleapis.com"
+
     if not prompt:
         prompt = "この画像の詳細な説明文を日本語で作成してください。"
 
@@ -219,11 +240,11 @@ async def generate_caption(
         endpoint=endpoint,
     )
 
-    # Use semaphore for rate limiting
-    sem = get_semaphore(vlm_max_concurrent)
+    # Use semaphore for rate limiting, isolated per provider & endpoint
+    sem = get_semaphore(vlm_max_concurrent, provider=provider, endpoint=endpoint)
     try:
-        # Acquire semaphore synchronously
-        sem.acquire()
+        # Acquire semaphore asynchronously using to_thread to prevent event-loop blocking
+        await asyncio.to_thread(sem.acquire)
         async with httpx.AsyncClient(timeout=45.0) as client:
             response = await client.post(url, headers=headers, json=json_body)
             response.raise_for_status()
@@ -256,10 +277,22 @@ def generate_caption_sync(
     # Force defaults if parameters are None/empty to match backward-compatible tests
     if not provider:
         provider = "ollama"
+    provider_lower = provider.strip().lower()
+
     if not model:
         model = "qwen2-vl:2b"
-    if not endpoint:
-        endpoint = "http://localhost:11434"
+
+    # Automatically adjust default endpoints for other cloud providers
+    if not endpoint or (endpoint == "http://localhost:11434" and provider_lower != "ollama"):
+        if provider_lower == "ollama":
+            endpoint = "http://localhost:11434"
+        elif provider_lower in ("openai", "vllm", "llama.cpp"):
+            endpoint = "https://api.openai.com/v1"
+        elif provider_lower == "anthropic":
+            endpoint = "https://api.anthropic.com"
+        elif provider_lower in ("google", "gemini"):
+            endpoint = "https://generativelanguage.googleapis.com"
+
     if not prompt:
         prompt = "この画像の詳細な説明文を日本語で作成してください。"
 
@@ -284,8 +317,8 @@ def generate_caption_sync(
         endpoint=endpoint,
     )
 
-    # Use semaphore for rate limiting
-    sem = get_semaphore(vlm_max_concurrent)
+    # Use semaphore for rate limiting, isolated per provider & endpoint
+    sem = get_semaphore(vlm_max_concurrent, provider=provider, endpoint=endpoint)
     try:
         sem.acquire()
         with httpx.Client(timeout=45.0) as client:
