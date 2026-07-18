@@ -6,7 +6,6 @@ from tests.mock_docling import mock_docling
 
 mock_docling()
 
-from PIL import Image
 from docling_core.transforms.serializer.markdown import MarkdownParams
 from docling_core.types.doc import (
     DoclingDocument,
@@ -15,13 +14,15 @@ from docling_core.types.doc import (
     PictureItem,
     Size,
 )
+from PIL import Image
+
 from docling_lib.converter import (
     CustomMarkdownPictureSerializer,
     DocumentConversionOptions,
     EnhancedMarkdownSerializer,
     PDFConverter,
 )
-from docling_lib.vlm import generate_caption, generate_caption_sync
+from docling_lib.vlm import generate_caption_sync
 
 
 class TestVLMAndPageBreaks(unittest.TestCase):
@@ -93,9 +94,14 @@ class TestVLMAndPageBreaks(unittest.TestCase):
 
         doc = MagicMock(spec=DoclingDocument)
 
-        with patch("docling_core.transforms.serializer.markdown.MarkdownPictureSerializer._serialize_image_part") as mock_super_img:
+        with patch(
+            "docling_core.transforms.serializer.markdown.MarkdownPictureSerializer._serialize_image_part"
+        ) as mock_super_img:
             from docling_core.transforms.serializer.markdown import create_ser_result
-            mock_super_img.return_value = create_ser_result(text="![Image](http://example.com/pic.png)", span_source=pic_item)
+
+            mock_super_img.return_value = create_ser_result(
+                text="![Image](http://example.com/pic.png)", span_source=pic_item
+            )
 
             res = pic_serializer.serialize(
                 item=pic_item,
@@ -129,7 +135,12 @@ class TestVLMAndPageBreaks(unittest.TestCase):
 
         # Call serialize_doc with a mocked SerializationResult containing raw page break
         from docling_core.transforms.serializer.markdown import create_ser_result
-        parts = [create_ser_result(text="# Page 1\n#_#_DOCLING_DOC_PAGE_BREAK_1_2_#_#\n# Page 2")]
+
+        parts = [
+            create_ser_result(
+                text="# Page 1\n#_#_DOCLING_DOC_PAGE_BREAK_1_2_#_#\n# Page 2"
+            )
+        ]
         res = serializer.serialize_doc(parts=parts)
 
         # Assert
@@ -185,7 +196,6 @@ class TestVLMAndPageBreaks(unittest.TestCase):
             "HTMLTableMarkdownSerializer",
         )
 
-
     @patch("docling_lib.vlm.generate_caption_sync")
     def test_vlm_prefetch(self, mock_caption_sync):
         mock_caption_sync.return_value = "Prefetched Caption!"
@@ -223,7 +233,6 @@ class TestVLMAndPageBreaks(unittest.TestCase):
             prompt="Prefetch prompt",
         )
 
-
     @patch("docling_lib.vlm.generate_caption_sync")
     def test_vlm_prefetch_partial_failure(self, mock_caption_sync):
         # Setup mock side effect: simulate that image with size (10, 10) causes VLM timeout
@@ -243,12 +252,16 @@ class TestVLMAndPageBreaks(unittest.TestCase):
         )
 
         # 1st image: Normal
-        img_ref1 = ImageRef(mimetype="image/png", dpi=72, size=Size(width=50.0, height=50.0), uri="1")
+        img_ref1 = ImageRef(
+            mimetype="image/png", dpi=72, size=Size(width=50.0, height=50.0), uri="1"
+        )
         object.__setattr__(img_ref1, "_pil", Image.new("RGB", (50, 50)))
         pic_item1 = PictureItem(self_ref="#/body/0", image=img_ref1)
 
         # 2nd image: Error-triggering size (10, 10)
-        img_ref_err = ImageRef(mimetype="image/png", dpi=72, size=Size(width=10.0, height=10.0), uri="err")
+        img_ref_err = ImageRef(
+            mimetype="image/png", dpi=72, size=Size(width=10.0, height=10.0), uri="err"
+        )
         object.__setattr__(img_ref_err, "_pil", Image.new("RGB", (10, 10)))
         pic_item_err = PictureItem(self_ref="#/body/1", image=img_ref_err)
 
@@ -274,7 +287,9 @@ class TestVLMAndPageBreaks(unittest.TestCase):
         # 2. Image reference or pil_image is None
         pic_item_no_img = PictureItem(self_ref="#/body/0", image=None)
 
-        img_ref_no_pil = ImageRef(mimetype="image/png", dpi=72, size=Size(width=50.0, height=50.0), uri="3")
+        img_ref_no_pil = ImageRef(
+            mimetype="image/png", dpi=72, size=Size(width=50.0, height=50.0), uri="3"
+        )
         pic_item_no_pil = PictureItem(self_ref="#/body/1", image=img_ref_no_pil)
 
         doc.pictures = [pic_item_no_img, pic_item_no_pil]
@@ -287,7 +302,9 @@ class TestVLMAndPageBreaks(unittest.TestCase):
 
         # Ollama API returns 200 OK but with unexpected JSON schema
         mock_response = MagicMock()
-        mock_response.json.return_value = {"error": "Model not found"} # Key "message" is missing
+        mock_response.json.return_value = {
+            "error": "Model not found"
+        }  # Key "message" is missing
         mock_response.raise_for_status = MagicMock()
         mock_client.post.return_value = mock_response
 
@@ -296,7 +313,6 @@ class TestVLMAndPageBreaks(unittest.TestCase):
 
         # Must fall back to empty string without raising KeyError/AttributeError
         self.assertEqual(result, "")
-
 
     def test_actual_ollama_vlm_integration(self):
         """
@@ -307,6 +323,7 @@ class TestVLMAndPageBreaks(unittest.TestCase):
         patch.stopall()
 
         import httpx
+
         try:
             # Check if local Ollama is up and has models
             res = httpx.get("http://localhost:11434/api/tags", timeout=2.0)
@@ -320,7 +337,9 @@ class TestVLMAndPageBreaks(unittest.TestCase):
                     target_model = m
                     break
             if not target_model:
-                self.skipTest("No compatible qwen3.5 model is available in local Ollama")
+                self.skipTest(
+                    "No compatible qwen3.5 model is available in local Ollama"
+                )
         except Exception:
             self.skipTest("Ollama is not reachable")
 
@@ -330,7 +349,7 @@ class TestVLMAndPageBreaks(unittest.TestCase):
             image=img,
             model=target_model,
             endpoint="http://localhost:11434",
-            prompt="この画像の色は何ですか？単語だけで答えてください。"
+            prompt="この画像の色は何ですか？単語だけで答えてください。",
         )
         # Verify we got a valid response containing '青'
         self.assertTrue(len(caption) > 0)

@@ -47,4 +47,5 @@ def pdf_downloader(file_downloader):
 def reset_rate_limiter():
     """Reset rate limiter in-memory storage before each test."""
     import docling_lib.server
+
     docling_lib.server._rate_limit_data.clear()

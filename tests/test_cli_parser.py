@@ -23,16 +23,23 @@ def test_setup_parser_defaults():
     assert args.output_name == MD_OUTPUT_NAME
     assert args.image_scale == IMAGE_RESOLUTION_SCALE
 
+
 def test_setup_parser_custom_values():
     """Test that setup_parser correctly handles custom argument values."""
     parser = setup_parser()
-    args = parser.parse_args([
-        "input.pdf",
-        "--output-dir", "custom_out",
-        "--image-dir", "custom_images",
-        "--output-name", "custom.md",
-        "--image-scale", "3.5"
-    ])
+    args = parser.parse_args(
+        [
+            "input.pdf",
+            "--output-dir",
+            "custom_out",
+            "--image-dir",
+            "custom_images",
+            "--output-name",
+            "custom.md",
+            "--image-scale",
+            "3.5",
+        ]
+    )
 
     assert args.pdf_file == Path("input.pdf")
     assert args.output_dir == Path("custom_out")
@@ -40,19 +47,18 @@ def test_setup_parser_custom_values():
     assert args.output_name == "custom.md"
     assert args.image_scale == 3.5
 
+
 def test_setup_parser_short_flags():
     """Test that setup_parser correctly handles short flags."""
     parser = setup_parser()
-    args = parser.parse_args([
-        "input.pdf",
-        "-o", "short_out",
-        "-n", "short.md",
-        "-s", "1.5"
-    ])
+    args = parser.parse_args(
+        ["input.pdf", "-o", "short_out", "-n", "short.md", "-s", "1.5"]
+    )
 
     assert args.output_dir == Path("short_out")
     assert args.output_name == "short.md"
     assert args.image_scale == 1.5
+
 
 def test_setup_parser_missing_required():
     """Test that setup_parser raises SystemExit when required arguments are missing."""
@@ -61,11 +67,13 @@ def test_setup_parser_missing_required():
         # Missing 'pdf_file'
         parser.parse_args([])
 
+
 def test_setup_parser_invalid_scale():
     """Test that setup_parser raises SystemExit for invalid scale type."""
     parser = setup_parser()
     with pytest.raises(SystemExit):
         parser.parse_args(["test.pdf", "--image-scale", "not-a-number"])
+
 
 def test_setup_parser_path_conversion():
     """Test that setup_parser correctly converts string arguments to Path objects."""

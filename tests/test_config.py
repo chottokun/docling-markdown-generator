@@ -53,7 +53,10 @@ def test_environment_variable_overrides():
             assert config.UPLOAD_DIR == Path("/tmp/uploads")
             assert config.OUTPUT_DIR == Path("/tmp/output")
             assert config.MAX_UPLOAD_SIZE == 1048576
-            assert config.CORS_ORIGINS == {"http://localhost:3000", "https://example.com"}
+            assert config.CORS_ORIGINS == {
+                "http://localhost:3000",
+                "https://example.com",
+            }
             assert config.API_KEY == "test_api_key"
             assert config.RATE_LIMIT_REQUESTS == 10
             assert config.RATE_LIMIT_WINDOW == 120

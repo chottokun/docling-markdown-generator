@@ -10,6 +10,7 @@ def mock_docling():
     # 実際のdoclingがインポート可能かチェック
     try:
         import importlib.util
+
         spec = importlib.util.find_spec("docling")
         if spec is not None and spec.origin is not None:
             # 実際のdoclingがインストール済み → モック不要
@@ -58,19 +59,17 @@ def mock_docling():
         },
     )
     docling_acc = create_mock_module("docling.datamodel.accelerator_options")
-    docling_acc.AcceleratorDevice = type("AcceleratorDevice", (), {"AUTO": "auto", "CPU": "cpu"})
+    docling_acc.AcceleratorDevice = type(
+        "AcceleratorDevice", (), {"AUTO": "auto", "CPU": "cpu"}
+    )
     docling_acc.AcceleratorOptions = type(
         "AcceleratorOptions", (), {"__init__": lambda self, *args, **kwargs: None}
     )
 
     docling_pipe = create_mock_module("docling.datamodel.pipeline_options")
-    docling_pipe.PdfPipelineOptions = type(
-        "PdfPipelineOptions", (), {}
-    )
+    docling_pipe.PdfPipelineOptions = type("PdfPipelineOptions", (), {})
     docling_doc = create_mock_module("docling.datamodel.document")
-    docling_doc.ConversionResult = type(
-        "ConversionResult", (), {}
-    )
+    docling_doc.ConversionResult = type("ConversionResult", (), {})
 
     # フォーマットオプション用のダミークラスファクトリ
     def _fmt_opt(name):

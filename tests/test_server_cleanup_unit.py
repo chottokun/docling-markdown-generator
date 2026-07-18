@@ -11,6 +11,7 @@ async def test_cleanup_temp_file_none():
     """Verify that _cleanup_temp_file handles None without error."""
     await _cleanup_temp_file(None)
 
+
 @pytest.mark.asyncio
 async def test_cleanup_temp_file_exists(tmp_path):
     """Verify that _cleanup_temp_file deletes the file if it exists."""
@@ -21,6 +22,7 @@ async def test_cleanup_temp_file_exists(tmp_path):
     await _cleanup_temp_file(test_file)
 
     assert not test_file.exists()
+
 
 @pytest.mark.asyncio
 async def test_cleanup_temp_file_not_exists():

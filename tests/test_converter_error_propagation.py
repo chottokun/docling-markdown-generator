@@ -16,6 +16,7 @@ def converter():
         conv.doc_converter = mock_conv
         return conv
 
+
 def test_os_error_propagation(converter, tmp_path):
     """Verify that OSError from doc_converter.convert is propagated."""
     input_path = tmp_path / "test.pdf"
@@ -28,17 +29,21 @@ def test_os_error_propagation(converter, tmp_path):
         converter.convert(input_path, output_dir)
     assert "Simulated OS Error" in str(excinfo.value)
 
+
 def test_permission_error_propagation(converter, tmp_path):
     """Verify that PermissionError from doc_converter.convert is propagated."""
     input_path = tmp_path / "test.pdf"
     input_path.touch()
     output_dir = tmp_path / "output"
 
-    converter.doc_converter.convert.side_effect = PermissionError("Simulated Permission Error")
+    converter.doc_converter.convert.side_effect = PermissionError(
+        "Simulated Permission Error"
+    )
 
     with pytest.raises(PermissionError) as excinfo:
         converter.convert(input_path, output_dir)
     assert "Simulated Permission Error" in str(excinfo.value)
+
 
 def test_generic_exception_handling(converter, tmp_path, caplog):
     """Verify that generic Exception from doc_converter.convert is caught and logged."""

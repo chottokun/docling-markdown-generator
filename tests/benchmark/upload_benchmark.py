@@ -12,6 +12,7 @@ FILE_SIZE = 50 * 1024 * 1024  # 50MB
 MAX_UPLOAD_SIZE = 100 * 1024 * 1024
 CONCURRENT_REQUESTS = 10
 
+
 class MockFile:
     def __init__(self, size):
         self.size = size
@@ -22,11 +23,11 @@ class MockFile:
         if self.read_pos >= self.size:
             return b""
         if size == -1:
-            chunk = self.data[self.read_pos:]
+            chunk = self.data[self.read_pos :]
             self.read_pos = self.size
             return chunk
         end = min(self.read_pos + size, self.size)
-        chunk = self.data[self.read_pos:end]
+        chunk = self.data[self.read_pos : end]
         self.read_pos = end
         # Simulate some I/O wait
         time.sleep(0.01)
@@ -34,6 +35,7 @@ class MockFile:
 
     def close(self):
         pass
+
 
 class MockUploadFile:
     def __init__(self, file):
@@ -45,6 +47,7 @@ class MockUploadFile:
 
     async def close(self):
         await run_in_threadpool(self.file.close)
+
 
 async def current_impl(file: MockUploadFile, upload_dir: Path):
     total_size = 0
@@ -73,6 +76,7 @@ async def current_impl(file: MockUploadFile, upload_dir: Path):
             tmp_path.unlink()
         raise
 
+
 async def proposed_impl(file: MockUploadFile, upload_dir: Path):
     total_size = 0
     tmp_file = await run_in_threadpool(
@@ -97,11 +101,14 @@ async def proposed_impl(file: MockUploadFile, upload_dir: Path):
         await run_in_threadpool(tmp_file.close)
     return tmp_path
 
+
 async def run_benchmark():
     upload_dir = Path("tests/benchmark_uploads")
     upload_dir.mkdir(exist_ok=True)
 
-    print(f"Benchmarking with {CONCURRENT_REQUESTS} concurrent requests of {FILE_SIZE / 1024 / 1024}MB file...")
+    print(
+        f"Benchmarking with {CONCURRENT_REQUESTS} concurrent requests of {FILE_SIZE / 1024 / 1024}MB file..."
+    )
 
     # Current Impl
     start = time.perf_counter()
@@ -114,7 +121,8 @@ async def run_benchmark():
     duration_current = time.perf_counter() - start
     print(f"Current implementation: {duration_current:.4f}s")
     for path in paths:
-        if path.exists(): path.unlink()
+        if path.exists():
+            path.unlink()
 
     # Proposed Impl
     start = time.perf_counter()
@@ -127,13 +135,15 @@ async def run_benchmark():
     duration_proposed = time.perf_counter() - start
     print(f"Proposed implementation: {duration_proposed:.4f}s")
     for path in paths:
-        if path.exists(): path.unlink()
+        if path.exists():
+            path.unlink()
 
     improvement = (duration_current - duration_proposed) / duration_current * 100
     print(f"Improvement: {improvement:.2f}%")
 
     # Cleanup
     shutil.rmtree(upload_dir)
+
 
 if __name__ == "__main__":
     asyncio.run(run_benchmark())

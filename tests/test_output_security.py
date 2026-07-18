@@ -68,4 +68,7 @@ def test_validate_output_security_cwd_exception(tmp_path, monkeypatch, caplog):
         with caplog.at_level(logging.ERROR):
             result = _validate_output_security(Path("output"))
             assert result is False
-            assert "Security Error during path resolution: CWD Access Denied" in caplog.text
+            assert (
+                "Security Error during path resolution: CWD Access Denied"
+                in caplog.text
+            )
