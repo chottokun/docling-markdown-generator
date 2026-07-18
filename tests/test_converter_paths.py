@@ -23,16 +23,21 @@ def test_validate_and_resolve_paths_exception_handling(caplog):
     # Since _validate_and_resolve_paths uses output_dir.resolve(),
     # we can mock the resolve method of the output_dir object.
 
-    with patch.object(Path, "resolve", side_effect=Exception("Simulated resolution error")):
+    with patch.object(
+        Path, "resolve", side_effect=Exception("Simulated resolution error")
+    ):
         with pytest.raises(Exception, match="Simulated resolution error"):
             with caplog.at_level(logging.ERROR):
                 converter._validate_and_resolve_paths(
                     output_dir=output_dir,
                     image_dir_name="images",
-                    md_output_name="output.md"
+                    md_output_name="output.md",
                 )
 
-    assert "Security Error during path resolution: Simulated resolution error" in caplog.text
+    assert (
+        "Security Error during path resolution: Simulated resolution error"
+        in caplog.text
+    )
 
 
 def test_validate_and_resolve_paths_traversal_logging_image_dir(caplog):
@@ -48,9 +53,9 @@ def test_validate_and_resolve_paths_traversal_logging_image_dir(caplog):
 
     with patch.object(Path, "resolve") as mock_resolve:
         mock_resolve.side_effect = [
-            Path("/tmp/base"),            # output_dir.resolve()
-            Path("/tmp/traversal_images"), # images_dir.resolve()
-            Path("/tmp/base/safe.md")     # md_path.resolve()
+            Path("/tmp/base"),  # output_dir.resolve()
+            Path("/tmp/traversal_images"),  # images_dir.resolve()
+            Path("/tmp/base/safe.md"),  # md_path.resolve()
         ]
 
         with pytest.raises(ValueError, match="Traversal detected in image directory"):
@@ -58,10 +63,13 @@ def test_validate_and_resolve_paths_traversal_logging_image_dir(caplog):
                 converter._validate_and_resolve_paths(
                     output_dir=output_dir,
                     image_dir_name=image_dir_name,
-                    md_output_name=md_output_name
+                    md_output_name=md_output_name,
                 )
 
-    assert "Security Error: Traversal detected in image directory ../traversal_images" in caplog.text
+    assert (
+        "Security Error: Traversal detected in image directory ../traversal_images"
+        in caplog.text
+    )
 
 
 def test_validate_and_resolve_paths_traversal_logging_markdown_path(caplog):
@@ -76,20 +84,25 @@ def test_validate_and_resolve_paths_traversal_logging_markdown_path(caplog):
 
     with patch.object(Path, "resolve") as mock_resolve:
         mock_resolve.side_effect = [
-            Path("/tmp/base"),            # output_dir.resolve()
-            Path("/tmp/base/images"),     # images_dir.resolve()
-            Path("/tmp/traversal.md")     # md_path.resolve()
+            Path("/tmp/base"),  # output_dir.resolve()
+            Path("/tmp/base/images"),  # images_dir.resolve()
+            Path("/tmp/traversal.md"),  # md_path.resolve()
         ]
 
-        with pytest.raises(ValueError, match="Traversal detected in markdown output name"):
+        with pytest.raises(
+            ValueError, match="Traversal detected in markdown output name"
+        ):
             with caplog.at_level(logging.ERROR):
                 converter._validate_and_resolve_paths(
                     output_dir=output_dir,
                     image_dir_name=image_dir_name,
-                    md_output_name=md_output_name
+                    md_output_name=md_output_name,
                 )
 
-    assert "Security Error: Traversal detected in markdown output name ../traversal.md" in caplog.text
+    assert (
+        "Security Error: Traversal detected in markdown output name ../traversal.md"
+        in caplog.text
+    )
 
 
 def test_validate_and_resolve_paths_success(tmp_path):
@@ -117,7 +130,9 @@ def test_validate_and_resolve_paths_traversal_images(tmp_path):
     md_output_name = "output.md"
 
     with pytest.raises(ValueError, match="Traversal detected in image directory"):
-        converter._validate_and_resolve_paths(output_dir, image_dir_name, md_output_name)
+        converter._validate_and_resolve_paths(
+            output_dir, image_dir_name, md_output_name
+        )
 
 
 def test_validate_and_resolve_paths_traversal_md(tmp_path):
@@ -129,7 +144,9 @@ def test_validate_and_resolve_paths_traversal_md(tmp_path):
     md_output_name = "../outside.md"
 
     with pytest.raises(ValueError, match="Traversal detected in markdown output name"):
-        converter._validate_and_resolve_paths(output_dir, image_dir_name, md_output_name)
+        converter._validate_and_resolve_paths(
+            output_dir, image_dir_name, md_output_name
+        )
 
 
 def test_validate_and_resolve_paths_exception(tmp_path, caplog):
@@ -137,9 +154,15 @@ def test_validate_and_resolve_paths_exception(tmp_path, caplog):
     converter = PDFConverter()
     output_dir = tmp_path / "output"
 
-    with patch("docling_lib.converter.Path.resolve", side_effect=RuntimeError("Unexpected resolution error")):
+    with patch(
+        "docling_lib.converter.Path.resolve",
+        side_effect=RuntimeError("Unexpected resolution error"),
+    ):
         with caplog.at_level(logging.ERROR):
             with pytest.raises(RuntimeError, match="Unexpected resolution error"):
                 converter._validate_and_resolve_paths(output_dir, "images", "out.md")
 
-            assert "Security Error during path resolution: Unexpected resolution error" in caplog.text
+            assert (
+                "Security Error during path resolution: Unexpected resolution error"
+                in caplog.text
+            )

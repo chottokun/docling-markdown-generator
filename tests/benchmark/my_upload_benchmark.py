@@ -8,7 +8,8 @@ from starlette.concurrency import run_in_threadpool
 
 # Mocking parts of the server
 MAX_UPLOAD_SIZE = 200 * 1024 * 1024
-CHUNK_SIZE = 64 * 1024 # 64KB to exaggerate overhead
+CHUNK_SIZE = 64 * 1024  # 64KB to exaggerate overhead
+
 
 class MockFile:
     def __init__(self, size):
@@ -20,16 +21,17 @@ class MockFile:
         if self.read_pos >= self.size:
             return b""
         if size == -1:
-            chunk = self.data[self.read_pos:]
+            chunk = self.data[self.read_pos :]
             self.read_pos = self.size
             return chunk
         end = min(self.read_pos + size, self.size)
-        chunk = self.data[self.read_pos:end]
+        chunk = self.data[self.read_pos : end]
         self.read_pos = end
         return chunk
 
     def close(self):
         pass
+
 
 class MockUploadFile:
     def __init__(self, file):
@@ -41,6 +43,7 @@ class MockUploadFile:
 
     async def close(self):
         await run_in_threadpool(self.file.close)
+
 
 # Current implementation in server.py (with smaller chunks for test)
 async def current_impl(file: MockUploadFile, tmp_file, MAX_UPLOAD_SIZE):
@@ -56,6 +59,7 @@ async def current_impl(file: MockUploadFile, tmp_file, MAX_UPLOAD_SIZE):
             await run_in_threadpool(tmp_file.write, chunk)
     finally:
         await run_in_threadpool(tmp_file.close)
+
 
 # Optimization: Single blocking call
 async def opt_single_blocking(file: MockUploadFile, tmp_file, MAX_UPLOAD_SIZE):
@@ -74,12 +78,15 @@ async def opt_single_blocking(file: MockUploadFile, tmp_file, MAX_UPLOAD_SIZE):
 
     await run_in_threadpool(_save)
 
+
 async def run_benchmark(file_size_mb, concurrent_reqs):
     file_size = file_size_mb * 1024 * 1024
     upload_dir = Path("benchmark_temp")
     upload_dir.mkdir(exist_ok=True)
 
-    print(f"--- Benchmarking {file_size_mb}MB file, {concurrent_reqs} concurrent requests, CHUNK={CHUNK_SIZE/1024}KB ---")
+    print(
+        f"--- Benchmarking {file_size_mb}MB file, {concurrent_reqs} concurrent requests, CHUNK={CHUNK_SIZE / 1024}KB ---"
+    )
 
     # Baseline
     start = time.perf_counter()
@@ -109,6 +116,7 @@ async def run_benchmark(file_size_mb, concurrent_reqs):
     print(f"Improvement: {improvement:.2f}%")
 
     shutil.rmtree(upload_dir)
+
 
 if __name__ == "__main__":
     asyncio.run(run_benchmark(50, 5))

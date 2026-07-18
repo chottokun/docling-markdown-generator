@@ -20,13 +20,25 @@ from fastapi import (
 )
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
-from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel
+from starlette.concurrency import run_in_threadpool
 
 from .config import (
     ALLOWED_EXTENSIONS,
     API_KEY,
     CORS_ORIGINS,
+    DOCLING_CUDA_FLASH_ATTENTION,
+    DOCLING_INCLUDE_KV_EXTRACTION,
+    DOCLING_INCLUDE_PAGE_BREAKS,
+    DOCLING_NUM_THREADS,
+    DOCLING_TABLE_FORMAT,
+    DOCLING_VLM_API_KEY,
+    DOCLING_VLM_ENABLED,
+    DOCLING_VLM_ENDPOINT,
+    DOCLING_VLM_MAX_CONCURRENT,
+    DOCLING_VLM_MODEL,
+    DOCLING_VLM_PROMPT,
+    DOCLING_VLM_PROVIDER,
     MAX_UPLOAD_SIZE,
     OUTPUT_DIR,
     RATE_LIMIT_REQUESTS,
@@ -34,20 +46,8 @@ from .config import (
     TRUSTED_PROXIES,
     UPLOAD_DIR,
     setup_logging,
-    DOCLING_NUM_THREADS,
-    DOCLING_CUDA_FLASH_ATTENTION,
-    DOCLING_TABLE_FORMAT,
-    DOCLING_VLM_ENABLED,
-    DOCLING_VLM_PROVIDER,
-    DOCLING_VLM_API_KEY,
-    DOCLING_VLM_MODEL,
-    DOCLING_VLM_ENDPOINT,
-    DOCLING_VLM_PROMPT,
-    DOCLING_VLM_MAX_CONCURRENT,
-    DOCLING_INCLUDE_PAGE_BREAKS,
-    DOCLING_INCLUDE_KV_EXTRACTION,
 )
-from .converter import process_pdf, DocumentConversionOptions
+from .converter import DocumentConversionOptions, process_pdf
 from .utils import sanitize_log_message
 
 # --- Logging Setup ---
@@ -321,7 +321,9 @@ async def convert_file(
         )
 
         # Use our process_pdf function wrapped in run_in_threadpool for concurrency.
-        result_path = await run_in_threadpool(process_pdf, tmp_path, request_output_dir, options=options)
+        result_path = await run_in_threadpool(
+            process_pdf, tmp_path, request_output_dir, options=options
+        )
 
         return await _validate_and_format_response(result_path, request_id)
 

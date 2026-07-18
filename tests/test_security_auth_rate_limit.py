@@ -163,7 +163,7 @@ def test_download_rate_limiting(tmp_path, monkeypatch):
             # The dependencies run BEFORE the handler. If rate limiting is not triggered,
             # we will get 400 or 404 (since parameters / files are mock/invalid), but NOT 429.
             # If rate limiting is triggered, we get 429.
-            
+
             # First request
             response = client.get("/download/validid/file.md")
             assert response.status_code != 429

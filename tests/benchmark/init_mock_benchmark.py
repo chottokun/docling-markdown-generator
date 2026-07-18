@@ -1,6 +1,8 @@
 import time
 from unittest.mock import MagicMock
+
 from docling_lib.converter import EnhancedMarkdownSerializer
+
 
 def run_benchmark(iterations=10000):
     mock_doc = MagicMock()
@@ -15,6 +17,7 @@ def run_benchmark(iterations=10000):
     elapsed = time.perf_counter() - start
     print(f"Time for {iterations} initializations: {elapsed:.4f}s")
     return elapsed
+
 
 if __name__ == "__main__":
     run_benchmark()

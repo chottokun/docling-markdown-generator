@@ -1,4 +1,3 @@
-
 import unittest
 from unittest.mock import MagicMock
 
@@ -15,8 +14,7 @@ from docling_lib.converter import DocumentConversionOptions, PDFConverter
 class TestRAGImprovements(unittest.TestCase):
     def setUp(self):
         self.options = DocumentConversionOptions(
-            include_kv_extraction=True,
-            include_page_breaks=True
+            include_kv_extraction=True, include_page_breaks=True
         )
         self.converter = PDFConverter(options=self.options)
 
@@ -25,7 +23,9 @@ class TestRAGImprovements(unittest.TestCase):
         doc.name = "Test Document"
         md_content = "# Content"
 
-        result = self.converter._apply_metadata_frontmatter(doc, md_content, self.options)
+        result = self.converter._apply_metadata_frontmatter(
+            doc, md_content, self.options
+        )
 
         self.assertIn("---", result)
         self.assertIn("title: Test Document", result)
@@ -44,6 +44,7 @@ class TestRAGImprovements(unittest.TestCase):
         self.assertIn("---", result)
         self.assertIn("title: Test Document", result)
         self.assertNotIn("## Key Information", result)
+
 
 if __name__ == "__main__":
     unittest.main()

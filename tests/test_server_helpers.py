@@ -1,18 +1,18 @@
+from unittest.mock import MagicMock, patch
+
 import pytest
-from fastapi import HTTPException
+from fastapi import HTTPException, Request
 
 import docling_lib.server
 from docling_lib.config import MAX_UPLOAD_SIZE
-from unittest.mock import MagicMock, patch
-from fastapi import Request
 from docling_lib.server import (
     _create_output_dir,
+    _get_client_ip,
+    _get_safe_path,
+    _is_valid_file,
     _validate_and_format_response,
     _validate_content_length,
     _validate_extension,
-    _is_valid_file,
-    _get_safe_path,
-    _get_client_ip,
 )
 
 
@@ -59,7 +59,10 @@ def test_validate_content_length_invalid(content_length):
         ("photo.jpg", ".jpg"),
         ("page.html", ".html"),
         ("document.epub", ".epub"),
-        (" test.pdf", ".pdf"),  # Leading space is preserved by Path.suffix but it finds the extension
+        (
+            " test.pdf",
+            ".pdf",
+        ),  # Leading space is preserved by Path.suffix but it finds the extension
         ("report.tex", ".tex"),
         ("subtitle.vtt", ".vtt"),
         ("data.xbrl", ".xbrl"),

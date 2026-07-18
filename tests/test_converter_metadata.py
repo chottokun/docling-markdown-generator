@@ -1,3 +1,7 @@
+import logging
+from unittest.mock import MagicMock, patch
+
+import pytest
 from docling_core.types.doc import DoclingDocument
 
 from docling_lib.converter import PDFConverter
@@ -28,9 +32,6 @@ def test_apply_metadata_frontmatter_with_empty_name():
 
 def test_apply_metadata_frontmatter_generic_exception(tmp_path, caplog):
     """Test that a generic Exception in _apply_metadata_frontmatter is caught and returns None."""
-    import logging
-    from unittest.mock import MagicMock, patch
-
     converter = PDFConverter()
     input_path = tmp_path / "test.pdf"
     input_path.touch()
@@ -44,7 +45,11 @@ def test_apply_metadata_frontmatter_generic_exception(tmp_path, caplog):
     with patch.object(converter.doc_converter, "convert") as mock_convert:
         mock_convert.return_value.document = mock_doc
         with patch.object(converter, "_serialize_to_markdown", return_value="# Title"):
-            with patch.object(converter, "_apply_metadata_frontmatter", side_effect=ValueError("Simulated Frontmatter Error")):
+            with patch.object(
+                converter,
+                "_apply_metadata_frontmatter",
+                side_effect=ValueError("Simulated Frontmatter Error"),
+            ):
                 with caplog.at_level(logging.ERROR):
                     result = converter.convert(input_path, output_dir)
 
@@ -55,9 +60,6 @@ def test_apply_metadata_frontmatter_generic_exception(tmp_path, caplog):
 
 def test_apply_metadata_frontmatter_os_error_propagation(tmp_path):
     """Test that OSError in _apply_metadata_frontmatter is propagated to the caller."""
-    import pytest
-    from unittest.mock import MagicMock, patch
-
     converter = PDFConverter()
     input_path = tmp_path / "test.pdf"
     input_path.touch()
@@ -70,16 +72,17 @@ def test_apply_metadata_frontmatter_os_error_propagation(tmp_path):
     with patch.object(converter.doc_converter, "convert") as mock_convert:
         mock_convert.return_value.document = mock_doc
         with patch.object(converter, "_serialize_to_markdown", return_value="# Title"):
-            with patch.object(converter, "_apply_metadata_frontmatter", side_effect=OSError("Simulated Frontmatter OSError")):
+            with patch.object(
+                converter,
+                "_apply_metadata_frontmatter",
+                side_effect=OSError("Simulated Frontmatter OSError"),
+            ):
                 with pytest.raises(OSError, match="Simulated Frontmatter OSError"):
                     converter.convert(input_path, output_dir)
 
 
 def test_apply_metadata_frontmatter_permission_error_propagation(tmp_path):
     """Test that PermissionError in _apply_metadata_frontmatter is propagated to the caller."""
-    import pytest
-    from unittest.mock import MagicMock, patch
-
     converter = PDFConverter()
     input_path = tmp_path / "test.pdf"
     input_path.touch()
@@ -92,8 +95,14 @@ def test_apply_metadata_frontmatter_permission_error_propagation(tmp_path):
     with patch.object(converter.doc_converter, "convert") as mock_convert:
         mock_convert.return_value.document = mock_doc
         with patch.object(converter, "_serialize_to_markdown", return_value="# Title"):
-            with patch.object(converter, "_apply_metadata_frontmatter", side_effect=PermissionError("Simulated Frontmatter PermissionError")):
-                with pytest.raises(PermissionError, match="Simulated Frontmatter PermissionError"):
+            with patch.object(
+                converter,
+                "_apply_metadata_frontmatter",
+                side_effect=PermissionError("Simulated Frontmatter PermissionError"),
+            ):
+                with pytest.raises(
+                    PermissionError, match="Simulated Frontmatter PermissionError"
+                ):
                     converter.convert(input_path, output_dir)
 
 

@@ -26,16 +26,16 @@ from docling.document_converter import (
 from docling_core.transforms.serializer.markdown import (
     MarkdownDocSerializer,
     MarkdownParams,
-    MarkdownTableSerializer,
     MarkdownPictureSerializer,
+    MarkdownTableSerializer,
     SerializationResult,
     create_ser_result,
 )
 from docling_core.types.doc import (
     DoclingDocument,
     ImageRefMode,
-    TableItem,
     PictureItem,
+    TableItem,
 )
 
 from .config import (
@@ -43,22 +43,22 @@ from .config import (
     DO_CODE,
     DO_FORMULA,
     DO_OCR,
+    DOCLING_CUDA_FLASH_ATTENTION,
+    DOCLING_INCLUDE_KV_EXTRACTION,
+    DOCLING_INCLUDE_PAGE_BREAKS,
+    DOCLING_NUM_THREADS,
+    DOCLING_TABLE_FORMAT,
+    DOCLING_VLM_API_KEY,
+    DOCLING_VLM_ENABLED,
+    DOCLING_VLM_ENDPOINT,
+    DOCLING_VLM_MAX_CONCURRENT,
+    DOCLING_VLM_MODEL,
+    DOCLING_VLM_PROMPT,
+    DOCLING_VLM_PROVIDER,
     IMAGE_DIR_NAME,
     IMAGE_RESOLUTION_SCALE,
     MD_OUTPUT_NAME,
     USE_GPU,
-    DOCLING_NUM_THREADS,
-    DOCLING_CUDA_FLASH_ATTENTION,
-    DOCLING_TABLE_FORMAT,
-    DOCLING_VLM_ENABLED,
-    DOCLING_VLM_PROVIDER,
-    DOCLING_VLM_API_KEY,
-    DOCLING_VLM_MODEL,
-    DOCLING_VLM_ENDPOINT,
-    DOCLING_VLM_PROMPT,
-    DOCLING_VLM_MAX_CONCURRENT,
-    DOCLING_INCLUDE_PAGE_BREAKS,
-    DOCLING_INCLUDE_KV_EXTRACTION,
 )
 from .utils import sanitize_log_message
 
@@ -106,7 +106,6 @@ def is_cuda_compatible() -> bool:
         return False
 
 
-
 @dataclass
 class DocumentConversionOptions:
     """Options for document conversion and serialization."""
@@ -119,8 +118,12 @@ class DocumentConversionOptions:
     do_ocr: bool = DO_OCR
     do_chart: bool = DO_CHART  # New in docling v2.x
     do_code: bool = DO_CODE  # New in docling v2.x
-    include_page_breaks: bool = DOCLING_INCLUDE_PAGE_BREAKS  # New for RAG: inject page markers
-    include_kv_extraction: bool = DOCLING_INCLUDE_KV_EXTRACTION  # New for RAG: extract KV pairs
+    include_page_breaks: bool = (
+        DOCLING_INCLUDE_PAGE_BREAKS  # New for RAG: inject page markers
+    )
+    include_kv_extraction: bool = (
+        DOCLING_INCLUDE_KV_EXTRACTION  # New for RAG: extract KV pairs
+    )
     vlm_enabled: bool = DOCLING_VLM_ENABLED
     vlm_provider: str = DOCLING_VLM_PROVIDER
     vlm_api_key: str = DOCLING_VLM_API_KEY
@@ -308,11 +311,8 @@ class EnhancedMarkdownSerializer(MarkdownDocSerializer):
             else:
                 self.table_serializer = HTMLTableMarkdownSerializer()
         else:
-            from docling_core.transforms.serializer.markdown import MarkdownTableSerializer
             if self._is_mock(doc):
-                object.__setattr__(
-                    self, "table_serializer", MarkdownTableSerializer()
-                )
+                object.__setattr__(self, "table_serializer", MarkdownTableSerializer())
             else:
                 self.table_serializer = MarkdownTableSerializer()
 
@@ -346,7 +346,9 @@ class EnhancedMarkdownSerializer(MarkdownDocSerializer):
 
         if orig_placeholder is not None:
             text_res = res.text
-            for full_match, prev_page_nr, next_page_nr in self._get_page_breaks(text=text_res):
+            for full_match, _prev_page_nr, next_page_nr in self._get_page_breaks(
+                text=text_res
+            ):
                 text_res = text_res.replace(
                     full_match, f"<!-- PAGE_BREAK: Page {next_page_nr} -->"
                 )
@@ -521,10 +523,7 @@ class PDFConverter:
 
         with ThreadPoolExecutor() as executor:
             # We filter out items without valid images to avoid submitting empty tasks
-            valid_items = [
-                item for item in doc.pictures 
-                if is_valid_image(item)
-            ]
+            valid_items = [item for item in doc.pictures if is_valid_image(item)]
             if valid_items:
                 results = executor.map(fetch_task, valid_items)
                 for self_ref, caption in results:
@@ -683,7 +682,7 @@ class PDFConverter:
         def save_image(i, element):
             # We use picture_{i+1}.png as a default naming convention
             # In a more advanced version, we could use the image's original name or hash
-            image_filename = f"picture_{i+1}.png"
+            image_filename = f"picture_{i + 1}.png"
             image_path = images_dir / image_filename
             try:
                 element.image.pil_image.save(image_path)
@@ -759,7 +758,8 @@ def _get_or_create_converter(
         or _default_pdf_converter.options.do_code != options.do_code
         or _default_pdf_converter.options.table_format != options.table_format
         or _default_pdf_converter.options.num_threads != options.num_threads
-        or _default_pdf_converter.options.cuda_use_flash_attention != options.cuda_use_flash_attention
+        or _default_pdf_converter.options.cuda_use_flash_attention
+        != options.cuda_use_flash_attention
     ):
         _default_pdf_converter = PDFConverter(options=options)
     return _default_pdf_converter

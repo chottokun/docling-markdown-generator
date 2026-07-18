@@ -19,7 +19,9 @@ def test_save_images_exception_logging(tmp_path, caplog):
     mock_doc = MagicMock(spec=DoclingDocument)
     mock_picture = MagicMock()
     # element.image.pil_image.save(image_path)
-    mock_picture.image.pil_image.save.side_effect = Exception("Save failed\nwith newline")
+    mock_picture.image.pil_image.save.side_effect = Exception(
+        "Save failed\nwith newline"
+    )
     mock_doc.pictures = [mock_picture]
 
     # Act
@@ -86,7 +88,9 @@ def test_save_markdown_image_save_failure(tmp_path, caplog):
 
     # Add a mock image that fails to save
     mock_picture = MagicMock()
-    mock_picture.image.pil_image.save.side_effect = Exception("Markdown flow image save failure")
+    mock_picture.image.pil_image.save.side_effect = Exception(
+        "Markdown flow image save failure"
+    )
     mock_doc.pictures = [mock_picture]
 
     # Mock EnhancedMarkdownSerializer to avoid complex serialization logic and Pydantic issues
@@ -101,7 +105,10 @@ def test_save_markdown_image_save_failure(tmp_path, caplog):
     expected_md_path = output_dir / "processed_document.md"
     assert res_path == expected_md_path
     assert expected_md_path.exists()
-    assert expected_md_path.read_text(encoding="utf-8") == "---\ntitle: Test Document\n---\n\n# Mock Document Content"
+    assert (
+        expected_md_path.read_text(encoding="utf-8")
+        == "---\ntitle: Test Document\n---\n\n# Mock Document Content"
+    )
 
     # Assert that the image save warning was logged
     assert "Failed to save image" in caplog.text

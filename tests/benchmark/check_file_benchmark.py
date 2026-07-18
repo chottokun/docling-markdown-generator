@@ -15,8 +15,10 @@ async def baseline(file_path, iterations):
             pass
     return time.perf_counter() - start
 
+
 def _is_valid_file(path: Path) -> bool:
     return path.exists() and path.is_file()
+
 
 async def optimized(file_path, iterations):
     start = time.perf_counter()
@@ -24,6 +26,7 @@ async def optimized(file_path, iterations):
         if not await run_in_threadpool(_is_valid_file, file_path):
             pass
     return time.perf_counter() - start
+
 
 async def main():
     with tempfile.NamedTemporaryFile() as tmp:
@@ -44,6 +47,7 @@ async def main():
 
         improvement = (t1 - t2) / t1 * 100
         print(f"Improvement: {improvement:.2f}%")
+
 
 if __name__ == "__main__":
     asyncio.run(main())
