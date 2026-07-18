@@ -78,8 +78,20 @@ def is_cuda_compatible() -> bool:
 
     try:
         if torch.cuda.is_available():
-            # Run a dummy tensor operation to verify execution capability
             device = torch.device("cuda")
+            # Verify compute capability compatibility
+            major, minor = torch.cuda.get_device_capability(device)
+            capability = major + minor / 10.0
+            # Modern PyTorch builds usually require CC >= 7.5. Older GPUs like GTX 1060 (sm_61)
+            # are incompatible with current PyTorch installations and will cause errors/hangs during model runs.
+            if capability < 7.5:
+                logger.warning(
+                    f"GPU compute capability {capability} (sm_{major}{minor}) is less than required 7.5. "
+                    "Falling back to CPU."
+                )
+                return False
+
+            # Run a dummy tensor operation to verify execution capability
             _x = torch.zeros(1, device=device)
             torch.cuda.synchronize()
             logger.info("CUDA is fully available and compatible with the current GPU.")

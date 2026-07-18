@@ -1,4 +1,5 @@
 import logging
+import os
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -64,6 +65,10 @@ def test_process_pdf_calls_docling_api_correctly(
     assert expected_md_path.exists()
 
 
+@pytest.mark.skipif(
+    os.getenv("DOCLING_RUN_E2E") != "true",
+    reason="Skipping E2E tests because DOCLING_RUN_E2E is not set to true",
+)
 def test_process_pdf_e2e_happy_path(tmp_path, pdf_downloader, monkeypatch):
     """
     End-to-end test with a real PDF.
@@ -82,6 +87,10 @@ def test_process_pdf_e2e_happy_path(tmp_path, pdf_downloader, monkeypatch):
     assert "---" in content  # Metadata frontmatter
 
 
+@pytest.mark.skipif(
+    os.getenv("DOCLING_RUN_E2E") != "true",
+    reason="Skipping E2E tests because DOCLING_RUN_E2E is not set to true",
+)
 def test_process_docx_e2e_happy_path(tmp_path, monkeypatch):
     """
     End-to-end test with a real DOCX.

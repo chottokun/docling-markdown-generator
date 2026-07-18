@@ -1,3 +1,4 @@
+import os
 import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -306,6 +307,10 @@ class TestVLMAndPageBreaks(unittest.TestCase):
         self.assertEqual(result, "")
 
 
+    @unittest.skipIf(
+        os.getenv("DOCLING_RUN_E2E") != "true",
+        "Skipping Ollama VLM integration test because DOCLING_RUN_E2E is not set to true",
+    )
     def test_actual_ollama_vlm_integration(self):
         """
         Integration test that calls the actual local Ollama service if running.

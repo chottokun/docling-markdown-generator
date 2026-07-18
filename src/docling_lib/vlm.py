@@ -242,9 +242,11 @@ async def generate_caption(
 
     # Use semaphore for rate limiting, isolated per provider & endpoint
     sem = get_semaphore(vlm_max_concurrent, provider=provider, endpoint=endpoint)
+    acquired = False
     try:
         # Acquire semaphore asynchronously using to_thread to prevent event-loop blocking
         await asyncio.to_thread(sem.acquire)
+        acquired = True
         async with httpx.AsyncClient(timeout=45.0) as client:
             response = await client.post(url, headers=headers, json=json_body)
             response.raise_for_status()
@@ -257,7 +259,8 @@ async def generate_caption(
         )
         return ""
     finally:
-        sem.release()
+        if acquired:
+            sem.release()
 
 
 def generate_caption_sync(
@@ -319,8 +322,10 @@ def generate_caption_sync(
 
     # Use semaphore for rate limiting, isolated per provider & endpoint
     sem = get_semaphore(vlm_max_concurrent, provider=provider, endpoint=endpoint)
+    acquired = False
     try:
         sem.acquire()
+        acquired = True
         with httpx.Client(timeout=45.0) as client:
             response = client.post(url, headers=headers, json=json_body)
             response.raise_for_status()
@@ -333,4 +338,5 @@ def generate_caption_sync(
         )
         return ""
     finally:
-        sem.release()
+        if acquired:
+            sem.release()
