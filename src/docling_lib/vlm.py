@@ -1,7 +1,8 @@
+import asyncio
 import base64
 import io
 import logging
-
+import threading
 import httpx
 from PIL import Image
 
@@ -9,92 +10,333 @@ from .utils import sanitize_log_message
 
 logger = logging.getLogger(__name__)
 
+# Cache of threading semaphores based on (provider, endpoint, max_concurrent)
+_semaphores_lock = threading.Lock()
+_semaphores = {}
 
-async def generate_caption(
-    image: Image.Image,
-    model: str = "qwen2-vl:2b",
-    endpoint: str = "http://localhost:11434",
-    prompt: str = "この画像の詳細な説明文を日本語で作成してください。",
-) -> str:
+
+def get_semaphore(
+    max_concurrent: int, provider: str = "ollama", endpoint: str = ""
+) -> threading.Semaphore:
     """
-    Asynchronously generates a description/caption for the given image
-    using the Ollama /api/chat vision API.
+    Retrieves or creates a thread-safe Semaphore to enforce VLM rate limiting,
+    isolated per provider, endpoint, and concurrency limit.
     """
+    with _semaphores_lock:
+        key = (
+            provider.strip().lower() if provider else "ollama",
+            endpoint.strip().lower() if endpoint else "",
+            max_concurrent,
+        )
+        if key not in _semaphores:
+            _semaphores[key] = threading.Semaphore(max_concurrent)
+        return _semaphores[key]
+
+
+def _encode_image_to_base64(image: Image.Image) -> str:
+    """
+    Helper to encode a PIL image into a Base64-encoded PNG string.
+    """
+    buffered = io.BytesIO()
+    image.save(buffered, format="PNG")
+    return base64.b64encode(buffered.getvalue()).decode("utf-8")
+
+
+def _prepare_rest_payload(
+    provider: str,
+    model: str,
+    prompt: str,
+    img_base64: str | None,
+    text_content: str | None,
+    api_key: str,
+    endpoint: str,
+) -> tuple[str, dict, dict]:
+    """
+    Prepares the request URL, headers, and JSON body for the chosen VLM/LLM provider.
+    Returns: (url, headers, json_body)
+    """
+    provider_lower = provider.strip().lower()
+    headers = {"Content-Type": "application/json"}
+    full_prompt = prompt
+    if text_content:
+        full_prompt = f"{prompt}\n\n[Content]\n{text_content}"
+
+    # 1. OpenAI / OpenAI-compatible (vLLM, llama.cpp, etc.)
+    if provider_lower in ("openai", "vllm", "llama.cpp"):
+        url = f"{endpoint.rstrip('/')}/chat/completions"
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
+
+        if img_base64:
+            content_list = [
+                {"type": "text", "text": full_prompt},
+                {
+                    "type": "image_url",
+                    "image_url": {"url": f"data:image/png;base64,{img_base64}"},
+                },
+            ]
+        else:
+            content_list = [{"type": "text", "text": full_prompt}]
+
+        json_body = {
+            "model": model,
+            "messages": [{"role": "user", "content": content_list}],
+            "stream": False,
+        }
+
+    # 2. Anthropic Claude
+    elif provider_lower == "anthropic":
+        url = f"{endpoint.rstrip('/')}/v1/messages"
+        headers.update(
+            {
+                "x-api-key": api_key,
+                "anthropic-version": "2023-06-01",
+            }
+        )
+
+        if img_base64:
+            content_list = [
+                {
+                    "type": "image",
+                    "source": {
+                        "type": "base64",
+                        "media_type": "image/png",
+                        "data": img_base64,
+                    },
+                },
+                {"type": "text", "text": full_prompt},
+            ]
+        else:
+            content_list = [{"type": "text", "text": full_prompt}]
+
+        json_body = {
+            "model": model,
+            "max_tokens": 1024,
+            "messages": [{"role": "user", "content": content_list}],
+        }
+
+    # 3. Google Gemini
+    elif provider_lower in ("google", "gemini"):
+        # Default endpoint for Google is usually https://generativelanguage.googleapis.com
+        url = f"{endpoint.rstrip('/')}/v1beta/models/{model}:generateContent?key={api_key}"
+
+        if img_base64:
+            parts = [
+                {"text": full_prompt},
+                {
+                    "inlineData": {
+                        "mimeType": "image/png",
+                        "data": img_base64,
+                    }
+                },
+            ]
+        else:
+            parts = [{"text": full_prompt}]
+
+        json_body = {"contents": [{"parts": parts}]}
+
+    # 4. Default: Ollama (Existing)
+    else:
+        url = f"{endpoint.rstrip('/')}/api/chat"
+        if img_base64:
+            message_content = {
+                "role": "user",
+                "content": full_prompt,
+                "images": [img_base64],
+            }
+        else:
+            message_content = {
+                "role": "user",
+                "content": full_prompt,
+            }
+
+        json_body = {
+            "model": model,
+            "messages": [message_content],
+            "stream": False,
+        }
+
+    return url, headers, json_body
+
+
+def _extract_response_content(provider: str, data: dict) -> str:
+    """
+    Extracts the text content from the provider's standard JSON response.
+    """
+    provider_lower = provider.strip().lower()
+
     try:
-        buffered = io.BytesIO()
-        image.save(buffered, format="PNG")
-        img_base64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
-    except Exception as e:
+        if provider_lower in ("openai", "vllm", "llama.cpp"):
+            return data["choices"][0]["message"]["content"]
+        elif provider_lower == "anthropic":
+            return data["content"][0]["text"]
+        elif provider_lower in ("google", "gemini"):
+            return data["candidates"][0]["content"]["parts"][0]["text"]
+        else:
+            # Ollama
+            return data.get("message", {}).get("content", "")
+    except (KeyError, IndexError, TypeError) as e:
         logger.warning(
-            f"Failed to encode image to base64 for VLM: {sanitize_log_message(e)}"
+            f"Failed to parse response content from VLM provider {provider_lower}: "
+            f"{sanitize_log_message(e)}"
         )
         return ""
 
-    try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(
-                f"{endpoint.rstrip('/')}/api/chat",
-                json={
-                    "model": model,
-                    "messages": [
-                        {
-                            "role": "user",
-                            "content": prompt,
-                            "images": [img_base64],
-                        }
-                    ],
-                    "stream": False,
-                },
+
+async def generate_caption(
+    image: Image.Image | None = None,
+    provider: str = "ollama",
+    api_key: str = "",
+    model: str = "qwen2-vl:2b",
+    endpoint: str = "http://localhost:11434",
+    prompt: str = "この画像の詳細な説明文を日本語で作成してください。",
+    text_content: str | None = None,
+    vlm_max_concurrent: int = 5,
+) -> str:
+    """
+    Asynchronously generates a description/caption/summary for an image or structured text
+    using the selected VLM/LLM REST provider with dynamic rate-limiting control.
+    """
+    # Force defaults if parameters are None/empty to match backward-compatible tests
+    if not provider:
+        provider = "ollama"
+    provider_lower = provider.strip().lower()
+
+    if not model:
+        model = "qwen2-vl:2b"
+
+    # Automatically adjust default endpoints for other cloud providers
+    if not endpoint or (endpoint == "http://localhost:11434" and provider_lower != "ollama"):
+        if provider_lower == "ollama":
+            endpoint = "http://localhost:11434"
+        elif provider_lower in ("openai", "vllm", "llama.cpp"):
+            endpoint = "https://api.openai.com/v1"
+        elif provider_lower == "anthropic":
+            endpoint = "https://api.anthropic.com"
+        elif provider_lower in ("google", "gemini"):
+            endpoint = "https://generativelanguage.googleapis.com"
+
+    if not prompt:
+        prompt = "この画像の詳細な説明文を日本語で作成してください。"
+
+    # Encode image if provided
+    img_base64 = None
+    if image is not None:
+        try:
+            img_base64 = _encode_image_to_base64(image)
+        except Exception as e:
+            logger.warning(
+                f"Failed to encode image to base64 for VLM: {sanitize_log_message(e)}"
             )
+            return ""
+
+    url, headers, json_body = _prepare_rest_payload(
+        provider=provider,
+        model=model,
+        prompt=prompt,
+        img_base64=img_base64,
+        text_content=text_content,
+        api_key=api_key,
+        endpoint=endpoint,
+    )
+
+    # Use semaphore for rate limiting, isolated per provider & endpoint
+    sem = get_semaphore(vlm_max_concurrent, provider=provider, endpoint=endpoint)
+    acquired = False
+    try:
+        # Acquire semaphore asynchronously using to_thread to prevent event-loop blocking
+        await asyncio.to_thread(sem.acquire)
+        acquired = True
+        async with httpx.AsyncClient(timeout=45.0) as client:
+            response = await client.post(url, headers=headers, json=json_body)
             response.raise_for_status()
             data = response.json()
-            content = data.get("message", {}).get("content", "")
+            content = _extract_response_content(provider, data)
             return content.strip()
     except Exception as e:
-        logger.warning(f"VLM caption generation failed: {sanitize_log_message(e)}")
+        logger.warning(
+            f"VLM/LLM caption generation failed for {provider}: {sanitize_log_message(e)}"
+        )
         return ""
+    finally:
+        if acquired:
+            sem.release()
 
 
 def generate_caption_sync(
-    image: Image.Image,
+    image: Image.Image | None = None,
+    provider: str = "ollama",
+    api_key: str = "",
     model: str = "qwen2-vl:2b",
     endpoint: str = "http://localhost:11434",
     prompt: str = "この画像の詳細な説明文を日本語で作成してください。",
+    text_content: str | None = None,
+    vlm_max_concurrent: int = 5,
 ) -> str:
     """
-    Synchronously generates a description/caption for the given image
-    using the Ollama /api/chat vision API.
+    Synchronously generates a description/caption/summary for an image or structured text
+    using the selected VLM/LLM REST provider with dynamic rate-limiting control.
     """
-    try:
-        buffered = io.BytesIO()
-        image.save(buffered, format="PNG")
-        img_base64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
-    except Exception as e:
-        logger.warning(
-            f"Failed to encode image to base64 for VLM: {sanitize_log_message(e)}"
-        )
-        return ""
+    # Force defaults if parameters are None/empty to match backward-compatible tests
+    if not provider:
+        provider = "ollama"
+    provider_lower = provider.strip().lower()
 
-    try:
-        with httpx.Client(timeout=30.0) as client:
-            response = client.post(
-                f"{endpoint.rstrip('/')}/api/chat",
-                json={
-                    "model": model,
-                    "messages": [
-                        {
-                            "role": "user",
-                            "content": prompt,
-                            "images": [img_base64],
-                        }
-                    ],
-                    "stream": False,
-                },
+    if not model:
+        model = "qwen2-vl:2b"
+
+    # Automatically adjust default endpoints for other cloud providers
+    if not endpoint or (endpoint == "http://localhost:11434" and provider_lower != "ollama"):
+        if provider_lower == "ollama":
+            endpoint = "http://localhost:11434"
+        elif provider_lower in ("openai", "vllm", "llama.cpp"):
+            endpoint = "https://api.openai.com/v1"
+        elif provider_lower == "anthropic":
+            endpoint = "https://api.anthropic.com"
+        elif provider_lower in ("google", "gemini"):
+            endpoint = "https://generativelanguage.googleapis.com"
+
+    if not prompt:
+        prompt = "この画像の詳細な説明文を日本語で作成してください。"
+
+    # Encode image if provided
+    img_base64 = None
+    if image is not None:
+        try:
+            img_base64 = _encode_image_to_base64(image)
+        except Exception as e:
+            logger.warning(
+                f"Failed to encode image to base64 for VLM: {sanitize_log_message(e)}"
             )
+            return ""
+
+    url, headers, json_body = _prepare_rest_payload(
+        provider=provider,
+        model=model,
+        prompt=prompt,
+        img_base64=img_base64,
+        text_content=text_content,
+        api_key=api_key,
+        endpoint=endpoint,
+    )
+
+    # Use semaphore for rate limiting, isolated per provider & endpoint
+    sem = get_semaphore(vlm_max_concurrent, provider=provider, endpoint=endpoint)
+    acquired = False
+    try:
+        sem.acquire()
+        acquired = True
+        with httpx.Client(timeout=45.0) as client:
+            response = client.post(url, headers=headers, json=json_body)
             response.raise_for_status()
             data = response.json()
-            content = data.get("message", {}).get("content", "")
+            content = _extract_response_content(provider, data)
             return content.strip()
     except Exception as e:
-        logger.warning(f"VLM caption generation failed: {sanitize_log_message(e)}")
+        logger.warning(
+            f"VLM/LLM caption generation failed for {provider}: {sanitize_log_message(e)}"
+        )
         return ""
+    finally:
+        if acquired:
+            sem.release()

@@ -32,10 +32,13 @@ from .config import (
     DOCLING_INCLUDE_PAGE_BREAKS,
     DOCLING_NUM_THREADS,
     DOCLING_TABLE_FORMAT,
+    DOCLING_VLM_API_KEY,
     DOCLING_VLM_ENABLED,
     DOCLING_VLM_ENDPOINT,
+    DOCLING_VLM_MAX_CONCURRENT,
     DOCLING_VLM_MODEL,
     DOCLING_VLM_PROMPT,
+    DOCLING_VLM_PROVIDER,
     MAX_UPLOAD_SIZE,
     OUTPUT_DIR,
     RATE_LIMIT_REQUESTS,
@@ -59,9 +62,12 @@ class DocumentConversionRequest(BaseModel):
     include_page_breaks: bool
     include_kv_extraction: bool
     vlm_enabled: bool
+    vlm_provider: str
+    vlm_api_key: str
     vlm_model: str
     vlm_endpoint: str
     vlm_prompt: str
+    vlm_max_concurrent: int
     num_threads: int
     cuda_use_flash_attention: bool
 
@@ -71,9 +77,12 @@ def get_conversion_request(
     include_page_breaks: bool = Form(DOCLING_INCLUDE_PAGE_BREAKS),
     include_kv_extraction: bool = Form(DOCLING_INCLUDE_KV_EXTRACTION),
     vlm_enabled: bool = Form(DOCLING_VLM_ENABLED),
+    vlm_provider: str = Form(DOCLING_VLM_PROVIDER),
+    vlm_api_key: str = Form(DOCLING_VLM_API_KEY),
     vlm_model: str = Form(DOCLING_VLM_MODEL),
     vlm_endpoint: str = Form(DOCLING_VLM_ENDPOINT),
     vlm_prompt: str = Form(DOCLING_VLM_PROMPT),
+    vlm_max_concurrent: int = Form(DOCLING_VLM_MAX_CONCURRENT),
     num_threads: int = Form(DOCLING_NUM_THREADS),
     cuda_use_flash_attention: bool = Form(DOCLING_CUDA_FLASH_ATTENTION),
 ) -> DocumentConversionRequest:
@@ -82,9 +91,12 @@ def get_conversion_request(
         include_page_breaks=include_page_breaks,
         include_kv_extraction=include_kv_extraction,
         vlm_enabled=vlm_enabled,
+        vlm_provider=vlm_provider,
+        vlm_api_key=vlm_api_key,
         vlm_model=vlm_model,
         vlm_endpoint=vlm_endpoint,
         vlm_prompt=vlm_prompt,
+        vlm_max_concurrent=vlm_max_concurrent,
         num_threads=num_threads,
         cuda_use_flash_attention=cuda_use_flash_attention,
     )
@@ -298,9 +310,12 @@ async def convert_file(
             include_page_breaks=req_options.include_page_breaks,
             include_kv_extraction=req_options.include_kv_extraction,
             vlm_enabled=req_options.vlm_enabled,
+            vlm_provider=req_options.vlm_provider,
+            vlm_api_key=req_options.vlm_api_key,
             vlm_model=req_options.vlm_model,
             vlm_endpoint=req_options.vlm_endpoint,
             vlm_prompt=req_options.vlm_prompt,
+            vlm_max_concurrent=req_options.vlm_max_concurrent,
             num_threads=req_options.num_threads,
             cuda_use_flash_attention=req_options.cuda_use_flash_attention,
         )

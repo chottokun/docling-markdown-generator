@@ -1,3 +1,4 @@
+import os
 import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -115,9 +116,12 @@ class TestVLMAndPageBreaks(unittest.TestCase):
         self.assertIn("<!-- VLM_CAPTION_END -->", res.text)
         mock_caption_sync.assert_called_once_with(
             image=pic_item.image.pil_image,
+            provider="ollama",
+            api_key="",
             model="qwen2-vl:2b",
             endpoint="http://localhost:11434",
             prompt="画像の説明をして",
+            vlm_max_concurrent=5,
         )
 
     def test_page_break_rendering_direct(self):
@@ -228,9 +232,12 @@ class TestVLMAndPageBreaks(unittest.TestCase):
         self.assertEqual(captions, {"#/body/0": "Prefetched Caption!"})
         mock_caption_sync.assert_called_once_with(
             image=pic_item.image.pil_image,
+            provider="ollama",
+            api_key="",
             model="qwen2-vl:2b",
             endpoint="http://localhost:11434",
             prompt="Prefetch prompt",
+            vlm_max_concurrent=5,
         )
 
     @patch("docling_lib.vlm.generate_caption_sync")
@@ -314,6 +321,10 @@ class TestVLMAndPageBreaks(unittest.TestCase):
         # Must fall back to empty string without raising KeyError/AttributeError
         self.assertEqual(result, "")
 
+    @unittest.skipIf(
+        os.getenv("DOCLING_RUN_E2E") != "true",
+        "Skipping Ollama VLM integration test because DOCLING_RUN_E2E is not set to true",
+    )
     def test_actual_ollama_vlm_integration(self):
         """
         Integration test that calls the actual local Ollama service if running.

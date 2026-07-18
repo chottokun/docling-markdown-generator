@@ -48,10 +48,13 @@ from .config import (
     DOCLING_INCLUDE_PAGE_BREAKS,
     DOCLING_NUM_THREADS,
     DOCLING_TABLE_FORMAT,
+    DOCLING_VLM_API_KEY,
     DOCLING_VLM_ENABLED,
     DOCLING_VLM_ENDPOINT,
+    DOCLING_VLM_MAX_CONCURRENT,
     DOCLING_VLM_MODEL,
     DOCLING_VLM_PROMPT,
+    DOCLING_VLM_PROVIDER,
     IMAGE_DIR_NAME,
     IMAGE_RESOLUTION_SCALE,
     MD_OUTPUT_NAME,
@@ -75,8 +78,20 @@ def is_cuda_compatible() -> bool:
 
     try:
         if torch.cuda.is_available():
-            # Run a dummy tensor operation to verify execution capability
             device = torch.device("cuda")
+            # Verify compute capability compatibility
+            major, minor = torch.cuda.get_device_capability(device)
+            capability = major + minor / 10.0
+            # Modern PyTorch builds usually require CC >= 7.5. Older GPUs like GTX 1060 (sm_61)
+            # are incompatible with current PyTorch installations and will cause errors/hangs during model runs.
+            if capability < 7.5:
+                logger.warning(
+                    f"GPU compute capability {capability} (sm_{major}{minor}) is less than required 7.5. "
+                    "Falling back to CPU."
+                )
+                return False
+
+            # Run a dummy tensor operation to verify execution capability
             _x = torch.zeros(1, device=device)
             torch.cuda.synchronize()
             logger.info("CUDA is fully available and compatible with the current GPU.")
@@ -110,9 +125,12 @@ class DocumentConversionOptions:
         DOCLING_INCLUDE_KV_EXTRACTION  # New for RAG: extract KV pairs
     )
     vlm_enabled: bool = DOCLING_VLM_ENABLED
+    vlm_provider: str = DOCLING_VLM_PROVIDER
+    vlm_api_key: str = DOCLING_VLM_API_KEY
     vlm_model: str = DOCLING_VLM_MODEL
     vlm_endpoint: str = DOCLING_VLM_ENDPOINT
     vlm_prompt: str = DOCLING_VLM_PROMPT
+    vlm_max_concurrent: int = DOCLING_VLM_MAX_CONCURRENT
     num_threads: int = DOCLING_NUM_THREADS
     cuda_use_flash_attention: bool = DOCLING_CUDA_FLASH_ATTENTION
 
@@ -126,17 +144,23 @@ class CustomMarkdownPictureSerializer(MarkdownPictureSerializer):
     def __init__(
         self,
         vlm_enabled: bool = False,
+        vlm_provider: str = "ollama",
+        vlm_api_key: str = "",
         vlm_model: str = "qwen2-vl:2b",
         vlm_endpoint: str = "http://localhost:11434",
         vlm_prompt: str = "この画像の詳細な説明文を日本語で作成してください。",
+        vlm_max_concurrent: int = 5,
         vlm_captions: dict[str, str] | None = None,
         **kwargs: Any,
     ):
         super().__init__(**kwargs)
         self.vlm_enabled = vlm_enabled
+        self.vlm_provider = vlm_provider
+        self.vlm_api_key = vlm_api_key
         self.vlm_model = vlm_model
         self.vlm_endpoint = vlm_endpoint
         self.vlm_prompt = vlm_prompt
+        self.vlm_max_concurrent = vlm_max_concurrent
         self.vlm_captions = vlm_captions if vlm_captions is not None else {}
 
     def serialize(
@@ -161,9 +185,12 @@ class CustomMarkdownPictureSerializer(MarkdownPictureSerializer):
 
                 caption = generate_caption_sync(
                     image=item.image.pil_image,
+                    provider=self.vlm_provider,
+                    api_key=self.vlm_api_key,
                     model=self.vlm_model,
                     endpoint=self.vlm_endpoint,
                     prompt=self.vlm_prompt,
+                    vlm_max_concurrent=self.vlm_max_concurrent,
                 )
                 if caption:
                     self.vlm_captions[item.self_ref] = caption
@@ -257,9 +284,12 @@ class EnhancedMarkdownSerializer(MarkdownDocSerializer):
         doc: DoclingDocument,
         table_format: str = "html",
         vlm_enabled: bool = False,
+        vlm_provider: str = "ollama",
+        vlm_api_key: str = "",
         vlm_model: str = "qwen2-vl:2b",
         vlm_endpoint: str = "http://localhost:11434",
         vlm_prompt: str = "この画像の詳細な説明文を日本語で作成してください。",
+        vlm_max_concurrent: int = 5,
         vlm_captions: dict[str, str] | None = None,
         **kwargs,
     ):
@@ -288,9 +318,12 @@ class EnhancedMarkdownSerializer(MarkdownDocSerializer):
 
         pic_serializer = CustomMarkdownPictureSerializer(
             vlm_enabled=vlm_enabled,
+            vlm_provider=vlm_provider,
+            vlm_api_key=vlm_api_key,
             vlm_model=vlm_model,
             vlm_endpoint=vlm_endpoint,
             vlm_prompt=vlm_prompt,
+            vlm_max_concurrent=vlm_max_concurrent,
             vlm_captions=vlm_captions,
         )
         if self._is_mock(doc):
@@ -461,9 +494,12 @@ class PDFConverter:
                 try:
                     caption = generate_caption_sync(
                         image=item.image.pil_image,
+                        provider=actual_options.vlm_provider,
+                        api_key=actual_options.vlm_api_key,
                         model=actual_options.vlm_model,
                         endpoint=actual_options.vlm_endpoint,
                         prompt=actual_options.vlm_prompt,
+                        vlm_max_concurrent=actual_options.vlm_max_concurrent,
                     )
                     return item.self_ref, caption
                 except Exception as e:
@@ -515,9 +551,12 @@ class PDFConverter:
             doc=doc,
             table_format=table_format,
             vlm_enabled=actual_options.vlm_enabled,
+            vlm_provider=actual_options.vlm_provider,
+            vlm_api_key=actual_options.vlm_api_key,
             vlm_model=actual_options.vlm_model,
             vlm_endpoint=actual_options.vlm_endpoint,
             vlm_prompt=actual_options.vlm_prompt,
+            vlm_max_concurrent=actual_options.vlm_max_concurrent,
             vlm_captions=vlm_captions,
             params=MarkdownParams(
                 image_mode=ImageRefMode.REFERENCED,
