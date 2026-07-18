@@ -220,6 +220,7 @@ input/
 output/
 output_*/
 test_cli_output/
+test_output/
 
 # Real-world test samples
 tests/data/real_world/
