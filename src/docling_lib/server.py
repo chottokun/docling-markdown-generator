@@ -12,6 +12,7 @@ from fastapi import (
     Depends,
     FastAPI,
     File,
+    Form,
     Header,
     HTTPException,
     Request,
@@ -20,6 +21,7 @@ from fastapi import (
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from starlette.concurrency import run_in_threadpool
+from pydantic import BaseModel
 
 from .config import (
     ALLOWED_EXTENSIONS,
@@ -32,8 +34,15 @@ from .config import (
     TRUSTED_PROXIES,
     UPLOAD_DIR,
     setup_logging,
+    DOCLING_TABLE_FORMAT,
+    DOCLING_VLM_ENABLED,
+    DOCLING_VLM_MODEL,
+    DOCLING_VLM_ENDPOINT,
+    DOCLING_VLM_PROMPT,
+    DOCLING_INCLUDE_PAGE_BREAKS,
+    DOCLING_INCLUDE_KV_EXTRACTION,
 )
-from .converter import process_pdf
+from .converter import process_pdf, DocumentConversionOptions
 from .utils import sanitize_log_message
 
 # --- Logging Setup ---
@@ -41,6 +50,36 @@ setup_logging()
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+class DocumentConversionRequest(BaseModel):
+    table_format: str
+    include_page_breaks: bool
+    include_kv_extraction: bool
+    vlm_enabled: bool
+    vlm_model: str
+    vlm_endpoint: str
+    vlm_prompt: str
+
+
+def get_conversion_request(
+    table_format: str = Form(DOCLING_TABLE_FORMAT),
+    include_page_breaks: bool = Form(DOCLING_INCLUDE_PAGE_BREAKS),
+    include_kv_extraction: bool = Form(DOCLING_INCLUDE_KV_EXTRACTION),
+    vlm_enabled: bool = Form(DOCLING_VLM_ENABLED),
+    vlm_model: str = Form(DOCLING_VLM_MODEL),
+    vlm_endpoint: str = Form(DOCLING_VLM_ENDPOINT),
+    vlm_prompt: str = Form(DOCLING_VLM_PROMPT),
+) -> DocumentConversionRequest:
+    return DocumentConversionRequest(
+        table_format=table_format,
+        include_page_breaks=include_page_breaks,
+        include_kv_extraction=include_kv_extraction,
+        vlm_enabled=vlm_enabled,
+        vlm_model=vlm_model,
+        vlm_endpoint=vlm_endpoint,
+        vlm_prompt=vlm_prompt,
+    )
 
 
 # --- Security: Authentication and Rate Limiting ---
@@ -227,7 +266,9 @@ async def _validate_and_format_response(
 
 @router.post("/convert/", dependencies=[Depends(api_key_auth), Depends(rate_limiter)])
 async def convert_file(
-    file: UploadFile = File(...), content_length: int | None = Header(None)
+    file: UploadFile = File(...),
+    req_options: DocumentConversionRequest = Depends(get_conversion_request),
+    content_length: int | None = Header(None),
 ):
     """
     Endpoint to upload a document and convert it to Markdown.
@@ -244,8 +285,18 @@ async def convert_file(
         sanitized_filename = sanitize_log_message(file.filename)
         logger.info(f"Processing file: {sanitized_filename}")
 
+        options = DocumentConversionOptions(
+            table_format=req_options.table_format,
+            include_page_breaks=req_options.include_page_breaks,
+            include_kv_extraction=req_options.include_kv_extraction,
+            vlm_enabled=req_options.vlm_enabled,
+            vlm_model=req_options.vlm_model,
+            vlm_endpoint=req_options.vlm_endpoint,
+            vlm_prompt=req_options.vlm_prompt,
+        )
+
         # Use our process_pdf function wrapped in run_in_threadpool for concurrency.
-        result_path = await run_in_threadpool(process_pdf, tmp_path, request_output_dir)
+        result_path = await run_in_threadpool(process_pdf, tmp_path, request_output_dir, options=options)
 
         return await _validate_and_format_response(result_path, request_id)
 
