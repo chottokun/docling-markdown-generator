@@ -205,7 +205,7 @@ def test_convert_file_write_exception():
             self.name = "dummy_temp_file_name.pdf"
 
         def write(self, chunk):
-            raise IOError("Mocked write error: disk full")
+            raise OSError("Mocked write error: disk full")
 
         def close(self):
             pass
