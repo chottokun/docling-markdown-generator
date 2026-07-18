@@ -10,7 +10,17 @@ FastAPIによるMarkdown変換サーバーのAPI仕様です。
 - **Method**: `POST`
 - **Content-Type**: `multipart/form-data`
 - **Request Body**:
-  - `file`: 変換対象のドキュメント（.pdf, .docx, .pptx, .xlsx）
+  - `file` (必須): 変換対象のドキュメント（.pdf, .docx, .pptx, .xlsx 等）
+  - `table_format` (任意): テーブルの出力形式。`html` または `markdown`。
+  - `include_page_breaks` (任意): ページ境界マーカー `<!-- PAGE_BREAK: Page N -->` を有効にするかどうか。`true` または `false`。
+  - `include_kv_extraction` (任意): 重要情報のキー・バリュー抽出用セクションを追加するかどうか。`true` または `false`。
+  - `vlm_enabled` (任意): 画像のキャプション（日本語）自動生成を有効にするかどうか。`true` または `false`。
+  - `vlm_model` (任意): キャプション生成に使用するVLMモデル名（例: `qwen2-vl:2b`, `qwen3.5:4b`）。
+  - `vlm_endpoint` (任意): VLM APIのエンドポイント（例: `http://localhost:11434`）。
+  - `vlm_prompt` (任意): VLMへの指示プロンプト。
+  - `num_threads` (任意): 演算に使用するスレッド数（整数値）。
+  - `cuda_use_flash_attention` (任意): FlashAttention2 を有効にするかどうか。`true` または `false`。
+
 
 ### レスポンス (JSON)
 成功時 (200 OK):

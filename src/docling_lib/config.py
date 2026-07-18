@@ -56,6 +56,8 @@ DO_OCR = os.getenv("DOCLING_DO_OCR", "True").lower() == "true"
 DO_CHART = os.getenv("DOCLING_DO_CHART", "False").lower() == "true"
 DO_CODE = os.getenv("DOCLING_DO_CODE", "False").lower() == "true"
 USE_GPU = os.getenv("DOCLING_USE_GPU", "True").lower() == "true"
+DOCLING_NUM_THREADS = int(os.getenv("DOCLING_NUM_THREADS", "4"))
+DOCLING_CUDA_FLASH_ATTENTION = os.getenv("DOCLING_CUDA_FLASH_ATTENTION", "False").lower() == "true"
 
 # New configurations for Ollama, Page Break and Table format
 DOCLING_TABLE_FORMAT = os.getenv("DOCLING_TABLE_FORMAT", "html")

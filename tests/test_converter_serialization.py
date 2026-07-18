@@ -35,12 +35,18 @@ def test_serialize_to_markdown():
         mock_params_cls.assert_called_once_with(
             image_mode=ImageRefMode.REFERENCED,
             image_placeholder="<!-- image -->",
+            page_break_placeholder=None,
         )
 
         # Verify EnhancedMarkdownSerializer instantiation
         mock_serializer_cls.assert_called_once_with(
             doc=mock_doc,
             table_format=table_format,
+            vlm_enabled=False,
+            vlm_model="qwen2-vl:2b",
+            vlm_endpoint="http://localhost:11434",
+            vlm_prompt="この画像の詳細な説明文を日本語で作成してください。",
+            vlm_captions={},
             params=mock_params_inst,
         )
 
@@ -77,6 +83,11 @@ def test_serialize_to_markdown_different_format():
         mock_serializer_cls.assert_called_once_with(
             doc=mock_doc,
             table_format=table_format,
+            vlm_enabled=False,
+            vlm_model="qwen2-vl:2b",
+            vlm_endpoint="http://localhost:11434",
+            vlm_prompt="この画像の詳細な説明文を日本語で作成してください。",
+            vlm_captions={},
             params=mock_params_cls.return_value,
         )
         assert result == "Another Mocked Content"

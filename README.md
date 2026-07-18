@@ -26,9 +26,12 @@ Docling（v2.x）を基盤とした、高度な構造化ドキュメント変換
 
 ## ⚡ パフォーマンス最適化
 
+- **VLM Caption Prefetching**: ドキュメント内から切り出した複数画像に対し、`ThreadPoolExecutor` を用いて Ollama API 等へのVLMリクエストを**非同期並列で一括事前取得 (Prefetch)** しキャッシュ。直列実行による同期ブロッキングを排除し、処理時間を大幅に短縮します。
+- **GPU Accelerator Tuning**: `DOCLING_NUM_THREADS` (CPU処理スレッド数) や `DOCLING_CUDA_FLASH_ATTENTION` (FlashAttention2トグル) の環境変数制御をサポートし、高性能GPUのハードウェア性能を最大化させます。
 - **Streaming Download**: サンプルファイル等のダウンロード時、メモリ消費を最大約70%削減するストリーミング処理の実装。
 - **Zero-Dependency Office Conversion**: `docling` のネイティブパーサーにより、LibreOffice等の外部バイナリ不要でOfficeファイルを処理。
-- **Efficient Re-initialization**: パイプライン設定（画像スケール、OCR有無等）の差分を検知し、必要な場合のみエンジンをリロード。
+- **Efficient Re-initialization**: パイプライン設定（画像スケール、OCR有無、VLM有無、スレッド数等）の差分を検知し、必要な場合のみエンジンをリロード。
+
 
 ## 🚀 クイックスタート
 
@@ -72,6 +75,16 @@ TDDに基づき、以下のテストスイートおよび検証プロセスを�
   docker compose run --user root --entrypoint "python scripts/verify_excel.py" docling-server
   ```
 
+## 🔮 今後の課題 (Roadmap)
+
+本ライブラリのさらなる拡張とエンタープライズでの最適化に向けて、以下のロードマップを予定しています。
+
+- **マルチプロバイダVLMサポート**: Local Ollama に加え、以下のエンジンや API プロバイダを環境変数や API リクエストから動的に選択可能にします。
+  - **ローカル推論サーバー (OpenAI互換)**: vLLM (高速並列処理用), llama.cpp 等のサポート。
+  - **商用クラウドAPI**: OpenAI (GPT-4o-mini), Google (Gemini 1.5 Flash), Anthropic (Claude 3.5 Sonnet) のネイティブサポート。
+- **並列呼び出しレート制限のチューニング**: 多数の画像が含まれる大規模ドキュメント変換時、Ollama 接続数制限や各クラウド API のレート制限（TPM/RPM）を考慮した並列度制御（セマフォ設定）の導入。
+- **図表 (Chart/Table) と VLM 連携の緊密化**: 抽出画像だけでなく、切り出されたグラフ（Chart）や複雑なHTMLテーブルに対し自動的にVLMによる高度な日本語サマリーを生成・埋め込む機能の拡張。
+
 ## 📄 ライセンス
 
 本プロジェクトは **MIT License** の下で公開されています。
@@ -83,4 +96,6 @@ TDDに基づき、以下のテストスイートおよび検証プロセスを�
 - **pytorch (torch)**: BSD-3-Clause License
 - **uvicorn**: BSD-3-Clause License
 - **python-multipart**: Apache-2.0 License
+- **httpx**: BSD-3-Clause License
+
 

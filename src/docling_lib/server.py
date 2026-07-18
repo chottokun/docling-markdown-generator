@@ -34,6 +34,8 @@ from .config import (
     TRUSTED_PROXIES,
     UPLOAD_DIR,
     setup_logging,
+    DOCLING_NUM_THREADS,
+    DOCLING_CUDA_FLASH_ATTENTION,
     DOCLING_TABLE_FORMAT,
     DOCLING_VLM_ENABLED,
     DOCLING_VLM_MODEL,
@@ -60,6 +62,8 @@ class DocumentConversionRequest(BaseModel):
     vlm_model: str
     vlm_endpoint: str
     vlm_prompt: str
+    num_threads: int
+    cuda_use_flash_attention: bool
 
 
 def get_conversion_request(
@@ -70,6 +74,8 @@ def get_conversion_request(
     vlm_model: str = Form(DOCLING_VLM_MODEL),
     vlm_endpoint: str = Form(DOCLING_VLM_ENDPOINT),
     vlm_prompt: str = Form(DOCLING_VLM_PROMPT),
+    num_threads: int = Form(DOCLING_NUM_THREADS),
+    cuda_use_flash_attention: bool = Form(DOCLING_CUDA_FLASH_ATTENTION),
 ) -> DocumentConversionRequest:
     return DocumentConversionRequest(
         table_format=table_format,
@@ -79,6 +85,8 @@ def get_conversion_request(
         vlm_model=vlm_model,
         vlm_endpoint=vlm_endpoint,
         vlm_prompt=vlm_prompt,
+        num_threads=num_threads,
+        cuda_use_flash_attention=cuda_use_flash_attention,
     )
 
 
@@ -293,6 +301,8 @@ async def convert_file(
             vlm_model=req_options.vlm_model,
             vlm_endpoint=req_options.vlm_endpoint,
             vlm_prompt=req_options.vlm_prompt,
+            num_threads=req_options.num_threads,
+            cuda_use_flash_attention=req_options.cuda_use_flash_attention,
         )
 
         # Use our process_pdf function wrapped in run_in_threadpool for concurrency.

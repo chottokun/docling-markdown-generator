@@ -55,6 +55,8 @@ def test_convert_file_with_parameters(mock_process, tmp_path, monkeypatch):
             "vlm_model": "custom-vlm-model",
             "vlm_endpoint": "http://ollama-custom:11434",
             "vlm_prompt": "カスタム説明してください",
+            "num_threads": "8",
+            "cuda_use_flash_attention": "true",
         }
         response = client.post("/convert/", files=files, data=data)
 
@@ -73,3 +75,5 @@ def test_convert_file_with_parameters(mock_process, tmp_path, monkeypatch):
     assert opts.vlm_model == "custom-vlm-model"
     assert opts.vlm_endpoint == "http://ollama-custom:11434"
     assert opts.vlm_prompt == "カスタム説明してください"
+    assert opts.num_threads == 8
+    assert opts.cuda_use_flash_attention is True

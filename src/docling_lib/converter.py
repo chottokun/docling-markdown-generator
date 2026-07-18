@@ -47,6 +47,8 @@ from .config import (
     IMAGE_RESOLUTION_SCALE,
     MD_OUTPUT_NAME,
     USE_GPU,
+    DOCLING_NUM_THREADS,
+    DOCLING_CUDA_FLASH_ATTENTION,
     DOCLING_TABLE_FORMAT,
     DOCLING_VLM_ENABLED,
     DOCLING_VLM_MODEL,
@@ -108,6 +110,8 @@ class DocumentConversionOptions:
     vlm_model: str = DOCLING_VLM_MODEL
     vlm_endpoint: str = DOCLING_VLM_ENDPOINT
     vlm_prompt: str = DOCLING_VLM_PROMPT
+    num_threads: int = DOCLING_NUM_THREADS
+    cuda_use_flash_attention: bool = DOCLING_CUDA_FLASH_ATTENTION
 
 
 class CustomMarkdownPictureSerializer(MarkdownPictureSerializer):
@@ -122,6 +126,7 @@ class CustomMarkdownPictureSerializer(MarkdownPictureSerializer):
         vlm_model: str = "qwen2-vl:2b",
         vlm_endpoint: str = "http://localhost:11434",
         vlm_prompt: str = "この画像の詳細な説明文を日本語で作成してください。",
+        vlm_captions: dict[str, str] | None = None,
         **kwargs: Any,
     ):
         super().__init__(**kwargs)
@@ -129,6 +134,7 @@ class CustomMarkdownPictureSerializer(MarkdownPictureSerializer):
         self.vlm_model = vlm_model
         self.vlm_endpoint = vlm_endpoint
         self.vlm_prompt = vlm_prompt
+        self.vlm_captions = vlm_captions if vlm_captions is not None else {}
 
     def serialize(
         self,
@@ -142,15 +148,23 @@ class CustomMarkdownPictureSerializer(MarkdownPictureSerializer):
             item=item, doc_serializer=doc_serializer, doc=doc, **kwargs
         )
 
-        if self.vlm_enabled and item.image and item.image.pil_image:
-            from .vlm import generate_caption_sync
+        if self.vlm_enabled:
+            # 1. Check prefetch cache first
+            caption = self.vlm_captions.get(item.self_ref)
 
-            caption = generate_caption_sync(
-                image=item.image.pil_image,
-                model=self.vlm_model,
-                endpoint=self.vlm_endpoint,
-                prompt=self.vlm_prompt,
-            )
+            # 2. Fallback to synchronous generation if not cached
+            if not caption and item.image and item.image.pil_image:
+                from .vlm import generate_caption_sync
+
+                caption = generate_caption_sync(
+                    image=item.image.pil_image,
+                    model=self.vlm_model,
+                    endpoint=self.vlm_endpoint,
+                    prompt=self.vlm_prompt,
+                )
+                if caption:
+                    self.vlm_captions[item.self_ref] = caption
+
             if caption:
                 caption_block = f"\n\n<!-- VLM_CAPTION_START -->\n{caption}\n<!-- VLM_CAPTION_END -->"
                 res.text = res.text + caption_block
@@ -243,6 +257,7 @@ class EnhancedMarkdownSerializer(MarkdownDocSerializer):
         vlm_model: str = "qwen2-vl:2b",
         vlm_endpoint: str = "http://localhost:11434",
         vlm_prompt: str = "この画像の詳細な説明文を日本語で作成してください。",
+        vlm_captions: dict[str, str] | None = None,
         **kwargs,
     ):
         # In tests, doc might be a MagicMock. Pydantic models (like
@@ -276,6 +291,7 @@ class EnhancedMarkdownSerializer(MarkdownDocSerializer):
             vlm_model=vlm_model,
             vlm_endpoint=vlm_endpoint,
             vlm_prompt=vlm_prompt,
+            vlm_captions=vlm_captions,
         )
         if self._is_mock(doc):
             object.__setattr__(self, "picture_serializer", pic_serializer)
@@ -337,7 +353,9 @@ class PDFConverter:
             acc_device = AcceleratorDevice.CPU
 
         pipeline_options.accelerator_options = AcceleratorOptions(
-            device=acc_device
+            device=acc_device,
+            num_threads=self.options.num_threads,
+            cuda_use_flash_attention2=self.options.cuda_use_flash_attention,
         )
 
         # Configure DocumentConverter with multi-format support
@@ -424,6 +442,61 @@ class PDFConverter:
             )
             raise
 
+    def _prefetch_vlm_captions(
+        self, doc: DoclingDocument, actual_options: DocumentConversionOptions
+    ) -> dict[str, str]:
+        """
+        Prefetch VLM captions for all pictures in the document in parallel using ThreadPoolExecutor.
+        """
+        vlm_captions = {}
+        if not actual_options.vlm_enabled or not doc.pictures:
+            return vlm_captions
+
+        from .vlm import generate_caption_sync
+
+        def fetch_task(item):
+            if item.image and item.image.pil_image:
+                try:
+                    caption = generate_caption_sync(
+                        image=item.image.pil_image,
+                        model=actual_options.vlm_model,
+                        endpoint=actual_options.vlm_endpoint,
+                        prompt=actual_options.vlm_prompt,
+                    )
+                    return item.self_ref, caption
+                except Exception as e:
+                    logger.warning(
+                        f"Failed to prefetch VLM caption for {item.self_ref}: "
+                        f"{sanitize_log_message(e)}"
+                    )
+            return item.self_ref, ""
+
+        def is_valid_image(item) -> bool:
+            if not item.image:
+                return False
+            try:
+                return item.image.pil_image is not None
+            except Exception as e:
+                logger.warning(
+                    f"Skipping VLM prefetch for {item.self_ref} because image could not be loaded: "
+                    f"{sanitize_log_message(e)}"
+                )
+                return False
+
+        with ThreadPoolExecutor() as executor:
+            # We filter out items without valid images to avoid submitting empty tasks
+            valid_items = [
+                item for item in doc.pictures 
+                if is_valid_image(item)
+            ]
+            if valid_items:
+                results = executor.map(fetch_task, valid_items)
+                for self_ref, caption in results:
+                    if caption:
+                        vlm_captions[self_ref] = caption
+
+        return vlm_captions
+
     def _serialize_to_markdown(
         self,
         doc: DoclingDocument,
@@ -434,7 +507,11 @@ class PDFConverter:
         Serializes the document to Markdown using the enhanced serializer.
         """
         actual_options = options or self.options
-        # Configure enhanced custom serializer
+
+        # 1. Prefetch VLM captions in parallel
+        vlm_captions = self._prefetch_vlm_captions(doc, actual_options)
+
+        # 2. Configure enhanced custom serializer
         serializer = EnhancedMarkdownSerializer(
             doc=doc,
             table_format=table_format,
@@ -442,6 +519,7 @@ class PDFConverter:
             vlm_model=actual_options.vlm_model,
             vlm_endpoint=actual_options.vlm_endpoint,
             vlm_prompt=actual_options.vlm_prompt,
+            vlm_captions=vlm_captions,
             params=MarkdownParams(
                 image_mode=ImageRefMode.REFERENCED,
                 image_placeholder="<!-- image -->",
@@ -641,6 +719,8 @@ def _get_or_create_converter(
         or _default_pdf_converter.options.do_chart != options.do_chart
         or _default_pdf_converter.options.do_code != options.do_code
         or _default_pdf_converter.options.table_format != options.table_format
+        or _default_pdf_converter.options.num_threads != options.num_threads
+        or _default_pdf_converter.options.cuda_use_flash_attention != options.cuda_use_flash_attention
     ):
         _default_pdf_converter = PDFConverter(options=options)
     return _default_pdf_converter

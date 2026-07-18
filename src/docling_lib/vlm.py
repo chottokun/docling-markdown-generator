@@ -4,6 +4,8 @@ import logging
 import httpx
 from PIL import Image
 
+from .utils import sanitize_log_message
+
 logger = logging.getLogger(__name__)
 
 
@@ -22,7 +24,7 @@ async def generate_caption(
         image.save(buffered, format="PNG")
         img_base64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
     except Exception as e:
-        logger.warning(f"Failed to encode image to base64 for VLM: {e}")
+        logger.warning(f"Failed to encode image to base64 for VLM: {sanitize_log_message(e)}")
         return ""
 
     try:
@@ -46,7 +48,7 @@ async def generate_caption(
             content = data.get("message", {}).get("content", "")
             return content.strip()
     except Exception as e:
-        logger.warning(f"VLM caption generation failed: {e}")
+        logger.warning(f"VLM caption generation failed: {sanitize_log_message(e)}")
         return ""
 
 
@@ -65,7 +67,7 @@ def generate_caption_sync(
         image.save(buffered, format="PNG")
         img_base64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
     except Exception as e:
-        logger.warning(f"Failed to encode image to base64 for VLM: {e}")
+        logger.warning(f"Failed to encode image to base64 for VLM: {sanitize_log_message(e)}")
         return ""
 
     try:
@@ -89,5 +91,5 @@ def generate_caption_sync(
             content = data.get("message", {}).get("content", "")
             return content.strip()
     except Exception as e:
-        logger.warning(f"VLM caption generation failed: {e}")
+        logger.warning(f"VLM caption generation failed: {sanitize_log_message(e)}")
         return ""
