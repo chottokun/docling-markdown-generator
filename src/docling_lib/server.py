@@ -1,3 +1,4 @@
+import ipaddress
 import logging
 import os
 import secrets
@@ -20,7 +21,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from starlette.concurrency import run_in_threadpool
 
-import ipaddress
 from .config import (
     ALLOWED_EXTENSIONS,
     API_KEY,
