@@ -1,26 +1,23 @@
 import unittest
-from pathlib import Path
 from unittest.mock import MagicMock, patch
+
 from PIL import Image
 
 # Mock docling and torch before importing PDFConverter
 from tests.mock_docling import mock_docling
+
 mock_docling()
 
 from docling_core.types.doc import (
     TableCell,
     TableData,
 )
-from docling_lib.converter import (
-    DocumentConversionOptions,
-    PDFConverter,
-)
+
+from docling_lib.utils import serialize_table_data_to_markdown
 from docling_lib.vlm import (
-    generate_caption,
     generate_caption_sync,
     get_semaphore,
 )
-from docling_lib.utils import serialize_table_data_to_markdown
 
 
 class TestMultiProviderVLMAndRates(unittest.TestCase):
