@@ -1,4 +1,5 @@
 import logging
+import re
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
@@ -61,6 +62,10 @@ from .config import (
     USE_GPU,
 )
 from .utils import sanitize_log_message
+
+# Compiled regex pattern matching the docling page break placeholder.
+# First capture group retrieves the next page number.
+PAGE_BREAK_RE = re.compile(r"#_#_DOCLING_DOC_PAGE_BREAK_\d+_(\d+)_#_#")
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -345,14 +350,7 @@ class EnhancedMarkdownSerializer(MarkdownDocSerializer):
         self.params.page_break_placeholder = orig_placeholder
 
         if orig_placeholder is not None:
-            text_res = res.text
-            for full_match, _prev_page_nr, next_page_nr in self._get_page_breaks(
-                text=text_res
-            ):
-                text_res = text_res.replace(
-                    full_match, f"<!-- PAGE_BREAK: Page {next_page_nr} -->"
-                )
-            res.text = text_res
+            res.text = PAGE_BREAK_RE.sub(r"<!-- PAGE_BREAK: Page \1 -->", res.text)
 
         return res
 
