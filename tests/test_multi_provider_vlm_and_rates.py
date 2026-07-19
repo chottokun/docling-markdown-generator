@@ -184,7 +184,7 @@ class TestMultiProviderVLMAndRates(unittest.TestCase):
         Verify server's Form dependency get_conversion_request correctly instantiates
         all of the new parameters and maps them to DocumentConversionRequest model.
         """
-        from docling_lib.server import get_conversion_request
+        from docling_lib.server import get_conversion_request, DOCLING_VLM_ENDPOINT
 
         # Run direct call of the Form parser dependency with custom parameters
         req = get_conversion_request(
@@ -195,7 +195,6 @@ class TestMultiProviderVLMAndRates(unittest.TestCase):
             vlm_provider="anthropic",
             vlm_api_key="api-key-xyz",
             vlm_model="claude-3-5-sonnet-20241022",
-            vlm_endpoint="https://api.anthropic.com",
             vlm_prompt="Write caption in English",
             vlm_max_concurrent=10,
             num_threads=8,
@@ -209,7 +208,7 @@ class TestMultiProviderVLMAndRates(unittest.TestCase):
         self.assertEqual(req.vlm_provider, "anthropic")
         self.assertEqual(req.vlm_api_key, "api-key-xyz")
         self.assertEqual(req.vlm_model, "claude-3-5-sonnet-20241022")
-        self.assertEqual(req.vlm_endpoint, "https://api.anthropic.com")
+        self.assertEqual(req.vlm_endpoint, DOCLING_VLM_ENDPOINT)
         self.assertEqual(req.vlm_prompt, "Write caption in English")
         self.assertEqual(req.vlm_max_concurrent, 10)
         self.assertEqual(req.num_threads, 8)

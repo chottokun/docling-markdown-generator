@@ -53,7 +53,6 @@ def test_convert_file_with_parameters(mock_process, tmp_path, monkeypatch):
             "include_kv_extraction": "true",
             "vlm_enabled": "true",
             "vlm_model": "custom-vlm-model",
-            "vlm_endpoint": "http://ollama-custom:11434",
             "vlm_prompt": "カスタム説明してください",
             "num_threads": "8",
             "cuda_use_flash_attention": "true",
@@ -73,7 +72,7 @@ def test_convert_file_with_parameters(mock_process, tmp_path, monkeypatch):
     assert opts.include_kv_extraction is True
     assert opts.vlm_enabled is True
     assert opts.vlm_model == "custom-vlm-model"
-    assert opts.vlm_endpoint == "http://ollama-custom:11434"
+    assert opts.vlm_endpoint == docling_lib.server.DOCLING_VLM_ENDPOINT
     assert opts.vlm_prompt == "カスタム説明してください"
     assert opts.num_threads == 8
     assert opts.cuda_use_flash_attention is True
