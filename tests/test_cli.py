@@ -139,3 +139,26 @@ def test_entry_point_unexpected_error(mock_main, mock_sys, mock_logger):
         in mock_logger.exception.call_args[0][0]
     )
     mock_sys.exit.assert_called_once_with(1)
+
+
+from unittest.mock import call
+
+@patch("docling_lib.cli.sys")
+@patch("docling_lib.cli.main")
+def test_entry_point_sys_exit_raises_system_exit(mock_main, mock_sys):
+    """
+    Given: main() returns 0, and sys.exit raises a SystemExit exception on its first call
+           (simulating the real behavior of sys.exit).
+    When: entry_point() is called.
+    Then: The SystemExit exception should be caught, and sys.exit should be called with the same exit code.
+    """
+    mock_main.return_value = 0
+    # Simulate first call to sys.exit raising SystemExit(0), second call returning None.
+    mock_sys.exit.side_effect = [SystemExit(0), None]
+
+    entry_point()
+
+    mock_main.assert_called_once_with()
+    assert mock_sys.exit.call_count == 2
+    # Verify both calls to sys.exit were with code 0
+    mock_sys.exit.assert_has_calls([call(0), call(0)])
