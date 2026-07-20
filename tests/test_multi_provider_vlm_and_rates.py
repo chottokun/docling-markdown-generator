@@ -184,7 +184,7 @@ class TestMultiProviderVLMAndRates(unittest.TestCase):
         Verify server's Form dependency get_conversion_request correctly instantiates
         all of the new parameters and maps them to DocumentConversionRequest model.
         """
-        from docling_lib.server import get_conversion_request, DOCLING_VLM_ENDPOINT
+        from docling_lib.server import DOCLING_VLM_ENDPOINT, get_conversion_request
 
         # Run direct call of the Form parser dependency with custom parameters
         req = get_conversion_request(

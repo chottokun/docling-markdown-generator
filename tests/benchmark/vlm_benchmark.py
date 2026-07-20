@@ -1,8 +1,11 @@
 import asyncio
 import time
-import httpx
 import unittest.mock as mock
+
+import httpx
+
 from docling_lib.vlm import generate_caption, generate_caption_sync
+
 
 def mock_transport_benchmark():
     # Mocking post to return a 200 response

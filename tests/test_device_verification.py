@@ -1,10 +1,11 @@
 import os
+
 import pytest
 
 torch = pytest.importorskip("torch")
 
-from docling_lib.converter import is_cuda_compatible
 import docling_lib.config as config
+from docling_lib.converter import is_cuda_compatible
 
 
 def test_device_compatibility_verification():
@@ -35,7 +36,7 @@ def test_device_compatibility_verification():
             capability = major + minor / 10.0
             
             # 互換性チェックの判定ロジックと実判定結果の整合性確認
-            compatible_expected = (capability >= 7.5) and (not config.USE_GPU is False)
+            compatible_expected = (capability >= 7.5) and (config.USE_GPU is not False)
             
             # get_device_capabilityの判定基準に沿っているか検証
             assert is_cuda_compatible() == compatible_expected, (

@@ -1,17 +1,16 @@
 import asyncio
 import threading
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock
+
 import httpx
 import pytest
 
-from docling_lib.vlm import (
-    _get_cached_sync_client,
-    _get_cached_async_client,
-    _cleanup_cached_clients,
-    _ORIG_CLIENT_CLASS,
-    _ORIG_ASYNC_CLIENT_CLASS,
-)
 import docling_lib.vlm as vlm
+from docling_lib.vlm import (
+    _cleanup_cached_clients,
+    _get_cached_async_client,
+    _get_cached_sync_client,
+)
 
 
 def test_sync_client_cached(monkeypatch):
