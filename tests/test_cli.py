@@ -141,8 +141,6 @@ def test_entry_point_unexpected_error(mock_main, mock_sys, mock_logger):
     mock_sys.exit.assert_called_once_with(1)
 
 
-
-
 @patch("docling_lib.cli.sys")
 @patch("docling_lib.cli.main")
 def test_entry_point_sys_exit_raises_system_exit(mock_main, mock_sys):
@@ -162,3 +160,33 @@ def test_entry_point_sys_exit_raises_system_exit(mock_main, mock_sys):
     assert mock_sys.exit.call_count == 2
     # Verify both calls to sys.exit were with code 0
     mock_sys.exit.assert_has_calls([call(0), call(0)])
+
+
+@patch("docling_lib.cli.logger")
+@patch("docling_lib.cli.sys")
+@patch("docling_lib.cli.main")
+def test_entry_point_sys_exit_raises_exception(mock_main, mock_sys, mock_logger):
+    """
+    Given: sys.exit raises a general Exception on first call (e.g., when calling sys.exit(main())).
+    When: entry_point() is called.
+    Then: It should catch the exception, log it, and then call sys.exit(1).
+    """
+    mock_main.return_value = 0
+    # The first call to sys.exit raises Exception, the second call returns normally
+    mock_sys.exit.side_effect = [Exception("Unexpected system exit failure"), None]
+
+    entry_point()
+
+    mock_main.assert_called_once_with()
+    # First sys.exit call was for the success of main() (i.e. with 0)
+    # Second sys.exit call was in the exception handler (i.e. with 1)
+    assert mock_sys.exit.call_count == 2
+    mock_sys.exit.assert_any_call(0)
+    mock_sys.exit.assert_any_call(1)
+
+    mock_logger.exception.assert_called_once()
+    assert (
+        "An unexpected error occurred in the CLI: Unexpected system exit failure"
+        in mock_logger.exception.call_args[0][0]
+    )
+
