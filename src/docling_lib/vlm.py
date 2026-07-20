@@ -3,6 +3,7 @@ import base64
 import io
 import logging
 import threading
+import weakref
 
 import httpx
 from PIL import Image
@@ -14,6 +15,95 @@ logger = logging.getLogger(__name__)
 # Cache of threading semaphores based on (provider, endpoint, max_concurrent)
 _semaphores_lock = threading.Lock()
 _semaphores = {}
+
+# Reusable HTTP clients to implement connection pooling and keep-alive.
+# Store the original class references to detect when they are mocked during testing.
+_ORIG_CLIENT_CLASS = httpx.Client
+_ORIG_ASYNC_CLIENT_CLASS = httpx.AsyncClient
+
+_sync_client_cache = None
+_sync_client_lock = threading.Lock()
+
+# Map running event loop to its cached AsyncClient
+_async_client_cache = weakref.WeakKeyDictionary()
+_async_client_lock = threading.Lock()
+
+
+class _UnclosedClientContext:
+    """
+    Context wrapper for a shared synchronous Client that prevents context managers
+    from closing the shared client instance, but forwards all other attributes.
+    """
+    def __init__(self, client: httpx.Client):
+        self._client = client
+
+    def __enter__(self) -> httpx.Client:
+        return self._client
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        # Prevent the shared client from being closed on context exit
+        pass
+
+    def __getattr__(self, name):
+        return getattr(self._client, name)
+
+
+class _UnclosedAsyncClientContext:
+    """
+    Context wrapper for a shared asynchronous AsyncClient that prevents context managers
+    from closing the shared client instance, but forwards all other attributes.
+    """
+    def __init__(self, client: httpx.AsyncClient):
+        self._client = client
+
+    async def __aenter__(self) -> httpx.AsyncClient:
+        return self._client
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        # Prevent the shared client from being closed on context exit
+        pass
+
+    def __getattr__(self, name):
+        return getattr(self._client, name)
+
+
+def _get_cached_sync_client() -> httpx.Client:
+    """
+    Returns a cached, shared synchronous httpx.Client with connection pooling enabled.
+    If httpx.Client is mocked in the current scope, caching is bypassed to respect the mock.
+    """
+    global _sync_client_cache
+    if httpx.Client is not _ORIG_CLIENT_CLASS:
+        # Bypassing cache since httpx.Client is mocked/patched
+        return httpx.Client(timeout=45.0)
+
+    with _sync_client_lock:
+        if _sync_client_cache is None or getattr(_sync_client_cache, "is_closed", False):
+            _sync_client_cache = _ORIG_CLIENT_CLASS(timeout=45.0)
+        return _sync_client_cache
+
+
+def _get_cached_async_client() -> httpx.AsyncClient:
+    """
+    Returns a cached, shared asynchronous httpx.AsyncClient associated with the current running event loop.
+    If httpx.AsyncClient is mocked in the current scope, caching is bypassed to respect the mock.
+    """
+    if httpx.AsyncClient is not _ORIG_ASYNC_CLIENT_CLASS:
+        # Bypassing cache since httpx.AsyncClient is mocked/patched
+        return httpx.AsyncClient(timeout=45.0)
+
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        # Bypassing cache if no event loop is running (fallback to non-cached client)
+        return _ORIG_ASYNC_CLIENT_CLASS(timeout=45.0)
+
+    with _async_client_lock:
+        client = _async_client_cache.get(loop)
+        if client is None or getattr(client, "is_closed", False):
+            client = _ORIG_ASYNC_CLIENT_CLASS(timeout=45.0)
+            _async_client_cache[loop] = client
+        return client
 
 
 def get_semaphore(
@@ -248,7 +338,16 @@ async def generate_caption(
         # Acquire semaphore asynchronously using to_thread to prevent event-loop blocking
         await asyncio.to_thread(sem.acquire)
         acquired = True
-        async with httpx.AsyncClient(timeout=45.0) as client:
+
+        # Use helper to get a cached client, or a fresh mocked client if patched.
+        raw_client = _get_cached_async_client()
+        # If it is the original unmocked client class, wrap it to avoid closing it on context block exit.
+        if httpx.AsyncClient is _ORIG_ASYNC_CLIENT_CLASS:
+            client_ctx = _UnclosedAsyncClientContext(raw_client)
+        else:
+            client_ctx = raw_client
+
+        async with client_ctx as client:
             response = await client.post(url, headers=headers, json=json_body)
             response.raise_for_status()
             data = response.json()
@@ -327,7 +426,16 @@ def generate_caption_sync(
     try:
         sem.acquire()
         acquired = True
-        with httpx.Client(timeout=45.0) as client:
+
+        # Use helper to get a cached client, or a fresh mocked client if patched.
+        raw_client = _get_cached_sync_client()
+        # If it is the original unmocked client class, wrap it to avoid closing it on context block exit.
+        if httpx.Client is _ORIG_CLIENT_CLASS:
+            client_ctx = _UnclosedClientContext(raw_client)
+        else:
+            client_ctx = raw_client
+
+        with client_ctx as client:
             response = client.post(url, headers=headers, json=json_body)
             response.raise_for_status()
             data = response.json()
