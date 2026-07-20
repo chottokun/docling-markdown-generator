@@ -1,4 +1,5 @@
 import asyncio
+import atexit
 import base64
 import io
 import logging
@@ -27,6 +28,21 @@ _sync_client_lock = threading.Lock()
 # Map running event loop to its cached AsyncClient
 _async_client_cache = weakref.WeakKeyDictionary()
 _async_client_lock = threading.Lock()
+
+_DEFAULT_TIMEOUT = 45.0
+
+
+def _cleanup_cached_clients():
+    """アプリケーション終了時にキャッシュされたhttpxクライアントを安全に閉じる。"""
+    global _sync_client_cache
+    with _sync_client_lock:
+        if _sync_client_cache is not None and not getattr(_sync_client_cache, "is_closed", True):
+            _sync_client_cache.close()
+            _sync_client_cache = None
+
+
+atexit.register(_cleanup_cached_clients)
+
 
 
 class _UnclosedClientContext:
@@ -75,11 +91,11 @@ def _get_cached_sync_client() -> httpx.Client:
     global _sync_client_cache
     if httpx.Client is not _ORIG_CLIENT_CLASS:
         # Bypassing cache since httpx.Client is mocked/patched
-        return httpx.Client(timeout=45.0)
+        return httpx.Client(timeout=_DEFAULT_TIMEOUT)
 
     with _sync_client_lock:
         if _sync_client_cache is None or getattr(_sync_client_cache, "is_closed", False):
-            _sync_client_cache = _ORIG_CLIENT_CLASS(timeout=45.0)
+            _sync_client_cache = _ORIG_CLIENT_CLASS(timeout=_DEFAULT_TIMEOUT)
         return _sync_client_cache
 
 
@@ -90,18 +106,18 @@ def _get_cached_async_client() -> httpx.AsyncClient:
     """
     if httpx.AsyncClient is not _ORIG_ASYNC_CLIENT_CLASS:
         # Bypassing cache since httpx.AsyncClient is mocked/patched
-        return httpx.AsyncClient(timeout=45.0)
+        return httpx.AsyncClient(timeout=_DEFAULT_TIMEOUT)
 
     try:
         loop = asyncio.get_running_loop()
     except RuntimeError:
         # Bypassing cache if no event loop is running (fallback to non-cached client)
-        return _ORIG_ASYNC_CLIENT_CLASS(timeout=45.0)
+        return _ORIG_ASYNC_CLIENT_CLASS(timeout=_DEFAULT_TIMEOUT)
 
     with _async_client_lock:
         client = _async_client_cache.get(loop)
         if client is None or getattr(client, "is_closed", False):
-            client = _ORIG_ASYNC_CLIENT_CLASS(timeout=45.0)
+            client = _ORIG_ASYNC_CLIENT_CLASS(timeout=_DEFAULT_TIMEOUT)
             _async_client_cache[loop] = client
         return client
 
