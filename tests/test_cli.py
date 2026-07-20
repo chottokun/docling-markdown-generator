@@ -1,4 +1,4 @@
-from unittest.mock import patch
+from unittest.mock import patch, call
 
 import pytest
 
@@ -141,7 +141,7 @@ def test_entry_point_unexpected_error(mock_main, mock_sys, mock_logger):
     mock_sys.exit.assert_called_once_with(1)
 
 
-from unittest.mock import call
+
 
 @patch("docling_lib.cli.sys")
 @patch("docling_lib.cli.main")
