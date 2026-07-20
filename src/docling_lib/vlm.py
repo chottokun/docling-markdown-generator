@@ -29,7 +29,10 @@ _sync_client_lock = threading.Lock()
 _async_client_cache = weakref.WeakKeyDictionary()
 _async_client_lock = threading.Lock()
 
-_DEFAULT_TIMEOUT = 45.0
+# Default API request timeout (seconds)
+_DEFAULT_TIMEOUT = 180.0
+
+
 
 
 def _cleanup_cached_clients():
