@@ -1,73 +1,46 @@
-# Doclingを用いた図埋め込み型markdownファイルの生成ライブラリの構築
+# AGENTS.md
 
-## 0. 目的・背景
+# Project
 
-## 1. はじめに
+Doclingを利用してPDFなどの文書を画像付きMarkdownへ変換するライブラリ。
 
-本ドキュメントは、Doclingを用いた図埋め込み型markdownファイルの生成ライブラリを構築する。`Docs/`でのドキュメント・サンプルコードを参考に本システムを構築するための指針を示す。既存の複雑なドキュメント（PDFなど）をLLMに理解させる「読み取り」の文脈で、DoclingはPDFをMarkdownに変換するツールとして利用できる。
+## Goals
 
-## 2. 実装について
+- CLIとFastAPIの両方を提供する。
+- Markdownと画像を同時に出力する。
+- Docker環境で動作する。
+- GPUが利用できない場合はCPUへ自動フォールバックする。
 
-### 2.1. 実装のルールと手順
+## Architecture
 
-- TDD手法を採用し、`docs\pytest_exec.md`も参考にして進めること。
-- 適切なタイミングで実データによるテストを行い、目視で確認すること。
-- CLIでPDFファイルを指定するとpdfから指定したディレクトリにmarkdownファイルと画像ファイルが保存されるようにすること。
-- 最終的には、Doclingはバージョン依存性がGPUの利用も可能である点に注意しつつ、docker composeを利用したFAST APIとしても利用できるように実装すること。
-- Doclingのバージョンは最新のバージョンを利用すること。
+- CLIとFastAPIは同一の変換パイプラインを利用する。
+- Doclingを標準の変換バックエンドとする。
+- 高コストなコンポーネントは再利用する。
+- Markdown出力形式との互換性を維持する。
 
-### 2.3. セキュリティと堅牢性
+## Constraints
 
-- **パス・トラバーサル保護**: ユーザーが指定したファイル名やディレクトリ名が、意図しないディレクトリ外への書き込みを引き起こさないよう、`Path.resolve()` と `Path.is_relative_to()` を用いた厳格なパス検証を実装すること。
-- **ログ・インジェクション対策**: ユーザー入力をログに出力する際は、改行文字などを除去するサニタイズ処理を行うこと。
+- 新しい変換処理を追加する前に既存実装を再利用する。
+- CLIとFastAPIで出力結果を一致させる。
+- 外部入力は必ず検証する。
+- ユーザーが見える仕様を変更した場合はREADMEを更新する。
 
-### 2.4. パフォーマンスの最適化
+## Development
 
-- **コンバーターの再利用**: `PDFConverter` クラスを用いて `DocumentConverter` インスタンスを適切に管理・再利用し、初期化コストを最小限に抑えること。
-- **非同期I/Oの最適化**: FastAPIサーバー (`server.py`) において、ファイル保存やディレクトリ作成、変換処理などのブロッキングI/O操作は、`run_in_threadpool` を用いてスレッドプールへオフロードし、イベントループをブロックしないようにすること。
-- **スレッドセーフ設計**: 共有リソース（グローバルなコンバーターインスタンスなど）へのアクセスは、`threading.Lock` を用いて適切に排他制御を行うこと。
+- Python依存関係は `uv` と `pyproject.toml` で管理する。
+- 変更にはテストを追加または更新する。
+- 実装方針は `docs/` を参照する。
 
-### 2.5. コードの品質と保守性
+## Python Environment
 
-- **リファクタリング**: 巨大な関数（例: `process_pdf` や `convert_file`）は、責務ごとに小さなヘルパー関数に分割し、可読性とテストのしやすさを向上させること。
-- **型ヒントの活用**: 可能な限り型ヒント（特に Python 3.10+ の `Type | None` 形式など）を活用し、静的解析による品質向上を図ること。
-- **テストカバレッジ**: ユニットテストだけでなく、FastAPIの `TestClient` を用いた統合テストや、実際のサンプルファイルを用いた実データ検証スクリプトを継続的に運用すること。
+- Use `uv` for all Python workflows.
+- Run Python commands with `uv run`.
+- Use `uv add` / `uv remove` to manage dependencies.
+- Never use `pip install`.
+- Never use `uv pip install --global`.
+- Never modify the global Python environment.
+- Keep all dependencies declared in `pyproject.toml` and the lockfile.
 
-## 3. 環境構築について
+## References
 
-### 3.1. セットアップ手順
-
-`uv` を用いてPythonの仮想環境を構築し、パッケージを管理する。また、dockerコンテナでの運用も構築。なお、GPUが利用できない環境ではCPUでの利用へと指定あるいはフォールダウンする実装とすること。
-
-1.  **仮想環境の作成**
-    ```bash
-    uv venv
-    ```
-2.  **仮想環境のアクティベート**
-    ```bash
-    # macOS / Linux
-    source .venv/bin/activate
-    # Windows
-    .venv\Scripts\activate
-    ```
-3.  **依存関係のインストール**
-
-依存関係は`pyproject.toml`に記述します：
-
-```toml
-[project.dependencies]
-openai = "^1.3.5"
-requests = "^2.31.0"
-```
-パッケージの追加
-
-```bash
-uv pip install <package-name>
-uv pip add <package-name>  # pyproject.tomlに追記
-```
-
-# 参考URL
 - https://docling-project.github.io/docling/
-
-# ライセンス
-利用したライブラリのライセンスをREADME.mdに表記すること。
