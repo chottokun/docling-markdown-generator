@@ -50,6 +50,7 @@ def test_serialize_to_markdown():
             vlm_prompt="この画像の詳細な説明文を日本語で作成してください。",
             vlm_max_concurrent=5,
             vlm_captions={},
+            image_dir_name="images",
             params=mock_params_inst,
         )
 
@@ -94,6 +95,7 @@ def test_serialize_to_markdown_different_format():
             vlm_prompt="この画像の詳細な説明文を日本語で作成してください。",
             vlm_max_concurrent=5,
             vlm_captions={},
+            image_dir_name="images",
             params=mock_params_cls.return_value,
         )
         assert result == "Another Mocked Content"

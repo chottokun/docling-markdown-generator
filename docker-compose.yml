@@ -28,6 +28,22 @@ services:
               count: all
               capabilities: [gpu]
 
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
 volumes:
   # 名前付きボリュームを使うことで、ホストの権限問題を回避しつつデータを永続化
   docling_data:
+  ollama_data:

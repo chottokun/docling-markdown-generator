@@ -156,6 +156,7 @@ class CustomMarkdownPictureSerializer(MarkdownPictureSerializer):
         vlm_prompt: str = "この画像の詳細な説明文を日本語で作成してください。",
         vlm_max_concurrent: int = 5,
         vlm_captions: dict[str, str] | None = None,
+        image_dir_name: str = "images",
         **kwargs: Any,
     ):
         super().__init__(**kwargs)
@@ -167,6 +168,7 @@ class CustomMarkdownPictureSerializer(MarkdownPictureSerializer):
         self.vlm_prompt = vlm_prompt
         self.vlm_max_concurrent = vlm_max_concurrent
         self.vlm_captions = vlm_captions if vlm_captions is not None else {}
+        self.image_dir_name = image_dir_name
 
     def serialize(
         self,
@@ -179,6 +181,20 @@ class CustomMarkdownPictureSerializer(MarkdownPictureSerializer):
         res = super().serialize(
             item=item, doc_serializer=doc_serializer, doc=doc, **kwargs
         )
+
+        # Find the index of the current picture element to map it to the saved image file name
+        idx = -1
+        if hasattr(doc, "pictures") and doc.pictures:
+            for i, pic in enumerate(doc.pictures):
+                if pic.self_ref == item.self_ref:
+                    idx = i
+                    break
+
+        if idx != -1:
+            image_filename = f"picture_{idx + 1}.png"
+            image_rel_path = f"{self.image_dir_name}/{image_filename}"
+            # Output the actual relative image link instead of placeholder
+            res.text = f"![image]({image_rel_path})"
 
         if self.vlm_enabled:
             # 1. Check prefetch cache first
@@ -205,6 +221,7 @@ class CustomMarkdownPictureSerializer(MarkdownPictureSerializer):
                 res.text = res.text + caption_block
 
         return res
+
 
 
 class HTMLTableMarkdownSerializer(MarkdownTableSerializer):
@@ -296,6 +313,7 @@ class EnhancedMarkdownSerializer(MarkdownDocSerializer):
         vlm_prompt: str = "この画像の詳細な説明文を日本語で作成してください。",
         vlm_max_concurrent: int = 5,
         vlm_captions: dict[str, str] | None = None,
+        image_dir_name: str = "images",
         **kwargs,
     ):
         # In tests, doc might be a MagicMock. Pydantic models (like
@@ -330,6 +348,7 @@ class EnhancedMarkdownSerializer(MarkdownDocSerializer):
             vlm_prompt=vlm_prompt,
             vlm_max_concurrent=vlm_max_concurrent,
             vlm_captions=vlm_captions,
+            image_dir_name=image_dir_name,
         )
         if self._is_mock(doc):
             object.__setattr__(self, "picture_serializer", pic_serializer)
@@ -556,6 +575,7 @@ class PDFConverter:
             vlm_prompt=actual_options.vlm_prompt,
             vlm_max_concurrent=actual_options.vlm_max_concurrent,
             vlm_captions=vlm_captions,
+            image_dir_name=actual_options.image_dir_name,
             params=MarkdownParams(
                 image_mode=ImageRefMode.REFERENCED,
                 image_placeholder="<!-- image -->",
