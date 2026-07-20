@@ -333,6 +333,13 @@ class TestVLMAndPageBreaks(unittest.TestCase):
         # Force stop active patches to allow actual HTTP requests during this test
         patch.stopall()
 
+        import docling_lib.vlm as vlm
+        # Temporarily increase timeout for slow local CPU inference
+        orig_timeout = vlm._DEFAULT_TIMEOUT
+        vlm._DEFAULT_TIMEOUT = 180.0
+        orig_cache = vlm._sync_client_cache
+        vlm._sync_client_cache = None
+
         import httpx
 
         try:
@@ -354,17 +361,22 @@ class TestVLMAndPageBreaks(unittest.TestCase):
         except Exception:
             self.skipTest("Ollama is not reachable")
 
-        # Call the real VLM API
-        img = Image.new("RGB", (100, 100), color="blue")
-        caption = generate_caption_sync(
-            image=img,
-            model=target_model,
-            endpoint="http://localhost:11434",
-            prompt="この画像の色は何ですか？単語だけで答えてください。",
-        )
-        # Verify we got a valid response containing '青'
-        self.assertTrue(len(caption) > 0)
-        self.assertIn("青", caption)
+        try:
+            # Call the real VLM API
+            img = Image.new("RGB", (100, 100), color="blue")
+            caption = generate_caption_sync(
+                image=img,
+                model=target_model,
+                endpoint="http://localhost:11434",
+                prompt="この画像の色は何ですか？単語だけで答えてください。",
+            )
+            # Verify we got a valid response containing '青'
+            self.assertTrue(len(caption) > 0)
+            self.assertIn("青", caption)
+        finally:
+            vlm._DEFAULT_TIMEOUT = orig_timeout
+            vlm._sync_client_cache = orig_cache
+
 
 
 if __name__ == "__main__":
