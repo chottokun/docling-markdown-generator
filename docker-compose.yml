@@ -3,6 +3,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        - TARGET_DEVICE=gpu
     ports:
       - "8090:8000"
     volumes:
@@ -18,6 +20,13 @@ services:
       - HF_HOME=/app/data/models
     # 開発用コマンド。本番用は Dockerfile の CMD を使用。
     command: uvicorn docling_lib.server:app --host 0.0.0.0 --port 8000 --reload
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
 
 volumes:
   # 名前付きボリュームを使うことで、ホストの権限問題を回避しつつデータを永続化

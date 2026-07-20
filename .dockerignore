@@ -9,3 +9,10 @@ dist
 build
 tests/test_data/output
 data/
+output/
+test_output/
+test_output_verification/
+test_cli_output/
+tests/data/real_world/
+images_dir/
+uploads/
