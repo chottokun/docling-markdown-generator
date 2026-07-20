@@ -73,3 +73,23 @@ find output/* -type d -ctime +1 -exec rm -rf {} +
 ```bash
 curl -f http://localhost:8000/ || exit 1
 ```
+
+## 5. Dockerビルド時のログ肥大化防止対策
+
+非インタラクティブなビルド環境（CI/CDやバックグラウンドタスクなど）において、数百万行に及ぶプログレスバーのログ出力を抑制し、必要な警告やエラー情報が埋もれないようにするための設定です。
+
+### 対策方法
+1. **Dockerfile 内の設定**:
+   `builder` ステージにおいて環境変数 `ENV UV_NO_PROGRESS=1` を設定し、`uv` コマンドによるパッケージのダウンロード進捗バーを無効化しています（設定済み）。
+2. **BuildKit 進捗出力の抑制**:
+   Docker BuildKit 自体のプログレスバー表示をプレーン（改行のみ）または静的にします。
+   - コマンドライン引数に `--progress=plain` を追加：
+     ```bash
+     docker compose build --progress=plain
+     # または
+     docker build --progress=plain -t docling-server .
+     ```
+   - もしくは、環境変数 `BUILDKIT_PROGRESS=plain` を指定して実行：
+     ```bash
+     BUILDKIT_PROGRESS=plain docker compose build
+     ```
