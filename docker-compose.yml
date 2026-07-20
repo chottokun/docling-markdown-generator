@@ -27,6 +27,11 @@ services:
             - driver: nvidia
               count: all
               capabilities: [gpu]
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "${DOCKER_LOG_MAX_SIZE:-10m}"
+        max-file: "${DOCKER_LOG_MAX_FILE:-3}"
 
   ollama:
     image: ollama/ollama:latest
@@ -42,6 +47,11 @@ services:
             - driver: nvidia
               count: all
               capabilities: [gpu]
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "${DOCKER_LOG_MAX_SIZE:-10m}"
+        max-file: "${DOCKER_LOG_MAX_FILE:-3}"
 
 volumes:
   # 名前付きボリュームを使うことで、ホストの権限問題を回避しつつデータを永続化
