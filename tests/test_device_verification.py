@@ -1,6 +1,7 @@
 import os
-import torch
 import pytest
+
+torch = pytest.importorskip("torch")
 
 from docling_lib.converter import is_cuda_compatible
 import docling_lib.config as config
