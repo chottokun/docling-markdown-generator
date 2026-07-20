@@ -1,46 +1,46 @@
 # AGENTS.md
 
-# Project
+## プロジェクト
 
-Doclingを利用してPDFなどの文書を画像付きMarkdownへ変換するライブラリ。
+Doclingを利用してPDFなどの文書をRAGに最適化したMarkdownへ変換するライブラリを開発する。
 
-## Goals
+## ゴール
 
-- CLIとFastAPIの両方を提供する。
-- Markdownと画像を同時に出力する。
+- CLIおよびFastAPIの両方を提供する。
+- Markdownと画像ファイルを出力する。
 - Docker環境で動作する。
-- GPUが利用できない場合はCPUへ自動フォールバックする。
+- GPUが利用できない環境ではCPUへ自動フォールバックする。
 
-## Architecture
+## アーキテクチャ
 
 - CLIとFastAPIは同一の変換パイプラインを利用する。
 - Doclingを標準の変換バックエンドとする。
-- 高コストなコンポーネントは再利用する。
-- Markdown出力形式との互換性を維持する。
+- 既存の変換ロジックを優先して再利用し、重複実装を避ける。
+- Markdown出力形式および画像参照との互換性を維持する。
 
-## Constraints
+## 開発ルール
 
-- 新しい変換処理を追加する前に既存実装を再利用する。
-- CLIとFastAPIで出力結果を一致させる。
+- TDDを基本とする。批判的な視点でのテストも考慮する。
+- 機能変更時は関連するテストを追加・更新する。
+- 実装完了前に実データで動作確認を行う。
+- ユーザー向け仕様を変更した場合はREADME.mdも更新する。
+
+## Python環境
+
+- Pythonワークフローは `uv` を利用する。
+- Pythonコマンドは `uv run` で実行する。
+- 依存関係は `pyproject.toml` で管理する。
+- パッケージの追加・削除は `uv add` / `uv remove` を利用する。
+- `pip install` を直接使用しない。
+- グローバルPython環境を変更しない。
+
+## 制約
+
 - 外部入力は必ず検証する。
-- ユーザーが見える仕様を変更した場合はREADMEを更新する。
+- FastAPIのイベントループをブロックしない。
+- 共有リソースは並行実行時も安全に扱う。
+- Doclingを他ライブラリへ置き換えない（明示的な指示がある場合を除く）。
 
-## Development
-
-- Python依存関係は `uv` と `pyproject.toml` で管理する。
-- 変更にはテストを追加または更新する。
-- 実装方針は `docs/` を参照する。
-
-## Python Environment
-
-- Use `uv` for all Python workflows.
-- Run Python commands with `uv run`.
-- Use `uv add` / `uv remove` to manage dependencies.
-- Never use `pip install`.
-- Never use `uv pip install --global`.
-- Never modify the global Python environment.
-- Keep all dependencies declared in `pyproject.toml` and the lockfile.
-
-## References
+## 参考
 
 - https://docling-project.github.io/docling/
