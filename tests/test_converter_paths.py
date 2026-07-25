@@ -1,6 +1,6 @@
 import logging
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -166,3 +166,56 @@ def test_validate_and_resolve_paths_exception(tmp_path, caplog):
                 "Security Error during path resolution: Unexpected resolution error"
                 in caplog.text
             )
+
+
+def test_validate_and_resolve_paths_generic_exception(tmp_path, caplog):
+    """
+    Verify that a generic Exception raised during Path.resolve is caught,
+    logged, and re-raised in _validate_and_resolve_paths.
+    """
+    converter = PDFConverter()
+    output_dir = tmp_path / "output"
+
+    with patch(
+        "docling_lib.converter.Path.resolve",
+        side_effect=Exception("Simulated generic exception"),
+    ):
+        with caplog.at_level(logging.ERROR):
+            with pytest.raises(Exception, match="Simulated generic exception"):
+                converter._validate_and_resolve_paths(output_dir, "images", "out.md")
+
+            assert (
+                "Security Error during path resolution: Simulated generic exception"
+                in caplog.text
+            )
+
+
+def test_convert_handles_path_resolution_generic_exception(tmp_path, caplog):
+    """
+    Verify that when converting a document, if path resolution fails
+    with a generic Exception in _validate_and_resolve_paths, the exception
+    is caught at the convert level, logged, and None is returned.
+    """
+    converter = PDFConverter()
+    input_path = tmp_path / "test.pdf"
+    input_path.touch()
+    output_dir = tmp_path / "output"
+
+    # Mock doc_converter.convert to succeed and return a mock result
+    mock_result = MagicMock()
+    mock_result.document = MagicMock()
+
+    with patch.object(converter.doc_converter, "convert", return_value=mock_result):
+        # Mock _validate_and_resolve_paths to raise a generic exception
+        with patch.object(
+            converter,
+            "_validate_and_resolve_paths",
+            side_effect=Exception("Simulated path resolution error"),
+        ):
+            with caplog.at_level(logging.ERROR):
+                result = converter.convert(input_path, output_dir)
+
+    assert result is None
+    # Verify the convert method catches and logs the exception correctly
+    assert "Error converting document" in caplog.text
+    assert "Simulated path resolution error" in caplog.text
