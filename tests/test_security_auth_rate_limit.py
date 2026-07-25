@@ -45,13 +45,13 @@ def test_auth_enabled():
                         assert response.status_code != 401
 
 
-def test_auth_disabled():
-    # Test with API Key disabled
+def test_auth_not_configured():
+    # Test with API Key not configured / None
     with patch("docling_lib.server.API_KEY", None):
         client = TestClient(app)
         files = {"file": ("test.pdf", b"%PDF-1.4...", "application/pdf")}
 
-        # No API Key required
+        # Request must fail with 500 Internal Server Error when security is misconfigured
         with patch("docling_lib.server._validate_extension", return_value=".pdf"):
             with patch(
                 "docling_lib.server._save_upload_temp", return_value=Path("dummy_path")
@@ -63,7 +63,8 @@ def test_auth_disabled():
                     with patch("docling_lib.server.run_in_threadpool") as mock_run:
                         mock_run.return_value = Path("result.md")
                         response = client.post("/convert/", files=files)
-                        assert response.status_code != 401
+                        assert response.status_code == 500
+                        assert "Internal Server Error: API Key is not configured." in response.json()["detail"]
 
 
 def test_rate_limiting():
@@ -74,6 +75,7 @@ def test_rate_limiting():
         with patch("docling_lib.server.RATE_LIMIT_WINDOW", 60):
             client = TestClient(app)
             files = {"file": ("test.pdf", b"%PDF-1.4...", "application/pdf")}
+            headers = {"X-API-Key": docling_lib.server.API_KEY}
 
             with patch("docling_lib.server._validate_extension", return_value=".pdf"):
                 with patch(
@@ -87,15 +89,15 @@ def test_rate_limiting():
                         with patch("docling_lib.server.run_in_threadpool") as mock_run:
                             mock_run.return_value = Path("result.md")
                             # First request
-                            response = client.post("/convert/", files=files)
+                            response = client.post("/convert/", files=files, headers=headers)
                             assert response.status_code != 429
 
                             # Second request
-                            response = client.post("/convert/", files=files)
+                            response = client.post("/convert/", files=files, headers=headers)
                             assert response.status_code != 429
 
                             # Third request -> Rate limited
-                            response = client.post("/convert/", files=files)
+                            response = client.post("/convert/", files=files, headers=headers)
                             assert response.status_code == 429
                             assert "Too Many Requests" in response.json()["detail"]
 
@@ -108,6 +110,7 @@ def test_rate_limiting_window():
         with patch("docling_lib.server.RATE_LIMIT_WINDOW", 1):
             client = TestClient(app)
             files = {"file": ("test.pdf", b"%PDF-1.4...", "application/pdf")}
+            headers = {"X-API-Key": docling_lib.server.API_KEY}
 
             with patch("docling_lib.server._validate_extension", return_value=".pdf"):
                 with patch(
@@ -121,18 +124,18 @@ def test_rate_limiting_window():
                         with patch("docling_lib.server.run_in_threadpool") as mock_run:
                             mock_run.return_value = Path("result.md")
                             # First request
-                            response = client.post("/convert/", files=files)
+                            response = client.post("/convert/", files=files, headers=headers)
                             assert response.status_code != 429
 
                             # Immediate second request -> Rate limited
-                            response = client.post("/convert/", files=files)
+                            response = client.post("/convert/", files=files, headers=headers)
                             assert response.status_code == 429
 
                             # Wait for window to expire
                             time.sleep(1.1)
 
                             # Third request -> Success
-                            response = client.post("/convert/", files=files)
+                            response = client.post("/convert/", files=files, headers=headers)
                             assert response.status_code != 429
 
 
@@ -159,19 +162,20 @@ def test_download_rate_limiting(tmp_path, monkeypatch):
     with patch("docling_lib.server.RATE_LIMIT_REQUESTS", 2):
         with patch("docling_lib.server.RATE_LIMIT_WINDOW", 60):
             client = TestClient(app)
+            headers = {"X-API-Key": docling_lib.server.API_KEY}
 
             # The dependencies run BEFORE the handler. If rate limiting is not triggered,
             # we will get 400 or 404 (since parameters / files are mock/invalid), but NOT 429.
             # If rate limiting is triggered, we get 429.
 
             # First request
-            response = client.get("/download/validid/file.md")
+            response = client.get("/download/validid/file.md", headers=headers)
             assert response.status_code != 429
 
             # Second request
-            response = client.get("/download/validid/file.md")
+            response = client.get("/download/validid/file.md", headers=headers)
             assert response.status_code != 429
 
             # Third request -> Rate limited
-            response = client.get("/download/validid/file.md")
+            response = client.get("/download/validid/file.md", headers=headers)
             assert response.status_code == 429

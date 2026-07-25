@@ -1,7 +1,11 @@
+import os
 from pathlib import Path
 
 import httpx
 import pytest
+
+# Set default API key environment variable before imports to ensure configuration in tests
+os.environ.setdefault("DOCLING_API_KEY", "test-api-key")
 
 TEST_DATA_DIR = Path(__file__).parent / "test_data"
 
@@ -51,4 +55,17 @@ def reset_rate_limiter():
         docling_lib.server._rate_limit_data.clear()
     except ImportError:
         # Ignore if docling_lib.server cannot be imported (e.g. lightweight tests without docling)
+        pass
+
+
+@pytest.fixture(autouse=True)
+def bypass_auth(request):
+    """Bypass API key authentication for all tests except security auth tests."""
+    try:
+        from docling_lib.server import app, api_key_auth
+        if "test_security_auth_rate_limit" in request.node.nodeid:
+            app.dependency_overrides.pop(api_key_auth, None)
+        else:
+            app.dependency_overrides[api_key_auth] = lambda: None
+    except ImportError:
         pass

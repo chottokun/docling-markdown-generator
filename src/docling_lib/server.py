@@ -106,15 +106,20 @@ def get_conversion_request(
 
 async def api_key_auth(x_api_key: str | None = Header(None)):
     """
-    Dependency to validate API Key if configured.
+    Dependency to validate API Key unconditionally.
     """
-    if API_KEY:
-        if x_api_key is None or not secrets.compare_digest(x_api_key, API_KEY):
-            logger.warning("Unauthorized access attempt with invalid API Key.")
-            raise HTTPException(
-                status_code=401,
-                detail="Invalid or missing API Key.",
-            )
+    if not API_KEY:
+        logger.error("API Key is not configured on the server.")
+        raise HTTPException(
+            status_code=500,
+            detail="Internal Server Error: API Key is not configured.",
+        )
+    if x_api_key is None or not secrets.compare_digest(x_api_key, API_KEY):
+        logger.warning("Unauthorized access attempt with invalid API Key.")
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid or missing API Key.",
+        )
 
 
 # In-memory storage for rate limiting: {client_ip: deque([timestamp1, timestamp2, ...])}
@@ -403,6 +408,8 @@ async def root():
 
 def create_app() -> FastAPI:
     """Factory function to create the FastAPI application."""
+    if not API_KEY:
+        raise ValueError("DOCLING_API_KEY environment variable is not configured.")
     new_app = FastAPI(title="Docling Markdown Conversion Server")
 
     # Add CORS middleware
