@@ -23,10 +23,31 @@ from docling_lib.converter import (
     EnhancedMarkdownSerializer,
     PDFConverter,
 )
-from docling_lib.vlm import generate_caption_sync
+import pytest
+from docling_lib.vlm import generate_caption, generate_caption_sync
 
 
 class TestVLMAndPageBreaks(unittest.TestCase):
+    @patch("docling_lib.vlm._encode_image_to_base64")
+    def test_generate_caption_sync_encoding_exception(self, mock_encode):
+        # Mock _encode_image_to_base64 to raise an exception
+        mock_encode.side_effect = Exception("Failed to encode image")
+
+        img = Image.new("RGB", (10, 10))
+        # This should handle the exception, log a warning, and return ""
+        result = generate_caption_sync(image=img)
+        self.assertEqual(result, "")
+
+    @patch("docling_lib.vlm._encode_image_to_base64")
+    def test_generate_caption_encoding_exception(self, mock_encode):
+        # Mock _encode_image_to_base64 to raise an exception
+        mock_encode.side_effect = Exception("Failed to encode image")
+
+        img = Image.new("RGB", (10, 10))
+        # This should handle the exception, log a warning, and return ""
+        import asyncio
+        result = asyncio.run(generate_caption(image=img))
+        self.assertEqual(result, "")
     @patch("httpx.Client")
     def test_vlm_sync_client_success(self, mock_client_cls):
         # Setup mock client
