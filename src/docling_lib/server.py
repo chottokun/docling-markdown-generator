@@ -396,6 +396,40 @@ async def download_file(request_id: str, filename: str):
         ) from e
 
 
+def cleanup_file(file_path: str | Path):
+    """
+    Safely delete a file after verifying it is within the allowed workspace (CWD).
+    """
+    try:
+        # Resolve path
+        path = Path(file_path).resolve()
+
+        # Security validation against traversal attacks
+        cwd = Path.cwd().resolve()
+        if not path.is_relative_to(cwd):
+            logger.error(
+                "Security Error: Traversal detected during cleanup for file %s",
+                sanitize_log_message(file_path),
+            )
+            return
+
+        if path.exists():
+            path.unlink()
+            logger.debug("Successfully cleaned up file: %s", sanitize_log_message(path))
+    except (OSError, PermissionError) as e:
+        logger.error(
+            "Failed to delete file %s during cleanup: %s",
+            sanitize_log_message(file_path),
+            sanitize_log_message(e),
+        )
+    except Exception as e:
+        logger.error(
+            "Unexpected error during cleanup of file %s: %s",
+            sanitize_log_message(file_path),
+            sanitize_log_message(e),
+        )
+
+
 @router.get("/")
 async def root():
     return {"message": "Welcome to the Docling Markdown Conversion Server"}
