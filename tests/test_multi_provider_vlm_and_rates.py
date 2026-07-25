@@ -214,6 +214,42 @@ class TestMultiProviderVLMAndRates(unittest.TestCase):
         self.assertEqual(req.num_threads, 8)
         self.assertTrue(req.cuda_use_flash_attention)
 
+    @patch("httpx.Client")
+    def test_generate_caption_sync_exception_handling(self, mock_client_cls):
+        """
+        Verify that generate_caption_sync handles Exceptions raised during post request,
+        returns an empty string, logs a warning, and releases the semaphore.
+        """
+        mock_client = mock_client_cls.return_value.__enter__.return_value
+        # Raise an exception when .post is called
+        mock_client.post.side_effect = Exception("Simulated connection timeout or error")
+
+        # We mock the semaphore to verify acquire/release calls
+        mock_sem = MagicMock()
+        with patch("docling_lib.vlm.get_semaphore", return_value=mock_sem) as mock_get_sem, \
+             patch("docling_lib.vlm.logger") as mock_logger:
+
+            img = Image.new("RGB", (10, 10))
+            res = generate_caption_sync(
+                image=img,
+                provider="ollama",
+                endpoint="http://localhost:11434",
+            )
+
+            # Assert that the returned value is an empty string
+            self.assertEqual(res, "")
+
+            # Assert semaphore was acquired and released
+            mock_get_sem.assert_called_once_with(5, provider="ollama", endpoint="http://localhost:11434")
+            mock_sem.acquire.assert_called_once()
+            mock_sem.release.assert_called_once()
+
+            # Assert logger.warning was called
+            mock_logger.warning.assert_called_once()
+            log_msg = mock_logger.warning.call_args[0][0]
+            self.assertIn("Simulated connection timeout or error", log_msg)
+            self.assertIn("caption generation failed", log_msg)
+
 
 if __name__ == "__main__":
     unittest.main()
