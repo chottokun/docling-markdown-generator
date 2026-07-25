@@ -117,8 +117,36 @@ async def api_key_auth(x_api_key: str | None = Header(None)):
             )
 
 
+from functools import lru_cache
+
 # In-memory storage for rate limiting: {client_ip: deque([timestamp1, timestamp2, ...])}
 _rate_limit_data = defaultdict(deque)
+
+
+@lru_cache(maxsize=32)
+def _parse_trusted_proxies(proxies_tuple: tuple[str, ...]) -> tuple[bool, set[str], list[ipaddress.IPv4Network | ipaddress.IPv6Network]]:
+    """
+    Parses trusted proxies list into:
+    - a boolean indicating if a wildcard (*) is present
+    - a set of exact string matches
+    - a list of parsed ipaddress network objects
+    """
+    has_wildcard = False
+    exact_matches = set()
+    parsed_networks = []
+
+    for proxy in proxies_tuple:
+        if proxy == "*":
+            has_wildcard = True
+            continue
+        exact_matches.add(proxy)
+        try:
+            net = ipaddress.ip_network(proxy, strict=False)
+            parsed_networks.append(net)
+        except ValueError:
+            continue
+
+    return has_wildcard, exact_matches, parsed_networks
 
 
 def _is_trusted_proxy(ip_str: str | None) -> bool:
@@ -131,19 +159,25 @@ def _is_trusted_proxy(ip_str: str | None) -> bool:
 
     ip_str = ip_str.strip()
 
-    for proxy in TRUSTED_PROXIES:
-        if proxy == "*":
-            return True
-        if proxy == ip_str:
-            return True
+    proxies_tuple = tuple(TRUSTED_PROXIES)
+    has_wildcard, exact_matches, parsed_networks = _parse_trusted_proxies(proxies_tuple)
 
-        try:
-            net = ipaddress.ip_network(proxy, strict=False)
-            ip = ipaddress.ip_address(ip_str)
+    if has_wildcard:
+        return True
+
+    if ip_str in exact_matches:
+        return True
+
+    if not parsed_networks:
+        return False
+
+    try:
+        ip = ipaddress.ip_address(ip_str)
+        for net in parsed_networks:
             if ip in net:
                 return True
-        except ValueError:
-            continue
+    except ValueError:
+        pass
 
     return False
 
