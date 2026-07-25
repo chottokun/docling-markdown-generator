@@ -21,6 +21,31 @@ def test_download_file_oserror_in_resolution():
         assert response.json()["detail"] == "Invalid request parameters."
 
 
+def test_download_file_oserror_in_get_safe_path_client():
+    """
+    Test via FastAPI client that download_file returns 400 when an OSError is raised by _get_safe_path.
+    """
+    with patch("docling_lib.server._get_safe_path") as mock_get_safe_path:
+        mock_get_safe_path.side_effect = OSError("Mocked safe path OS error")
+        response = client.get("/download/validid/file.md")
+        assert response.status_code == 400
+        assert response.json()["detail"] == "Invalid request parameters."
+
+
+@pytest.mark.asyncio
+async def test_download_file_oserror_in_get_safe_path_direct():
+    """
+    Test directly calling download_file that it raises HTTPException with 400 status code
+    when _get_safe_path raises OSError.
+    """
+    with patch("docling_lib.server._get_safe_path") as mock_get_safe_path:
+        mock_get_safe_path.side_effect = OSError("Mocked safe path OS error")
+        with pytest.raises(HTTPException) as exc_info:
+            await download_file("validid", "file.md")
+        assert exc_info.value.status_code == 400
+        assert exc_info.value.detail == "Invalid request parameters."
+
+
 def test_download_file_invalid_request_id():
     """
     Test that download_file returns 400 for non-alphanumeric request_id (with forbidden chars).
