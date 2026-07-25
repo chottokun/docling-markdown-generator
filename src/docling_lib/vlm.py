@@ -97,6 +97,11 @@ def _get_cached_sync_client() -> httpx.Client:
         # Bypassing cache since httpx.Client is mocked/patched
         return httpx.Client(timeout=_DEFAULT_TIMEOUT)
 
+    # Optimistic lock-free read path
+    client = _sync_client_cache
+    if client is not None and not getattr(client, "is_closed", False):
+        return client
+
     with _sync_client_lock:
         if _sync_client_cache is None or getattr(_sync_client_cache, "is_closed", False):
             _sync_client_cache = _ORIG_CLIENT_CLASS(timeout=_DEFAULT_TIMEOUT)
@@ -367,6 +372,7 @@ async def generate_caption(
         else:
             client_ctx = raw_client
 
+        # Optimized: Using cached AsyncClient via connection pooling instead of instantiating on every call
         async with client_ctx as client:
             response = await client.post(url, headers=headers, json=json_body)
             response.raise_for_status()
@@ -455,6 +461,7 @@ def generate_caption_sync(
         else:
             client_ctx = raw_client
 
+        # Optimized: Using cached Client via connection pooling instead of instantiating on every call
         with client_ctx as client:
             response = client.post(url, headers=headers, json=json_body)
             response.raise_for_status()
