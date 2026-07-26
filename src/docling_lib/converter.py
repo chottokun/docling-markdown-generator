@@ -71,44 +71,58 @@ PAGE_BREAK_RE = re.compile(r"#_#_DOCLING_DOC_PAGE_BREAK_\d+_(\d+)_#_#")
 logger = logging.getLogger(__name__)
 
 
+_cuda_compatible_cache: bool | None = None
+
+
 def is_cuda_compatible() -> bool:
     """
     Checks if CUDA is configured to be used, available, and compatible with PyTorch.
     Performs a brief real tensor operation on GPU to catch incompatible compute
     capability mismatches at startup.
     """
+    global _cuda_compatible_cache
+    import os
+
+    # Bypass cache in testing mode (pytest) to preserve mock/monkeypatch isolation
+    if _cuda_compatible_cache is not None and not os.getenv("PYTEST_CURRENT_TEST"):
+        return _cuda_compatible_cache
+
     if not USE_GPU:
         logger.info("GPU usage is disabled via configuration (USE_GPU=False).")
-        return False
+        result = False
+    else:
+        try:
+            if torch.cuda.is_available():
+                device = torch.device("cuda")
+                # Verify compute capability compatibility
+                major, minor = torch.cuda.get_device_capability(device)
+                capability = major + minor / 10.0
+                # Modern PyTorch builds usually require CC >= 7.5. Older GPUs like GTX 1060 (sm_61)
+                # are incompatible with current PyTorch installations and will cause errors/hangs during model runs.
+                if capability < 7.5:
+                    logger.warning(
+                        f"GPU compute capability {capability} (sm_{major}{minor}) is less than required 7.5. "
+                        "Falling back to CPU."
+                    )
+                    result = False
+                else:
+                    # Run a dummy tensor operation to verify execution capability
+                    _x = torch.zeros(1, device=device)
+                    torch.cuda.synchronize()
+                    logger.info("CUDA is fully available and compatible with the current GPU.")
+                    result = True
+            else:
+                logger.info("CUDA is not available on this system.")
+                result = False
+        except Exception as e:
+            logger.warning(
+                f"CUDA is detected but not compatible with this PyTorch build. "
+                f"Falling back to CPU. Details: {sanitize_log_message(e)}"
+            )
+            result = False
 
-    try:
-        if torch.cuda.is_available():
-            device = torch.device("cuda")
-            # Verify compute capability compatibility
-            major, minor = torch.cuda.get_device_capability(device)
-            capability = major + minor / 10.0
-            # Modern PyTorch builds usually require CC >= 7.5. Older GPUs like GTX 1060 (sm_61)
-            # are incompatible with current PyTorch installations and will cause errors/hangs during model runs.
-            if capability < 7.5:
-                logger.warning(
-                    f"GPU compute capability {capability} (sm_{major}{minor}) is less than required 7.5. "
-                    "Falling back to CPU."
-                )
-                return False
-
-            # Run a dummy tensor operation to verify execution capability
-            _x = torch.zeros(1, device=device)
-            torch.cuda.synchronize()
-            logger.info("CUDA is fully available and compatible with the current GPU.")
-            return True
-        logger.info("CUDA is not available on this system.")
-        return False
-    except Exception as e:
-        logger.warning(
-            f"CUDA is detected but not compatible with this PyTorch build. "
-            f"Falling back to CPU. Details: {sanitize_log_message(e)}"
-        )
-        return False
+    _cuda_compatible_cache = result
+    return result
 
 
 @dataclass
@@ -538,14 +552,23 @@ class PDFConverter:
                 )
                 return False
 
-        with ThreadPoolExecutor() as executor:
-            # We filter out items without valid images to avoid submitting empty tasks
-            valid_items = [item for item in doc.pictures if is_valid_image(item)]
-            if valid_items:
-                results = executor.map(fetch_task, valid_items)
-                for self_ref, caption in results:
-                    if caption:
-                        vlm_captions[self_ref] = caption
+        valid_items = [item for item in doc.pictures if is_valid_image(item)]
+        if not valid_items:
+            return vlm_captions
+
+        # Optimization: Avoid overhead of ThreadPoolExecutor if there is only 1 image
+        if len(valid_items) == 1:
+            self_ref, caption = fetch_task(valid_items[0])
+            if caption:
+                vlm_captions[self_ref] = caption
+            return vlm_captions
+
+        max_workers = min(len(valid_items), 32)
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            results = executor.map(fetch_task, valid_items)
+            for self_ref, caption in results:
+                if caption:
+                    vlm_captions[self_ref] = caption
 
         return vlm_captions
 
@@ -710,11 +733,27 @@ class PDFConverter:
                     f"Failed to save image {image_path}: {sanitize_log_message(e)}"
                 )
 
+        # Pre-filter valid images to save
+        valid_pictures = [
+            (i, element)
+            for i, element in enumerate(doc.pictures)
+            if element.image and element.image.pil_image
+        ]
+
+        if not valid_pictures:
+            return
+
+        # Optimization: Avoid overhead of ThreadPoolExecutor if there is only 1 image
+        if len(valid_pictures) == 1:
+            i, element = valid_pictures[0]
+            save_image(i, element)
+            return
+
         # Iterate over pictures in the document in parallel
-        with ThreadPoolExecutor() as executor:
-            for i, element in enumerate(doc.pictures):
-                if element.image and element.image.pil_image:
-                    executor.submit(save_image, i, element)
+        max_workers = min(len(valid_pictures), 32)
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            for i, element in valid_pictures:
+                executor.submit(save_image, i, element)
 
 
 # Global shared converter instance for reuse

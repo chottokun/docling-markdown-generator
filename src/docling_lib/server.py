@@ -119,6 +119,8 @@ async def api_key_auth(x_api_key: str | None = Header(None)):
 
 # In-memory storage for rate limiting: {client_ip: deque([timestamp1, timestamp2, ...])}
 _rate_limit_data = defaultdict(deque)
+_last_rate_limit_cleanup = 0.0
+_rate_limit_cleanup_interval = 600.0  # Clean up every 10 minutes
 
 
 def _is_trusted_proxy(ip_str: str | None) -> bool:
@@ -173,12 +175,25 @@ def _get_client_ip(request: Request) -> str:
 
 async def rate_limiter(request: Request):
     """
-    Simple in-memory rate limiter dependency.
+    Simple in-memory rate limiter dependency with periodic stale entry cleanup to prevent memory leaks.
     """
+    global _last_rate_limit_cleanup
     client_ip = _get_client_ip(request)
     now = time.time()
 
-    # Clean up old timestamps
+    # Periodic cleanup of all expired client records to prevent memory growth/leak
+    if now - _last_rate_limit_cleanup >= _rate_limit_cleanup_interval:
+        expired_ips = []
+        for ip, timestamps in list(_rate_limit_data.items()):
+            while timestamps and now - timestamps[0] >= RATE_LIMIT_WINDOW:
+                timestamps.popleft()
+            if not timestamps:
+                expired_ips.append(ip)
+        for ip in expired_ips:
+            _rate_limit_data.pop(ip, None)
+        _last_rate_limit_cleanup = now
+
+    # Clean up old timestamps for the current client
     dq = _rate_limit_data[client_ip]
     while dq and now - dq[0] >= RATE_LIMIT_WINDOW:
         dq.popleft()
