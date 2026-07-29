@@ -52,3 +52,15 @@ def reset_rate_limiter():
     except ImportError:
         # Ignore if docling_lib.server cannot be imported (e.g. lightweight tests without docling)
         pass
+
+
+@pytest.fixture(autouse=True)
+def reset_model_pool():
+    """Reset model pool and default converter before each test to ensure isolation."""
+    try:
+        import docling_lib.converter
+        docling_lib.converter._default_pdf_converter = None
+        if hasattr(docling_lib.converter, "_model_pool"):
+            docling_lib.converter._model_pool.clear()
+    except ImportError:
+        pass

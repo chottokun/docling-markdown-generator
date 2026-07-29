@@ -15,8 +15,12 @@ from docling_lib.converter import (
 def reset_default_converter():
     """Reset the global _default_pdf_converter before each test."""
     docling_lib.converter._default_pdf_converter = None
+    if hasattr(docling_lib.converter, "_model_pool"):
+        docling_lib.converter._model_pool.clear()
     yield
     docling_lib.converter._default_pdf_converter = None
+    if hasattr(docling_lib.converter, "_model_pool"):
+        docling_lib.converter._model_pool.clear()
 
 
 def test_validate_input_path_exists(tmp_path):
