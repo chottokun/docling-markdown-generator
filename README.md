@@ -56,8 +56,9 @@ docker-compose up -d --build
 
 ## 📖 技術ドキュメント
 
-詳細な仕様については `docs/` ディレクトリを参照してください：
+詳細な仕様については `docs/` ディレクトリおよび変更履歴を参照してください：
 
+- **[Changelog (CHANGELOG.md)](CHANGELOG.md)**: バージョンごとの機能追加・修正・変更履歴。
 - **[Unique Features (FEATURES.md)](docs/FEATURES.md)**: セキュリティとパフォーマンスの詳細実装。
 - **[API Reference (API_REFERENCE.md)](docs/API_REFERENCE.md)**: 認証・レート制限を含むエンドポイント仕様。
 - **[Markdown Specification (MARKDOWN_SPEC.md)](docs/MARKDOWN_SPEC.md)**: 生成されるMarkdownの構造定義。
