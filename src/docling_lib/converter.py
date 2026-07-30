@@ -153,7 +153,10 @@ class CustomMarkdownPictureSerializer(MarkdownPictureSerializer):
         vlm_api_key: str = "",
         vlm_model: str = "qwen2-vl:2b",
         vlm_endpoint: str = "http://localhost:11434",
-        vlm_prompt: str = "この画像の概要を1〜2文程度で簡潔に日本語で説明してください。",
+        vlm_prompt: str = (
+            "この画像の概要を1〜2文程度で簡潔に日本語で説明してください。"
+            "なお、グラフや図表の場合は主要な数値や傾向（増減・ピークなど）を含めて説明してください。"
+        ),
         vlm_max_concurrent: int = 5,
         vlm_captions: dict[str, str] | None = None,
         image_dir_name: str = "images",
@@ -328,7 +331,10 @@ class EnhancedMarkdownSerializer(MarkdownDocSerializer):
         vlm_api_key: str = "",
         vlm_model: str = "qwen2-vl:2b",
         vlm_endpoint: str = "http://localhost:11434",
-        vlm_prompt: str = "この画像の概要を1〜2文程度で簡潔に日本語で説明してください。",
+        vlm_prompt: str = (
+            "この画像の概要を1〜2文程度で簡潔に日本語で説明してください。"
+            "なお、グラフや図表の場合は主要な数値や傾向（増減・ピークなど）を含めて説明してください。"
+        ),
         vlm_max_concurrent: int = 5,
         vlm_captions: dict[str, str] | None = None,
         image_dir_name: str = "images",

@@ -47,7 +47,10 @@ def test_serialize_to_markdown():
             vlm_api_key="",
             vlm_model="qwen2-vl:2b",
             vlm_endpoint="http://localhost:11434",
-            vlm_prompt="この画像の概要を1〜2文程度で簡潔に日本語で説明してください。",
+            vlm_prompt=(
+                "この画像の概要を1〜2文程度で簡潔に日本語で説明してください。"
+                "なお、グラフや図表の場合は主要な数値や傾向（増減・ピークなど）を含めて説明してください。"
+            ),
             vlm_max_concurrent=5,
             vlm_captions={},
             image_dir_name="images",
@@ -92,7 +95,10 @@ def test_serialize_to_markdown_different_format():
             vlm_api_key="",
             vlm_model="qwen2-vl:2b",
             vlm_endpoint="http://localhost:11434",
-            vlm_prompt="この画像の概要を1〜2文程度で簡潔に日本語で説明してください。",
+            vlm_prompt=(
+                "この画像の概要を1〜2文程度で簡潔に日本語で説明してください。"
+                "なお、グラフや図表の場合は主要な数値や傾向（増減・ピークなど）を含めて説明してください。"
+            ),
             vlm_max_concurrent=5,
             vlm_captions={},
             image_dir_name="images",

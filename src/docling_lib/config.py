@@ -69,7 +69,8 @@ DOCLING_VLM_API_KEY = os.getenv("DOCLING_VLM_API_KEY", "")
 DOCLING_VLM_MODEL = os.getenv("DOCLING_VLM_MODEL", "qwen2-vl:2b")
 DOCLING_VLM_ENDPOINT = os.getenv("DOCLING_VLM_ENDPOINT", "http://localhost:11434")
 DOCLING_VLM_PROMPT = os.getenv(
-    "DOCLING_VLM_PROMPT", "この画像の概要を1〜2文程度で簡潔に日本語で説明してください。"
+    "DOCLING_VLM_PROMPT",
+    "この画像の概要を1〜2文程度で簡潔に日本語で説明してください。なお、グラフや図表の場合は主要な数値や傾向（増減・ピークなど）を含めて説明してください。",
 )
 DOCLING_VLM_MAX_CONCURRENT = int(os.getenv("DOCLING_VLM_MAX_CONCURRENT", "5"))
 DOCLING_INCLUDE_PAGE_BREAKS = (
