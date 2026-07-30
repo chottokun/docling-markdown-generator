@@ -1,22 +1,22 @@
 import time
 from unittest.mock import MagicMock, patch
+
 import pytest
+from docling_core.types.doc import DoclingDocument, TableCell, TableData, TableItem
 from PIL import Image
 
-from docling_core.types.doc import DoclingDocument, TableItem, TableData, TableCell
-from docling_lib.vlm import _get_cached_sync_client
 from docling_lib.converter import (
-    ThreadSafeModelPool,
     DocumentConversionOptions,
-    PDFConverter,
     HTMLTableMarkdownSerializer,
+    PDFConverter,
+    ThreadSafeModelPool,
 )
 from docling_lib.server import (
-    _parse_trusted_proxies,
     _is_trusted_proxy,
-    _rate_limit_data,
+    _parse_trusted_proxies,
     rate_limiter,
 )
+from docling_lib.vlm import _get_cached_sync_client
 
 
 def test_lock_free_sync_client_cache_hit():
@@ -134,7 +134,6 @@ async def test_rate_limiter_periodic_cleanup():
 
 def test_trusted_proxies_caching():
     """Verify trusted proxies parsing caching and correct behavior."""
-    from docling_lib import server
 
     with patch("docling_lib.server.TRUSTED_PROXIES", ["10.0.0.0/24", "192.168.1.1", "*"]):
         _parse_trusted_proxies.cache_clear()
