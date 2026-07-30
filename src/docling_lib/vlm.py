@@ -97,6 +97,11 @@ def _get_cached_sync_client() -> httpx.Client:
         # Bypassing cache since httpx.Client is mocked/patched
         return httpx.Client(timeout=_DEFAULT_TIMEOUT)
 
+    # Optimistic lock-free read path to avoid lock overhead on cache hits
+    client = _sync_client_cache
+    if client is not None and not getattr(client, "is_closed", False):
+        return client
+
     with _sync_client_lock:
         if _sync_client_cache is None or getattr(_sync_client_cache, "is_closed", False):
             _sync_client_cache = _ORIG_CLIENT_CLASS(timeout=_DEFAULT_TIMEOUT)
