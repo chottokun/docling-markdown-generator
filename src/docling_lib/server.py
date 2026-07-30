@@ -5,6 +5,7 @@ import secrets
 import tempfile
 import time
 from collections import defaultdict, deque
+from functools import lru_cache
 from pathlib import Path
 
 from fastapi import (
@@ -119,6 +120,31 @@ async def api_key_auth(x_api_key: str | None = Header(None)):
 
 # In-memory storage for rate limiting: {client_ip: deque([timestamp1, timestamp2, ...])}
 _rate_limit_data = defaultdict(deque)
+_last_rate_limit_cleanup = 0.0
+
+
+@lru_cache(maxsize=1)
+def _parse_trusted_proxies(proxies_tuple: tuple[str, ...]):
+    """
+    Pre-parse trusted proxies list to avoid redundant IP parsing in the request cycle.
+    """
+    wildcard = False
+    exact_matches = set()
+    cidr_networks = []
+
+    for proxy in proxies_tuple:
+        p = proxy.strip()
+        if p == "*":
+            wildcard = True
+            continue
+        exact_matches.add(p)
+        if "/" in p:
+            try:
+                cidr_networks.append(ipaddress.ip_network(p, strict=False))
+            except ValueError:
+                continue
+
+    return wildcard, exact_matches, cidr_networks
 
 
 def _is_trusted_proxy(ip_str: str | None) -> bool:
@@ -131,19 +157,21 @@ def _is_trusted_proxy(ip_str: str | None) -> bool:
 
     ip_str = ip_str.strip()
 
-    for proxy in TRUSTED_PROXIES:
-        if proxy == "*":
-            return True
-        if proxy == ip_str:
-            return True
+    wildcard, exact_matches, cidr_networks = _parse_trusted_proxies(tuple(TRUSTED_PROXIES))
 
+    if wildcard:
+        return True
+    if ip_str in exact_matches:
+        return True
+
+    if cidr_networks:
         try:
-            net = ipaddress.ip_network(proxy, strict=False)
             ip = ipaddress.ip_address(ip_str)
-            if ip in net:
-                return True
+            for net in cidr_networks:
+                if ip in net:
+                    return True
         except ValueError:
-            continue
+            pass
 
     return False
 
@@ -175,10 +203,22 @@ async def rate_limiter(request: Request):
     """
     Simple in-memory rate limiter dependency.
     """
+    global _last_rate_limit_cleanup
     client_ip = _get_client_ip(request)
     now = time.time()
 
-    # Clean up old timestamps
+    # Periodic interval-based cleanup of _rate_limit_data to avoid memory leaks/growth
+    if now - _last_rate_limit_cleanup >= 600.0:
+        # Avoid dictionary size change during iteration
+        for ip in list(_rate_limit_data.keys()):
+            dq = _rate_limit_data[ip]
+            while dq and now - dq[0] >= RATE_LIMIT_WINDOW:
+                dq.popleft()
+            if not dq:
+                _rate_limit_data.pop(ip, None)
+        _last_rate_limit_cleanup = now
+
+    # Clean up old timestamps for current client
     dq = _rate_limit_data[client_ip]
     while dq and now - dq[0] >= RATE_LIMIT_WINDOW:
         dq.popleft()
