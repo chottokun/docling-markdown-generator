@@ -788,8 +788,15 @@ class ThreadSafeModelPool:
                 self._access_order.append(key)
                 return self._pool[key]
 
-            # Double-checked pattern: if key is not found, we create a new converter
-            converter = PDFConverter(options=options)
+        # Double-checked pattern: create new converter outside the lock to avoid blocking other threads
+        converter = PDFConverter(options=options)
+
+        with self._lock:
+            if key in self._pool:
+                if key in self._access_order:
+                    self._access_order.remove(key)
+                self._access_order.append(key)
+                return self._pool[key]
 
             if len(self._pool) >= self.max_size:
                 lru_key = self._access_order.pop(0)

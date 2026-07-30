@@ -145,3 +145,42 @@ def test_trusted_proxies_caching():
         # Verify caching is populated
         cache_info = _parse_trusted_proxies.cache_info()
         assert cache_info.hits > 0
+
+
+def test_thread_safe_model_pool_concurrent_access():
+    """Critical Test: Verify ThreadSafeModelPool is thread-safe under concurrent requests."""
+    import concurrent.futures
+
+    pool = ThreadSafeModelPool(max_size=4)
+    opts = DocumentConversionOptions(do_ocr=True, image_scale=2.0)
+
+    results = []
+    def fetch():
+        return pool.get_converter(opts)
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+        futures = [executor.submit(fetch) for _ in range(20)]
+        results = [f.result() for f in concurrent.futures.as_completed(futures)]
+
+    # All returned instances for identical options must be identical (cache hit)
+    first_instance = results[0]
+    assert all(inst is first_instance for inst in results)
+
+
+def test_adaptive_table_serializer_corrupt_data():
+    """Critical Test: Verify table serializer safely handles None or missing table_cells."""
+    serializer = HTMLTableMarkdownSerializer()
+
+    # Case: table_cells is None or empty list
+    mock_data = MagicMock(spec=TableData, table_cells=None)
+    mock_item = MagicMock(spec=TableItem, data=mock_data)
+    # Ensure _mock_name is not set so it doesn't trigger mock override
+    del mock_item._mock_name
+
+    mock_doc = MagicMock(spec=DoclingDocument)
+    mock_doc_serializer = MagicMock()
+
+    with patch("docling_core.transforms.serializer.markdown.MarkdownTableSerializer.serialize") as mock_super_serialize:
+        serializer.serialize(item=mock_item, doc_serializer=mock_doc_serializer, doc=mock_doc)
+        mock_super_serialize.assert_called_once()
+
