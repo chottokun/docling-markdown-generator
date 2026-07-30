@@ -305,7 +305,7 @@ async def generate_caption(
     api_key: str = "",
     model: str = "qwen2-vl:2b",
     endpoint: str = "http://localhost:11434",
-    prompt: str = "この画像の詳細な説明文を日本語で作成してください。",
+    prompt: str = "この画像の概要を1〜2文程度で簡潔に日本語で説明してください。",
     text_content: str | None = None,
     vlm_max_concurrent: int = 5,
 ) -> str:
@@ -333,7 +333,7 @@ async def generate_caption(
             endpoint = "https://generativelanguage.googleapis.com"
 
     if not prompt:
-        prompt = "この画像の詳細な説明文を日本語で作成してください。"
+        prompt = "この画像の概要を1〜2文程度で簡潔に日本語で説明してください。"
 
     # Encode image if provided
     img_base64 = None
@@ -394,7 +394,7 @@ def generate_caption_sync(
     api_key: str = "",
     model: str = "qwen2-vl:2b",
     endpoint: str = "http://localhost:11434",
-    prompt: str = "この画像の詳細な説明文を日本語で作成してください。",
+    prompt: str = "この画像の概要を1〜2文程度で簡潔に日本語で説明してください。",
     text_content: str | None = None,
     vlm_max_concurrent: int = 5,
 ) -> str:
@@ -422,7 +422,7 @@ def generate_caption_sync(
             endpoint = "https://generativelanguage.googleapis.com"
 
     if not prompt:
-        prompt = "この画像の詳細な説明文を日本語で作成してください。"
+        prompt = "この画像の概要を1〜2文程度で簡潔に日本語で説明してください。"
 
     # Encode image if provided
     img_base64 = None
