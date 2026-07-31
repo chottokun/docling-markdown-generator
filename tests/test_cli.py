@@ -189,4 +189,3 @@ def test_entry_point_sys_exit_raises_exception(mock_main, mock_sys, mock_logger)
         "An unexpected error occurred in the CLI: Unexpected system exit failure"
         in mock_logger.exception.call_args[0][0]
     )
-

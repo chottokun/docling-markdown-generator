@@ -1,7 +1,10 @@
 import logging
+import multiprocessing
 import re
+import shutil
+import tempfile
 import threading
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -47,6 +50,7 @@ from .config import (
     DOCLING_CUDA_FLASH_ATTENTION,
     DOCLING_INCLUDE_KV_EXTRACTION,
     DOCLING_INCLUDE_PAGE_BREAKS,
+    DOCLING_MAX_WORKERS,
     DOCLING_NUM_THREADS,
     DOCLING_TABLE_FORMAT,
     DOCLING_VLM_API_KEY,
@@ -226,7 +230,6 @@ class CustomMarkdownPictureSerializer(MarkdownPictureSerializer):
         return res
 
 
-
 class HTMLTableMarkdownSerializer(MarkdownTableSerializer):
     """
     Custom Markdown Table Serializer that exports tables as HTML
@@ -249,7 +252,9 @@ class HTMLTableMarkdownSerializer(MarkdownTableSerializer):
         elif hasattr(item, "data") and item.data and hasattr(item.data, "table_cells"):
             cells = item.data.table_cells
             for cell in cells:
-                if (getattr(cell, "row_span", 1) or 1) > 1 or (getattr(cell, "col_span", 1) or 1) > 1:
+                if (getattr(cell, "row_span", 1) or 1) > 1 or (
+                    getattr(cell, "col_span", 1) or 1
+                ) > 1:
                     has_merged_cells = True
                     break
 
@@ -768,6 +773,7 @@ class ThreadSafeModelPool:
     Operates on a double-checked locking pattern (using threading.RLock)
     using the heavy converter configuration variables as the cache key.
     """
+
     def __init__(self, max_size: int = 4):
         self.max_size = max_size
         self._pool: dict[tuple, PDFConverter] = {}
@@ -916,3 +922,119 @@ def process_pdf(
     except Exception as e:
         logger.error(f"Workflow Error: {sanitize_log_message(e)}")
         return None
+
+
+def _worker_initializer(options_dict: dict | None = None) -> None:
+    """
+    Initializes a worker process by pre-loading the PDFConverter model cache.
+    """
+    if options_dict:
+        try:
+            # Recreate options and get converter to trigger lazy preloading
+            options = DocumentConversionOptions(**options_dict)
+            _get_or_create_converter(options)
+        except Exception as e:
+            # Don't crash worker startup if pre-loading fails, just log
+            logger.warning(f"Worker preload initialization failed: {e}")
+
+
+def process_pdf_multi_process_worker(
+    pdf_path_str: str,
+    output_dir_str: str,
+    options_dict: dict,
+) -> str | None:
+    """
+    Task function that runs in a worker process.
+    Uses tempfile.TemporaryDirectory to manage task-level files safely.
+    """
+    pdf_path = Path(pdf_path_str)
+    output_dir = Path(output_dir_str)
+    options = DocumentConversionOptions(**options_dict)
+
+    with tempfile.TemporaryDirectory() as temp_dir_name:
+        temp_dir = Path(temp_dir_name)
+
+        # Copy input PDF to the isolated temp directory to protect original path I/O
+        temp_pdf_path = temp_dir / pdf_path.name
+        shutil.copy2(pdf_path, temp_pdf_path)
+
+        # Define isolated temp output dir
+        temp_output_dir = temp_dir / "output"
+        temp_output_dir.mkdir(parents=True, exist_ok=True)
+
+        # Execute the actual conversion
+        res_path = process_pdf(
+            pdf_path=temp_pdf_path,
+            output_dir=temp_output_dir,
+            options=options,
+        )
+
+        if res_path is not None:
+            # Copy all generated files (markdown, images) to the final output directory
+            output_dir.mkdir(parents=True, exist_ok=True)
+            for item in temp_output_dir.iterdir():
+                if item.is_dir():
+                    shutil.copytree(item, output_dir / item.name, dirs_exist_ok=True)
+                else:
+                    shutil.copy2(item, output_dir / item.name)
+            return str(output_dir / res_path.name)
+
+        return None
+
+
+_process_pool: ProcessPoolExecutor | None = None
+_process_pool_lock = threading.Lock()
+
+
+def get_process_pool() -> ProcessPoolExecutor:
+    """
+    Returns the thread-safe global ProcessPoolExecutor.
+    Lazily initializes the process pool using the 'spawn' start method.
+    """
+    global _process_pool
+    if _process_pool is None:
+        with _process_pool_lock:
+            if _process_pool is None:
+                ctx = multiprocessing.get_context("spawn")
+
+                # Retrieve default options for initializer preloading
+                default_options_dict = {
+                    "image_dir_name": IMAGE_DIR_NAME,
+                    "md_output_name": MD_OUTPUT_NAME,
+                    "image_scale": IMAGE_RESOLUTION_SCALE,
+                    "table_format": DOCLING_TABLE_FORMAT,
+                    "do_formula": DO_FORMULA,
+                    "do_ocr": DO_OCR,
+                    "do_chart": DO_CHART,
+                    "do_code": DO_CODE,
+                    "include_page_breaks": DOCLING_INCLUDE_PAGE_BREAKS,
+                    "include_kv_extraction": DOCLING_INCLUDE_KV_EXTRACTION,
+                    "vlm_enabled": DOCLING_VLM_ENABLED,
+                    "vlm_provider": DOCLING_VLM_PROVIDER,
+                    "vlm_api_key": DOCLING_VLM_API_KEY,
+                    "vlm_model": DOCLING_VLM_MODEL,
+                    "vlm_endpoint": DOCLING_VLM_ENDPOINT,
+                    "vlm_prompt": DOCLING_VLM_PROMPT,
+                    "vlm_max_concurrent": DOCLING_VLM_MAX_CONCURRENT,
+                    "num_threads": DOCLING_NUM_THREADS,
+                    "cuda_use_flash_attention": DOCLING_CUDA_FLASH_ATTENTION,
+                }
+
+                _process_pool = ProcessPoolExecutor(
+                    max_workers=DOCLING_MAX_WORKERS,
+                    mp_context=ctx,
+                    initializer=_worker_initializer,
+                    initargs=(default_options_dict,),
+                )
+    return _process_pool
+
+
+def shutdown_process_pool() -> None:
+    """
+    Shuts down the global ProcessPoolExecutor.
+    """
+    global _process_pool
+    with _process_pool_lock:
+        if _process_pool is not None:
+            _process_pool.shutdown(wait=True)
+            _process_pool = None

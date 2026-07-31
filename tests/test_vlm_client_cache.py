@@ -39,12 +39,12 @@ def test_sync_client_recreated_if_closed(monkeypatch):
     monkeypatch.setattr(vlm, "_sync_client_cache", None)
 
     client1 = _get_cached_sync_client()
-    
+
     # 疑似的にクローズ
     client1.close()
-    
+
     client2 = _get_cached_sync_client()
-    
+
     assert client1 is not client2
     assert not client2.is_closed
 
@@ -76,7 +76,9 @@ async def test_async_client_cached_per_loop(monkeypatch):
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
-            other_client = loop.run_until_complete(asyncio.sleep(0.01, result=_get_cached_async_client()))
+            other_client = loop.run_until_complete(
+                asyncio.sleep(0.01, result=_get_cached_async_client())
+            )
         finally:
             loop.close()
 

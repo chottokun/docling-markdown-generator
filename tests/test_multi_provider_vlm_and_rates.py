@@ -21,7 +21,6 @@ from docling_lib.vlm import (
 
 
 class TestMultiProviderVLMAndRates(unittest.TestCase):
-
     @patch("httpx.Client")
     def test_openai_provider_payload(self, mock_client_cls):
         """
@@ -30,7 +29,9 @@ class TestMultiProviderVLMAndRates(unittest.TestCase):
         mock_client = mock_client_cls.return_value.__enter__.return_value
         mock_response = MagicMock()
         mock_response.json.return_value = {
-            "choices": [{"message": {"role": "assistant", "content": "OpenAI Description"}}]
+            "choices": [
+                {"message": {"role": "assistant", "content": "OpenAI Description"}}
+            ]
         }
         mock_response.raise_for_status = MagicMock()
         mock_client.post.return_value = mock_response
@@ -52,7 +53,9 @@ class TestMultiProviderVLMAndRates(unittest.TestCase):
         self.assertEqual(call_kwargs["json"]["model"], "gpt-4o-mini")
         content_parts = call_kwargs["json"]["messages"][0]["content"]
         self.assertEqual(content_parts[0]["text"], "Describe this")
-        self.assertTrue(content_parts[1]["image_url"]["url"].startswith("data:image/png;base64,"))
+        self.assertTrue(
+            content_parts[1]["image_url"]["url"].startswith("data:image/png;base64,")
+        )
 
     @patch("httpx.Client")
     def test_anthropic_provider_payload(self, mock_client_cls):
@@ -169,8 +172,20 @@ class TestMultiProviderVLMAndRates(unittest.TestCase):
         Verify serialize_table_data_to_markdown escapes pipe characters in table cell text.
         """
         cells = [
-            TableCell(start_row_offset_idx=0, end_row_offset_idx=1, start_col_offset_idx=0, end_col_offset_idx=1, text="Header | Name"),
-            TableCell(start_row_offset_idx=1, end_row_offset_idx=2, start_col_offset_idx=0, end_col_offset_idx=1, text="Alice | Bob"),
+            TableCell(
+                start_row_offset_idx=0,
+                end_row_offset_idx=1,
+                start_col_offset_idx=0,
+                end_col_offset_idx=1,
+                text="Header | Name",
+            ),
+            TableCell(
+                start_row_offset_idx=1,
+                end_row_offset_idx=2,
+                start_col_offset_idx=0,
+                end_col_offset_idx=1,
+                text="Alice | Bob",
+            ),
         ]
         td = TableData(table_cells=cells, num_rows=2, num_cols=1)
         md = serialize_table_data_to_markdown(td)
