@@ -52,6 +52,7 @@ TRUSTED_PROXIES = [
 
 # Multi-process parallelization config
 DOCLING_MAX_WORKERS = int(os.getenv("DOCLING_MAX_WORKERS", "2"))
+DOCLING_MAX_TASKS_PER_CHILD = int(os.getenv("DOCLING_MAX_TASKS_PER_CHILD", "30"))
 
 # Docling v2.x Pipeline options
 DO_FORMULA = os.getenv("DOCLING_DO_FORMULA", "True").lower() == "true"

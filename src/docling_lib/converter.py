@@ -1,3 +1,4 @@
+import concurrent.futures
 import logging
 import multiprocessing
 import re
@@ -985,57 +986,171 @@ def process_pdf_multi_process_worker(
 
 _process_pool: ProcessPoolExecutor | None = None
 _process_pool_lock = threading.Lock()
+_tasks_submitted_count = 0
+_active_tasks_count = 0
+_active_tasks_lock = threading.Lock()
 
 
-def get_process_pool() -> ProcessPoolExecutor:
+def get_tasks_submitted_count() -> int:
+    """
+    Returns the current number of submitted tasks.
+    """
+    global _tasks_submitted_count
+    with _process_pool_lock:
+        return _tasks_submitted_count
+
+
+def get_active_tasks_count() -> int:
+    """
+    Returns the current number of active concurrent tasks.
+    """
+    global _active_tasks_count
+    with _active_tasks_lock:
+        return _active_tasks_count
+
+
+def increment_active_tasks() -> None:
+    """
+    Increments the active concurrent task count.
+    """
+    global _active_tasks_count
+    with _active_tasks_lock:
+        _active_tasks_count += 1
+
+
+def decrement_active_tasks() -> None:
+    """
+    Decrements the active concurrent task count.
+    """
+    global _active_tasks_count
+    with _active_tasks_lock:
+        if _active_tasks_count > 0:
+            _active_tasks_count -= 1
+
+
+def get_process_pool(force_recreate: bool = False) -> ProcessPoolExecutor:
     """
     Returns the thread-safe global ProcessPoolExecutor.
     Lazily initializes the process pool using the 'spawn' start method.
+    If force_recreate is True or if max_tasks_per_child memory threshold is hit, recreates it.
     """
-    global _process_pool
-    if _process_pool is None:
-        with _process_pool_lock:
-            if _process_pool is None:
-                ctx = multiprocessing.get_context("spawn")
+    global _process_pool, _tasks_submitted_count
+    from .config import DOCLING_MAX_TASKS_PER_CHILD
 
-                # Retrieve default options for initializer preloading
-                default_options_dict = {
-                    "image_dir_name": IMAGE_DIR_NAME,
-                    "md_output_name": MD_OUTPUT_NAME,
-                    "image_scale": IMAGE_RESOLUTION_SCALE,
-                    "table_format": DOCLING_TABLE_FORMAT,
-                    "do_formula": DO_FORMULA,
-                    "do_ocr": DO_OCR,
-                    "do_chart": DO_CHART,
-                    "do_code": DO_CODE,
-                    "include_page_breaks": DOCLING_INCLUDE_PAGE_BREAKS,
-                    "include_kv_extraction": DOCLING_INCLUDE_KV_EXTRACTION,
-                    "vlm_enabled": DOCLING_VLM_ENABLED,
-                    "vlm_provider": DOCLING_VLM_PROVIDER,
-                    "vlm_api_key": DOCLING_VLM_API_KEY,
-                    "vlm_model": DOCLING_VLM_MODEL,
-                    "vlm_endpoint": DOCLING_VLM_ENDPOINT,
-                    "vlm_prompt": DOCLING_VLM_PROMPT,
-                    "vlm_max_concurrent": DOCLING_VLM_MAX_CONCURRENT,
-                    "num_threads": DOCLING_NUM_THREADS,
-                    "cuda_use_flash_attention": DOCLING_CUDA_FLASH_ATTENTION,
-                }
+    with _process_pool_lock:
+        should_recycle = force_recreate or (
+            _process_pool is not None
+            and _tasks_submitted_count >= DOCLING_MAX_TASKS_PER_CHILD
+            and get_active_tasks_count() == 0
+        )
+        if should_recycle:
+            logger.info("Recycling/recreating process pool to clear PyTorch/C-level memory...")
+            if _process_pool is not None:
+                # Force-kill child processes to prevent them from hanging the pool shutdown or lingering as zombies
+                for p in list(getattr(_process_pool, "_processes", {}).values()):
+                    try:
+                        p.terminate()
+                    except Exception:
+                        pass
+                _process_pool.shutdown(wait=False, cancel_futures=True)
+                _process_pool = None
+            _tasks_submitted_count = 0
 
-                _process_pool = ProcessPoolExecutor(
-                    max_workers=DOCLING_MAX_WORKERS,
-                    mp_context=ctx,
-                    initializer=_worker_initializer,
-                    initargs=(default_options_dict,),
-                )
+        if _process_pool is None:
+            ctx = multiprocessing.get_context("spawn")
+
+            # Retrieve default options for initializer preloading
+            default_options_dict = {
+                "image_dir_name": IMAGE_DIR_NAME,
+                "md_output_name": MD_OUTPUT_NAME,
+                "image_scale": IMAGE_RESOLUTION_SCALE,
+                "table_format": DOCLING_TABLE_FORMAT,
+                "do_formula": DO_FORMULA,
+                "do_ocr": DO_OCR,
+                "do_chart": DO_CHART,
+                "do_code": DO_CODE,
+                "include_page_breaks": DOCLING_INCLUDE_PAGE_BREAKS,
+                "include_kv_extraction": DOCLING_INCLUDE_KV_EXTRACTION,
+                "vlm_enabled": DOCLING_VLM_ENABLED,
+                "vlm_provider": DOCLING_VLM_PROVIDER,
+                "vlm_api_key": DOCLING_VLM_API_KEY,
+                "vlm_model": DOCLING_VLM_MODEL,
+                "vlm_endpoint": DOCLING_VLM_ENDPOINT,
+                "vlm_prompt": DOCLING_VLM_PROMPT,
+                "vlm_max_concurrent": DOCLING_VLM_MAX_CONCURRENT,
+                "num_threads": DOCLING_NUM_THREADS,
+                "cuda_use_flash_attention": DOCLING_CUDA_FLASH_ATTENTION,
+            }
+
+            _process_pool = ProcessPoolExecutor(
+                max_workers=DOCLING_MAX_WORKERS,
+                mp_context=ctx,
+                initializer=_worker_initializer,
+                initargs=(default_options_dict,),
+            )
     return _process_pool
+
+
+def increment_submitted_tasks() -> None:
+    """
+    Atomically tracks the number of submitted tasks to facilitate process recycling.
+    """
+    global _tasks_submitted_count
+    with _process_pool_lock:
+        _tasks_submitted_count += 1
 
 
 def shutdown_process_pool() -> None:
     """
     Shuts down the global ProcessPoolExecutor.
     """
-    global _process_pool
+    global _process_pool, _tasks_submitted_count
     with _process_pool_lock:
         if _process_pool is not None:
-            _process_pool.shutdown(wait=True)
+            for p in list(getattr(_process_pool, "_processes", {}).values()):
+                try:
+                    p.terminate()
+                except Exception:
+                    pass
+            _process_pool.shutdown(wait=False, cancel_futures=True)
             _process_pool = None
+        _tasks_submitted_count = 0
+
+
+def process_pdf_multi_process_worker_with_timeout(
+    pdf_path_str: str,
+    output_dir_str: str,
+    options_dict: dict,
+    timeout: float | None = None,
+) -> str | None:
+    """
+    Submits process_pdf_multi_process_worker to the global ProcessPoolExecutor,
+    enforcing a strict task-level timeout if specified.
+    """
+    pool = get_process_pool()
+    increment_submitted_tasks()
+
+    future = pool.submit(
+        process_pdf_multi_process_worker,
+        pdf_path_str,
+        output_dir_str,
+        options_dict,
+    )
+
+    increment_active_tasks()
+    try:
+        res = future.result(timeout=timeout)
+        decrement_active_tasks()
+        return res
+    except concurrent.futures.TimeoutError:
+        logger.error(f"Task processing timed out for file: {pdf_path_str} (timeout={timeout}s)")
+        future.cancel()
+        decrement_active_tasks()
+        # Force pool recreation ONLY if no other active concurrent tasks are running to prevent disrupting them
+        if get_active_tasks_count() == 0:
+            get_process_pool(force_recreate=True)
+        return None
+    except Exception as e:
+        decrement_active_tasks()
+        logger.error(f"Task processing failed with exception: {e}")
+        return None
