@@ -50,6 +50,9 @@ TRUSTED_PROXIES = [
     p.strip() for p in os.getenv("DOCLING_TRUSTED_PROXIES", "").split(",") if p.strip()
 ]
 
+# Multi-process parallelization config
+DOCLING_MAX_WORKERS = int(os.getenv("DOCLING_MAX_WORKERS", "2"))
+
 # Docling v2.x Pipeline options
 DO_FORMULA = os.getenv("DOCLING_DO_FORMULA", "True").lower() == "true"
 DO_OCR = os.getenv("DOCLING_DO_OCR", "True").lower() == "true"
