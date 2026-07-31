@@ -951,7 +951,8 @@ def process_pdf_multi_process_worker(
     output_dir = Path(output_dir_str)
     options = DocumentConversionOptions(**options_dict)
 
-    with tempfile.TemporaryDirectory() as temp_dir_name:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(dir=output_dir) as temp_dir_name:
         temp_dir = Path(temp_dir_name)
 
         # Copy input PDF to the isolated temp directory to protect original path I/O

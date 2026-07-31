@@ -126,6 +126,7 @@ _rate_limit_data = defaultdict(deque)
 _last_rate_limit_cleanup = 0.0
 
 _concurrency_semaphore = None
+_semaphore_loop = None
 _semaphore_lock = asyncio.Lock()
 
 
@@ -152,17 +153,19 @@ def get_dynamic_semaphore_limit() -> int:
 
 async def get_concurrency_semaphore() -> asyncio.Semaphore:
     """
-    Retrieves the lazy-initialized global concurrency Semaphore.
+    Retrieves the lazy-initialized global concurrency Semaphore bound to the active event loop.
     """
-    global _concurrency_semaphore
-    if _concurrency_semaphore is None:
+    global _concurrency_semaphore, _semaphore_loop
+    current_loop = asyncio.get_running_loop()
+    if _concurrency_semaphore is None or _semaphore_loop is not current_loop:
         async with _semaphore_lock:
-            if _concurrency_semaphore is None:
+            if _concurrency_semaphore is None or _semaphore_loop is not current_loop:
                 limit = get_dynamic_semaphore_limit()
                 logger.info(
                     f"Dynamically initialized concurrency semaphore with limit: {limit}"
                 )
                 _concurrency_semaphore = asyncio.Semaphore(limit)
+                _semaphore_loop = current_loop
     return _concurrency_semaphore
 
 
