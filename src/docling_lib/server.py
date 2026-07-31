@@ -141,10 +141,12 @@ def get_dynamic_semaphore_limit() -> int:
         # Each worker process needs about 1.5 GB
         limit = max(1, int(available_gb / 1.5))
         from .config import DOCLING_MAX_WORKERS
+
         cap = max(2, DOCLING_MAX_WORKERS)
         return min(limit, cap)
     except Exception:
         from .config import DOCLING_MAX_WORKERS
+
         return max(1, DOCLING_MAX_WORKERS)
 
 
@@ -157,7 +159,9 @@ async def get_concurrency_semaphore() -> asyncio.Semaphore:
         async with _semaphore_lock:
             if _concurrency_semaphore is None:
                 limit = get_dynamic_semaphore_limit()
-                logger.info(f"Dynamically initialized concurrency semaphore with limit: {limit}")
+                logger.info(
+                    f"Dynamically initialized concurrency semaphore with limit: {limit}"
+                )
                 _concurrency_semaphore = asyncio.Semaphore(limit)
     return _concurrency_semaphore
 
@@ -196,7 +200,9 @@ def _is_trusted_proxy(ip_str: str | None) -> bool:
 
     ip_str = ip_str.strip()
 
-    wildcard, exact_matches, cidr_networks = _parse_trusted_proxies(tuple(TRUSTED_PROXIES))
+    wildcard, exact_matches, cidr_networks = _parse_trusted_proxies(
+        tuple(TRUSTED_PROXIES)
+    )
 
     if wildcard:
         return True
@@ -315,6 +321,7 @@ async def _save_upload_temp(file: UploadFile, suffix: str) -> Path:
 
     # Check if we are using a mocked tempfile inside tests
     if "Mock" in type(tmp_file).__name__:
+
         def _sync_write():
             total_size = 0
             try:
@@ -569,6 +576,7 @@ def create_app() -> FastAPI:
     @new_app.on_event("shutdown")
     def shutdown_event():
         from .converter import shutdown_process_pool
+
         shutdown_process_pool()
 
     return new_app

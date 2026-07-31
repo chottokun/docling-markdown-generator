@@ -34,22 +34,28 @@ def test_device_compatibility_verification():
             device = torch.device("cuda")
             major, minor = torch.cuda.get_device_capability(device)
             capability = major + minor / 10.0
-            
+
             # 互換性チェックの判定ロジックと実判定結果の整合性確認
             compatible_expected = (capability >= 7.5) and (config.USE_GPU is not False)
-            
+
             # get_device_capabilityの判定基準に沿っているか検証
             assert is_cuda_compatible() == compatible_expected, (
                 f"ERROR: is_cuda_compatible() did not match physical hardware capability. "
                 f"Hardware Capability: {capability}, Expected: {compatible_expected}"
             )
-            print(f"SUCCESS: GPU Mode verified. Capability: {capability}, Compatible: {compatible_expected}")
+            print(
+                f"SUCCESS: GPU Mode verified. Capability: {capability}, Compatible: {compatible_expected}"
+            )
         else:
             # 物理GPUがない、あるいはNVIDIA Container Toolkitが構成されていない場合はCPUフォールダウンが正常か確認
             assert not is_cuda_compatible(), (
                 "ERROR: CUDA is not available, but is_cuda_compatible() returned True."
             )
-            print("SUCCESS: GPU Mode fell back to CPU due to missing CUDA drivers/devices.")
+            print(
+                "SUCCESS: GPU Mode fell back to CPU due to missing CUDA drivers/devices."
+            )
     else:
         # 特になにも指定がない場合はパス（ローカルテスト環境など）
-        print(f"INFO: No TARGET_DEVICE specified ({target_device}). Skipping strict hardware mapping test.")
+        print(
+            f"INFO: No TARGET_DEVICE specified ({target_device}). Skipping strict hardware mapping test."
+        )

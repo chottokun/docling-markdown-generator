@@ -43,6 +43,7 @@ ignore = []
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["."]
 asyncio_mode = "strict"
 filterwarnings = [
     "ignore::DeprecationWarning",

@@ -334,6 +334,7 @@ class TestVLMAndPageBreaks(unittest.TestCase):
         patch.stopall()
 
         import docling_lib.vlm as vlm
+
         # Temporarily increase timeout for slow local CPU inference
         orig_timeout = vlm._DEFAULT_TIMEOUT
         vlm._DEFAULT_TIMEOUT = 180.0
@@ -376,7 +377,6 @@ class TestVLMAndPageBreaks(unittest.TestCase):
         finally:
             vlm._DEFAULT_TIMEOUT = orig_timeout
             vlm._sync_client_cache = orig_cache
-
 
 
 if __name__ == "__main__":

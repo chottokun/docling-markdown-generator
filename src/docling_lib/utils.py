@@ -12,7 +12,11 @@ def serialize_table_data_to_markdown(table_data) -> str:
     """
     Converts docling TableData into a clean, exact markdown table.
     """
-    if not table_data or not hasattr(table_data, "table_cells") or not table_data.table_cells:
+    if (
+        not table_data
+        or not hasattr(table_data, "table_cells")
+        or not table_data.table_cells
+    ):
         return ""
 
     num_rows = getattr(table_data, "num_rows", 0)
@@ -33,7 +37,11 @@ def serialize_table_data_to_markdown(table_data) -> str:
         r_start = cell.start_row_offset_idx
         c_start = cell.start_col_offset_idx
         if 0 <= r_start < num_rows and 0 <= c_start < num_cols:
-            grid[r_start][c_start] = cell.text.replace("\n", " ").replace("|", "\\|").strip() if cell.text else ""
+            grid[r_start][c_start] = (
+                cell.text.replace("\n", " ").replace("|", "\\|").strip()
+                if cell.text
+                else ""
+            )
 
     lines = []
     if num_rows > 0:

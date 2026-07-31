@@ -83,6 +83,7 @@ DOCLING_INCLUDE_KV_EXTRACTION = (
     os.getenv("DOCLING_INCLUDE_KV_EXTRACTION", "False").lower() == "true"
 )
 
+
 def setup_logging():
     """Configures global logging for the library/CLI."""
     logging.basicConfig(

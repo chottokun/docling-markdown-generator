@@ -87,8 +87,12 @@ def test_adaptive_table_serializer():
     mock_doc = MagicMock(spec=DoclingDocument)
     mock_doc_serializer = MagicMock()
 
-    with patch("docling_core.transforms.serializer.markdown.MarkdownTableSerializer.serialize") as mock_super_serialize:
-        serializer.serialize(item=mock_item, doc_serializer=mock_doc_serializer, doc=mock_doc)
+    with patch(
+        "docling_core.transforms.serializer.markdown.MarkdownTableSerializer.serialize"
+    ) as mock_super_serialize:
+        serializer.serialize(
+            item=mock_item, doc_serializer=mock_doc_serializer, doc=mock_doc
+        )
         mock_super_serialize.assert_called_once()
 
     # Case 2: Has merged cells (col_span > 1)
@@ -103,7 +107,9 @@ def test_adaptive_table_serializer():
     mock_caption_res.spans = []
     mock_doc_serializer.serialize_captions.return_value = mock_caption_res
 
-    result = serializer.serialize(item=mock_item_merged, doc_serializer=mock_doc_serializer, doc=mock_doc)
+    result = serializer.serialize(
+        item=mock_item_merged, doc_serializer=mock_doc_serializer, doc=mock_doc
+    )
     assert "<table>HTML</table>" in result.text
 
 
@@ -111,6 +117,7 @@ def test_adaptive_table_serializer():
 async def test_rate_limiter_periodic_cleanup():
     """Verify rate limiter periodically cleans up stale client deques to prevent leaks."""
     from docling_lib import server
+
     server._rate_limit_data.clear()
     server._last_rate_limit_cleanup = 0.0
 
@@ -135,7 +142,9 @@ async def test_rate_limiter_periodic_cleanup():
 def test_trusted_proxies_caching():
     """Verify trusted proxies parsing caching and correct behavior."""
 
-    with patch("docling_lib.server.TRUSTED_PROXIES", ["10.0.0.0/24", "192.168.1.1", "*"]):
+    with patch(
+        "docling_lib.server.TRUSTED_PROXIES", ["10.0.0.0/24", "192.168.1.1", "*"]
+    ):
         _parse_trusted_proxies.cache_clear()
         assert _is_trusted_proxy("192.168.1.1") is True
         assert _is_trusted_proxy("10.0.0.5") is True
@@ -154,6 +163,7 @@ def test_thread_safe_model_pool_concurrent_access():
     opts = DocumentConversionOptions(do_ocr=True, image_scale=2.0)
 
     results = []
+
     def fetch():
         return pool.get_converter(opts)
 
@@ -179,7 +189,10 @@ def test_adaptive_table_serializer_corrupt_data():
     mock_doc = MagicMock(spec=DoclingDocument)
     mock_doc_serializer = MagicMock()
 
-    with patch("docling_core.transforms.serializer.markdown.MarkdownTableSerializer.serialize") as mock_super_serialize:
-        serializer.serialize(item=mock_item, doc_serializer=mock_doc_serializer, doc=mock_doc)
+    with patch(
+        "docling_core.transforms.serializer.markdown.MarkdownTableSerializer.serialize"
+    ) as mock_super_serialize:
+        serializer.serialize(
+            item=mock_item, doc_serializer=mock_doc_serializer, doc=mock_doc
+        )
         mock_super_serialize.assert_called_once()
-

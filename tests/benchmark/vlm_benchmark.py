@@ -17,9 +17,10 @@ def mock_transport_benchmark():
     async def mock_async_post(*args, **kwargs):
         return mock_resp
 
-    with mock.patch("httpx.Client.post", return_value=mock_resp), \
-         mock.patch("httpx.AsyncClient.post", side_effect=mock_async_post):
-
+    with (
+        mock.patch("httpx.Client.post", return_value=mock_resp),
+        mock.patch("httpx.AsyncClient.post", side_effect=mock_async_post),
+    ):
         # Benchmark sync
         start = time.perf_counter()
         for _ in range(50):
@@ -31,11 +32,14 @@ def mock_transport_benchmark():
         async def run_async():
             start = time.perf_counter()
             for _ in range(50):
-                await generate_caption(provider="ollama", endpoint="http://localhost:11434")
+                await generate_caption(
+                    provider="ollama", endpoint="http://localhost:11434"
+                )
             async_duration = time.perf_counter() - start
             print(f"Async baseline duration (50 iterations): {async_duration:.4f}s")
 
         asyncio.run(run_async())
+
 
 if __name__ == "__main__":
     mock_transport_benchmark()

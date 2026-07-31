@@ -1,10 +1,10 @@
 import logging
-import re
-import threading
 import multiprocessing
+import re
 import shutil
 import tempfile
-from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
+import threading
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -50,6 +50,7 @@ from .config import (
     DOCLING_CUDA_FLASH_ATTENTION,
     DOCLING_INCLUDE_KV_EXTRACTION,
     DOCLING_INCLUDE_PAGE_BREAKS,
+    DOCLING_MAX_WORKERS,
     DOCLING_NUM_THREADS,
     DOCLING_TABLE_FORMAT,
     DOCLING_VLM_API_KEY,
@@ -63,7 +64,6 @@ from .config import (
     IMAGE_RESOLUTION_SCALE,
     MD_OUTPUT_NAME,
     USE_GPU,
-    DOCLING_MAX_WORKERS,
 )
 from .utils import sanitize_log_message
 
@@ -230,7 +230,6 @@ class CustomMarkdownPictureSerializer(MarkdownPictureSerializer):
         return res
 
 
-
 class HTMLTableMarkdownSerializer(MarkdownTableSerializer):
     """
     Custom Markdown Table Serializer that exports tables as HTML
@@ -253,7 +252,9 @@ class HTMLTableMarkdownSerializer(MarkdownTableSerializer):
         elif hasattr(item, "data") and item.data and hasattr(item.data, "table_cells"):
             cells = item.data.table_cells
             for cell in cells:
-                if (getattr(cell, "row_span", 1) or 1) > 1 or (getattr(cell, "col_span", 1) or 1) > 1:
+                if (getattr(cell, "row_span", 1) or 1) > 1 or (
+                    getattr(cell, "col_span", 1) or 1
+                ) > 1:
                     has_merged_cells = True
                     break
 
@@ -772,6 +773,7 @@ class ThreadSafeModelPool:
     Operates on a double-checked locking pattern (using threading.RLock)
     using the heavy converter configuration variables as the cache key.
     """
+
     def __init__(self, max_size: int = 4):
         self.max_size = max_size
         self._pool: dict[tuple, PDFConverter] = {}

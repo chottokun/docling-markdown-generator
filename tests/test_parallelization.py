@@ -1,21 +1,19 @@
 import asyncio
-import sys
+from pathlib import Path
 from unittest.mock import MagicMock, patch
+
 import pytest
-import psutil
 
 from docling_lib.config import DOCLING_MAX_WORKERS
 from docling_lib.converter import (
-    get_process_pool,
-    shutdown_process_pool,
     _worker_initializer,
-    DocumentConversionOptions,
-    PDFConverter,
+    get_process_pool,
+    process_pdf_multi_process_worker,
+    shutdown_process_pool,
 )
 from docling_lib.server import (
-    get_dynamic_semaphore_limit,
     get_concurrency_semaphore,
-    _concurrency_semaphore,
+    get_dynamic_semaphore_limit,
 )
 
 
@@ -114,14 +112,12 @@ async def test_get_concurrency_semaphore():
     Verify that get_concurrency_semaphore returns an asyncio.Semaphore
     with the calculated limit.
     """
-    global _concurrency_semaphore
-    # Reset any existing global semaphore
     import docling_lib.server
+
     docling_lib.server._concurrency_semaphore = None
 
     mock_mem = MagicMock()
     mock_mem.available = 6 * 1024 * 1024 * 1024  # 6 GB
-    # Intended limit: 6 / 1.5 = 4. Cap: max(2, 4) = 4 (assuming DOCLING_MAX_WORKERS is 4)
     with (
         patch("psutil.virtual_memory", return_value=mock_mem),
         patch("docling_lib.config.DOCLING_MAX_WORKERS", 4),
@@ -129,3 +125,88 @@ async def test_get_concurrency_semaphore():
         sem = await get_concurrency_semaphore()
         assert isinstance(sem, asyncio.Semaphore)
         assert sem is not None
+
+
+def test_process_pdf_multi_process_worker_success(tmp_path):
+    """
+    Verify process_pdf_multi_process_worker copies temp files and returns valid output path on success.
+    """
+    input_file = tmp_path / "sample.pdf"
+    input_file.write_text("%PDF-1.4 dummy content", encoding="utf-8")
+    output_dir = tmp_path / "out"
+
+    options_dict = {
+        "image_dir_name": "images",
+        "md_output_name": "processed_document.md",
+        "image_scale": 2.0,
+        "table_format": "html",
+        "do_formula": False,
+        "do_ocr": False,
+        "do_chart": False,
+        "do_code": False,
+        "include_page_breaks": False,
+        "include_kv_extraction": False,
+        "vlm_enabled": False,
+        "vlm_provider": "ollama",
+        "vlm_api_key": "",
+        "vlm_model": "qwen2-vl:2b",
+        "vlm_endpoint": "http://localhost:11434",
+        "vlm_prompt": "prompt",
+        "vlm_max_concurrent": 1,
+        "num_threads": 1,
+        "cuda_use_flash_attention": False,
+    }
+
+    def fake_process_pdf(pdf_path, output_dir, options=None):
+        md_file = output_dir / options.md_output_name
+        md_file.write_text("# Mock Output", encoding="utf-8")
+        return md_file
+
+    with patch("docling_lib.converter.process_pdf", side_effect=fake_process_pdf):
+        result = process_pdf_multi_process_worker(
+            str(input_file),
+            str(output_dir),
+            options_dict,
+        )
+        assert result is not None
+        assert Path(result).exists()
+        assert (output_dir / "processed_document.md").exists()
+
+
+def test_process_pdf_multi_process_worker_failure(tmp_path):
+    """
+    Verify process_pdf_multi_process_worker returns None when conversion fails.
+    """
+    input_file = tmp_path / "invalid.pdf"
+    input_file.write_text("invalid content", encoding="utf-8")
+    output_dir = tmp_path / "out"
+
+    options_dict = {
+        "image_dir_name": "images",
+        "md_output_name": "processed_document.md",
+        "image_scale": 2.0,
+        "table_format": "html",
+        "do_formula": False,
+        "do_ocr": False,
+        "do_chart": False,
+        "do_code": False,
+        "include_page_breaks": False,
+        "include_kv_extraction": False,
+        "vlm_enabled": False,
+        "vlm_provider": "ollama",
+        "vlm_api_key": "",
+        "vlm_model": "qwen2-vl:2b",
+        "vlm_endpoint": "http://localhost:11434",
+        "vlm_prompt": "prompt",
+        "vlm_max_concurrent": 1,
+        "num_threads": 1,
+        "cuda_use_flash_attention": False,
+    }
+
+    with patch("docling_lib.converter.process_pdf", return_value=None):
+        result = process_pdf_multi_process_worker(
+            str(input_file),
+            str(output_dir),
+            options_dict,
+        )
+        assert result is None

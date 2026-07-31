@@ -33,14 +33,13 @@ _async_client_lock = threading.Lock()
 _DEFAULT_TIMEOUT = 300.0
 
 
-
-
-
 def _cleanup_cached_clients():
     """アプリケーション終了時にキャッシュされたhttpxクライアントを安全に閉じる。"""
     global _sync_client_cache
     with _sync_client_lock:
-        if _sync_client_cache is not None and not getattr(_sync_client_cache, "is_closed", True):
+        if _sync_client_cache is not None and not getattr(
+            _sync_client_cache, "is_closed", True
+        ):
             _sync_client_cache.close()
             _sync_client_cache = None
 
@@ -48,12 +47,12 @@ def _cleanup_cached_clients():
 atexit.register(_cleanup_cached_clients)
 
 
-
 class _UnclosedClientContext:
     """
     Context wrapper for a shared synchronous Client that prevents context managers
     from closing the shared client instance, but forwards all other attributes.
     """
+
     def __init__(self, client: httpx.Client):
         self._client = client
 
@@ -73,6 +72,7 @@ class _UnclosedAsyncClientContext:
     Context wrapper for a shared asynchronous AsyncClient that prevents context managers
     from closing the shared client instance, but forwards all other attributes.
     """
+
     def __init__(self, client: httpx.AsyncClient):
         self._client = client
 
@@ -103,7 +103,9 @@ def _get_cached_sync_client() -> httpx.Client:
         return client
 
     with _sync_client_lock:
-        if _sync_client_cache is None or getattr(_sync_client_cache, "is_closed", False):
+        if _sync_client_cache is None or getattr(
+            _sync_client_cache, "is_closed", False
+        ):
             _sync_client_cache = _ORIG_CLIENT_CLASS(timeout=_DEFAULT_TIMEOUT)
         return _sync_client_cache
 
@@ -325,7 +327,9 @@ async def generate_caption(
         model = "qwen2-vl:2b"
 
     # Automatically adjust default endpoints for other cloud providers
-    if not endpoint or (endpoint == "http://localhost:11434" and provider_lower != "ollama"):
+    if not endpoint or (
+        endpoint == "http://localhost:11434" and provider_lower != "ollama"
+    ):
         if provider_lower == "ollama":
             endpoint = "http://localhost:11434"
         elif provider_lower in ("openai", "vllm", "llama.cpp"):
@@ -420,7 +424,9 @@ def generate_caption_sync(
         model = "qwen2-vl:2b"
 
     # Automatically adjust default endpoints for other cloud providers
-    if not endpoint or (endpoint == "http://localhost:11434" and provider_lower != "ollama"):
+    if not endpoint or (
+        endpoint == "http://localhost:11434" and provider_lower != "ollama"
+    ):
         if provider_lower == "ollama":
             endpoint = "http://localhost:11434"
         elif provider_lower in ("openai", "vllm", "llama.cpp"):

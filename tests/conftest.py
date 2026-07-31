@@ -48,6 +48,7 @@ def reset_rate_limiter():
     """Reset rate limiter in-memory storage before each test."""
     try:
         import docling_lib.server
+
         docling_lib.server._rate_limit_data.clear()
     except ImportError:
         # Ignore if docling_lib.server cannot be imported (e.g. lightweight tests without docling)
