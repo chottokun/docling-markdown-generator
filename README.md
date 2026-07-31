@@ -8,16 +8,17 @@ Docling（v2.x）を基盤とした、高度な構造化ドキュメント変換
 
 ## 🏗 アーキテクチャと設計思想
 
-- **シングルトン・コンバーター・パターン**: `PDFConverter` インスタンスをシングルトンとして管理し、重いモデル（OCR, VLM, Table Analysis）の初期化コストを最小化。設定変更（OCR ON/OFF等）を検知した場合のみ、インテリジェントに再初期化を行います。
-- **非同期非ブロッキングI/O**: FastAPI + `run_in_threadpool` によるマルチスレッド実行。CPU集約型の変換タスク実行中も、APIサーバーのイベントループをブロッキングしません。
-- **プラットフォーム・アグノスティック**: `uv` による決定論的なパッケージ管理。CUDA環境下ではGPU加速、非CUDA環境下ではCPUへ自動フォールバックします。
+- **マルチプロセス並列化エンジン (ProcessPoolExecutor)**: GIL (Global Interpreter Lock) のボトルネックを完全に排除し、`spawn` コンテキストによる独立したワーカープロセスで変換パイプラインを実行。APIサーバーの応答性を常に最高レベルに維持します。
+- **メモリ適応型動的セマフォ制御**: `psutil` を用いてシステムの利用可能 RAM 量を追跡し、同時並列実行数を動的に制御して高負荷時の OOM (Out of Memory) キラーによるダウンを防止します。
+- **非同期 I/O 保存 (`aiofiles`)**: アップロードファイルをメモリに乗せずに 1MB 単位の非同期ストリーミングでディスクへ一時保存し、DoS 攻撃や過度なメモリ消費を防御。
+- **プラットフォーム・アグノスティック & GPU自動フォールバック**: `is_cuda_compatible()` により、CUDA Compute Capability >= 7.5 の高性能 GPU で加速しつつ、古い GPU や非 GPU 環境では自動的に CPU モードへフォールバックします。
 
 ## 🔒 セキュリティ・エンジニアリング
 
 セキュリティを「後付け」ではなくコア機能として実装しています：
 
 - **API Key Authentication**: `X-API-Key` ヘッダーによるリクエスト認証（条件付き有効化）。
-- **IP-based Rate Limiting**: 過度なリソース消費を防ぐためのIPベースのインメモリ・レートリミッター。
+- **IP-based Rate Limiting**: 過度なリソース消費を防ぐためのIPベースのインメモリ・レートリミッター（10分周期の自動メモリクリーンアップ付き）。
 - **Path Traversal Protection**: 入出力パスに対する `resolve()` および `is_relative_to()` による厳格なサンドボックス化。
 - **Injection Mitigation**: 
   - **Log Injection**: ログ出力前のメタデータサニタイズ。
@@ -59,6 +60,7 @@ docker-compose up -d --build
 詳細な仕様については `docs/` ディレクトリおよび変更履歴を参照してください：
 
 - **[Changelog (CHANGELOG.md)](CHANGELOG.md)**: バージョンごとの機能追加・修正・変更履歴。
+- **[GPU Testing & Acceleration (GPU_TESTING.md)](docs/GPU_TESTING.md)**: GPU/CUDA利用時の動作仕様、VRAM管理、自動フォールバック、およびテスト手順。
 - **[Unique Features (FEATURES.md)](docs/FEATURES.md)**: セキュリティとパフォーマンスの詳細実装。
 - **[API Reference (API_REFERENCE.md)](docs/API_REFERENCE.md)**: 認証・レート制限を含むエンドポイント仕様。
 - **[Markdown Specification (MARKDOWN_SPEC.md)](docs/MARKDOWN_SPEC.md)**: 生成されるMarkdownの構造定義。
@@ -68,12 +70,12 @@ docker-compose up -d --build
 
 TDDに基づき、以下のテストスイートおよび検証プロセスを運用しています：
 
-- **Unit Tests**: モジュールごとのロジック検証（`uv run pytest tests/test_converter_units.py`）。
-- **E2E Real World**: 実データを用いたEnd-to-End検証（`CUDA_VISIBLE_DEVICES="" uv run pytest tests/e2e_real_world.py`）。
+- **Unit / Parallelization Tests**: マルチプロセス並列化およびモジュールロジックの検証（`uv run pytest`）。
+- **GPU Acceleration Tests**: GPU環境および自動フォールバック動作の検証（`DOCLING_USE_GPU=True uv run pytest tests/test_device_verification.py`）。詳細は [GPU_TESTING.md](docs/GPU_TESTING.md) を参照。
+- **E2E Real World**: 実データを用いたEnd-to-End検証（`uv run pytest tests/test_parallelization.py`）。
 - **Security Tests**: 脆弱性再現スクリプトによる回帰テスト（`tests/test_security_auth_rate_limit.py` 等）。
-- **Excel/Matrix Tests (Docker経由)**: 複雑なマトリクスを持つExcelファイル等の高精度変換検証。コンテナ内の依存関係を使用して以下のコマンドで実行できます：
+- **Excel/Matrix Tests (Docker経由)**: 複雑なマトリクスを持つExcelファイル等の高精度変換検証：
   ```bash
-  # Dockerコンテナ内でExcelの高精度検証を実行
   docker compose run --user root --entrypoint "python scripts/verify_excel.py" docling-server
   ```
 
@@ -95,5 +97,3 @@ TDDに基づき、以下のテストスイートおよび検証プロセスを�
 - **uvicorn**: BSD-3-Clause License
 - **python-multipart**: Apache-2.0 License
 - **httpx**: BSD-3-Clause License
-
-

@@ -6,10 +6,11 @@
 
 ## 1. 堅牢なセキュリティ・レイヤー
 
-### Path Traversal サンドボックス
+### Path Traversal サンドboxes
 入出力ディレクトリの検証には、単なる文字列マッチングではなく、OSレベルのパス解決を利用しています。
 - **ロジック**: `Path(output_dir).resolve().is_relative_to(Path.cwd().resolve())`
 - **効果**: 攻撃者が `../../etc/passwd` のような相対パスを指定しても、カレントディレクトリ外へのアクセスは強制的に拒絶されます。
+- **ワーカー安全領域**: マルチプロセスワーカー処理時においても、一時ディレクトリを `output_dir` 内に限定生成し、サンドボックス保護を厳格に維持します。
 
 ### インジェクション攻撃の防御
 - **Log Injection**: ユーザ入力由来の例外メッセージやファイル名をログに記録する際、`\n` や `\r` をスペースに置換する `sanitize_log_message` ユーティリティを全ログ出力箇所に適用。
@@ -17,30 +18,35 @@
 
 ### API セキュリティ
 - **認証**: `DOCLING_API_KEY` 環境変数が設定されている場合、`X-API-Key` ヘッダーによる強制認証が有効化されます。
-- **レート制限**: FastAPIの `DependencyInjection` を活用したIPベースのレートリミッター。`RATE_LIMIT_REQUESTS` / `RATE_LIMIT_WINDOW` で柔軟に制御可能です。
+- **レート制限**: FastAPIの `DependencyInjection` を活用したIPベースのレートリミッター。`RATE_LIMIT_REQUESTS` / `RATE_LIMIT_WINDOW` で制御し、10分周期での定期的なメモリクリーンアップによりリークを防ぎます。
 
 ---
 
 ## 2. パフォーマンスとスケーラビリティ
 
-### コンバーター・インスタンスのライフサイクル管理
+### マルチプロセス並列化エンジン (ProcessPoolExecutor)
+PyTorch や C++ 拡張を含む Docling の重い変換処理は、Python の GIL (Global Interpreter Lock) によりスレッド並列でのパフォーマンスが頭打ちになる課題がありました。
+- **解決策**: FastAPI 内から `ProcessPoolExecutor(mp_context='spawn')` を用いた完全なマルチプロセス並列実行へ移行。
+- **効果**: API サーバーのイベントループが CPU 重負荷によりブロックされる問題を根本解決し、大容量ドキュメントの複数同時変換時にも最高レベルの応答性を維持します。
+
+### メモリ適応型動的セマフォ制御 (`get_dynamic_semaphore_limit`)
+- **問題**: 同時リクエストが集中した際、プロセスごとのモデル消費メモリ（約1.5GB〜4GB）により OOM (Out of Memory) キラーが起動し、サーバーがクラッシュする危険がありました。
+- **動的制御**: `psutil.virtual_memory()` を利用して空き RAM 容量から安全な並行実行数を動的に計算し、`asyncio.Semaphore` でリクエストを並行制御。
+- **イベントループ追跡**: アクティブな非同期イベントループに動的バインドすることで、マルチスレッド/非同期APIテスト環境でのループ非互換エラーを完全に防ぎます。
+
+### コンバーター・インスタンスの LRU モデルキャッシュ (`ThreadSafeModelPool`)
 `docling.DocumentConverter` は初期化時に複数の機械学習モデルをロードするため、リクエストごとの初期化はパフォーマンスを著しく低下させます。
-- **解決策**: グローバルシングルトン `_default_pdf_converter` を導入。
-- **インテリジェント・リロード**: `image_scale`, `do_ocr`, `do_formula` 等の「ヘビー」な設定項目に変更があった場合のみ、スレッドセーフにインスタンスを再構築します。
+- **解決策**: スレッドセーフな `ThreadSafeModelPool` (LRU キャッシュ) を導入。
+- **インテリジェント・リロード**: `image_scale`, `do_ocr`, `do_formula` 等の「ヘビー」な設定項目に変更があった場合のみ、新しいインスタンスを自動生成・再利用します。
 
 ### メモリ効率の最適化
-- **Streaming I/O**: 大容量ファイルのダウンロードや処理において、ファイルをメモリ上に一括ロードせず、チャンク単位で処理（httpx のストリーミング機能を活用）。ピークメモリ使用量を最大約70%削減。
-- **非同期並行実行**: 重いCPU演算（変換処理）を `run_in_threadpool` に委譲することで、非同期APIサーバーのイベントループを解放。
+- **Streaming I/O & Non-blocking Save (`aiofiles`)**: アップロードファイルを一括メモリロードせず、1MB 単位の非同期ストリーミングでディスクへ一時保存。
+- **VLM Prefetching**: ドキュメント内画像への VLM キャプション生成を ThreadPool で非同期並列プレフェッチ。
 
 ### 動的GPU互換性検証 & セーフ・フォールバック
-- **問題の背景**: 物理GPUが存在し `torch.cuda.is_available()` が `True` を返しても、GPUアーキテクチャ（Compute Capability: CC）とインストールされたPyTorchのCUDAビルドが不整合な場合（例：旧世代GPUでの実行時など）、モデルロード時に非同期のCUDAカーネルエラー（`no kernel image is available for execution`）でプロセス全体がクラッシュします。
-- **動的検証技術**: サーバー起動時にGPU上で極小のテンソル演算（`torch.zeros`）を実行し、`torch.cuda.synchronize()` によって非同期にキューイングされるCUDAドライバエラーを強制同期させてトラップします。デバイスの不整合や実行時エラーが検出された場合、システムは安全に `AcceleratorDevice.CPU` へ**自動フォールバック**し、クラッシュを未然に防止します。
-- **明示的制御**: 環境変数 `DOCLING_USE_GPU=False` を設定することで、不要なGPU動的検証プロセスをバイパスし、最初から強制的にCPUモードで動作させることが可能です。
+- **問題の背景**: 物理GPUが存在し `torch.cuda.is_available()` が `True` を返しても、GPUアーキテクチャ（Compute Capability: CC）とインストールされたPyTorchのCUDAビルドが不整合な場合（例：旧世代GPUでの実行時など）、モデルロード時に非同期のCUDAカーネルエラーでプロセス全体がクラッシュします。
+- **動的検証技術**: `is_cuda_compatible()` により Compute Capability >= 7.5 を検証し、かつ GPU 上での極小テンソル演算結果を同期トラップ。不整合検出時は安全に `AcceleratorDevice.CPU` へ**自動フォールバック**します。詳細およびGPU環境でのテスト手順は [GPU_TESTING.md](GPU_TESTING.md) を参照してください。
 
-### Dockerビルドの最適化とセキュア設計
-- **マルチステージビルドの導入**: `ghcr.io/astral-sh/uv:latest` を用いた高速な依存関係の解決。BuildKitのキャッシュマウント (`--mount=type=cache,target=/root/.cache/uv`) を最大限に活用し、再ビルド時のパッケージダウンロードおよび同期時間を極小化。
-- **高セキュア・ランタイム**: 最終ランタイムイメージにはコンパイラやパッケージマネージャなどの不要なツール・キャッシュを含めず、builderステージから必要な `/app/.venv` のみを転送することで、イメージサイズを劇的に削減（軽量化）し、コンテナの攻撃面（Attack Surface）を最小化。
-- **プロセス管理の適正化**: `tini` を PID 1 として導入し、FastAPI サーバーのゾンビプロセス防止とシグナルハンドリングを適切に実行。
 ---
 
 ## 3. 高度な解析パイプライン (v2.x 準拠)
@@ -55,5 +61,6 @@
 
 - **網羅的なテストスイート**: 
   - セキュリティ回帰テスト（CORS, DoS, Path Traversal）。
+  - マルチプロセス並列化および負荷ストレステスト。
   - 実データを用いた E2E テスト。
 - **一貫したロギング**: 全ての変換ステップにおいて構造化されたログを出力し、エラー時のトラブルシューティングを容易にしています。
