@@ -1,8 +1,9 @@
 import asyncio
 import time
-from collections import defaultdict, deque
+
 import docling_lib.server
-from docling_lib.server import cleanup_expired_rate_limits, rate_limiter
+from docling_lib.server import cleanup_expired_rate_limits
+
 
 async def run_benchmark():
     print("--- Rate Limiter Cleanup Benchmark ---")
