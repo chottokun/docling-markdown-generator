@@ -644,10 +644,13 @@ class PDFConverter:
             metadata["title"] = doc.name.replace("\n", " ").replace("\r", " ")
 
         # Add more RAG-specific metadata
-        if hasattr(doc, "metadata"):
-            # Attempt to extract page count if available in docling document
-            # Note: The exact structure depends on the docling version
-            pass
+        if hasattr(doc, "num_pages") and callable(doc.num_pages):
+            try:
+                page_count = doc.num_pages()
+                if page_count > 0:
+                    metadata["page_count"] = page_count
+            except Exception as e:
+                logger.warning(f"Failed to extract page count: {sanitize_log_message(e)}")
 
         if metadata:
             import yaml

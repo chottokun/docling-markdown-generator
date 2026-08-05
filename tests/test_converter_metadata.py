@@ -30,6 +30,67 @@ def test_apply_metadata_frontmatter_with_empty_name():
     assert result == md_content
 
 
+def test_apply_metadata_frontmatter_with_page_count():
+    """Test that frontmatter includes page count when doc has a positive page count."""
+    converter = PDFConverter()
+    doc = MagicMock(spec=DoclingDocument)
+    doc.name = "Page Count Doc"
+    doc.num_pages.return_value = 5
+    md_content = "This is the content."
+
+    result = converter._apply_metadata_frontmatter(doc, md_content)
+
+    # Use a multiline expected string with correct indentation and format
+    expected = "---\npage_count: 5\ntitle: Page Count Doc\n---\n\nThis is the content."
+    assert result == expected
+
+
+def test_apply_metadata_frontmatter_with_zero_or_negative_page_count():
+    """Test that frontmatter does not include page count when doc has zero or negative pages."""
+    converter = PDFConverter()
+    doc = MagicMock(spec=DoclingDocument)
+    doc.name = "Zero Page Doc"
+    doc.num_pages.return_value = 0
+    md_content = "This is the content."
+
+    result = converter._apply_metadata_frontmatter(doc, md_content)
+
+    expected = "---\ntitle: Zero Page Doc\n---\n\nThis is the content."
+    assert result == expected
+
+
+def test_apply_metadata_frontmatter_without_num_pages():
+    """Test that frontmatter is generated safely when doc lacks a num_pages method."""
+    converter = PDFConverter()
+
+    class MockDocWithNoNumPages:
+        name = "No Num Pages Doc"
+
+    doc = MockDocWithNoNumPages()
+    md_content = "This is the content."
+
+    result = converter._apply_metadata_frontmatter(doc, md_content)
+
+    expected = "---\ntitle: No Num Pages Doc\n---\n\nThis is the content."
+    assert result == expected
+
+
+def test_apply_metadata_frontmatter_num_pages_exception(caplog):
+    """Test that exceptions during num_pages() call are caught and logged."""
+    converter = PDFConverter()
+    doc = MagicMock(spec=DoclingDocument)
+    doc.name = "Exception Doc"
+    doc.num_pages.side_effect = ValueError("Failed to count pages")
+    md_content = "This is the content."
+
+    result = converter._apply_metadata_frontmatter(doc, md_content)
+
+    # page_count should be ignored, title should still be included, and warning logged
+    expected = "---\ntitle: Exception Doc\n---\n\nThis is the content."
+    assert result == expected
+    assert "Failed to extract page count" in caplog.text
+
+
 def test_apply_metadata_frontmatter_generic_exception(tmp_path, caplog):
     """Test that a generic Exception in _apply_metadata_frontmatter is caught and returns None."""
     converter = PDFConverter()
