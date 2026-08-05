@@ -9,7 +9,6 @@ from collections import defaultdict, deque
 from functools import lru_cache
 from pathlib import Path
 
-import aiofiles
 import psutil
 from fastapi import (
     APIRouter,
@@ -322,40 +321,11 @@ async def _save_upload_temp(file: UploadFile, suffix: str) -> Path:
     )
     tmp_path = Path(tmp_file.name)
 
-    # Check if we are using a mocked tempfile inside tests
-    if "Mock" in type(tmp_file).__name__:
-
-        def _sync_write():
-            total_size = 0
-            try:
-                while True:
-                    chunk = file.file.read(1024 * 1024)  # 1MB chunks
-                    if not chunk:
-                        break
-                    total_size += len(chunk)
-                    if total_size > MAX_UPLOAD_SIZE:
-                        raise HTTPException(
-                            status_code=413,
-                            detail=f"Payload Too Large. Maximum size is {MAX_UPLOAD_SIZE} bytes.",
-                        )
-                    tmp_file.write(chunk)
-            finally:
-                tmp_file.close()
-
+    def _sync_write():
+        total_size = 0
         try:
-            await run_in_threadpool(_sync_write)
-            return tmp_path
-        except Exception:
-            await _cleanup_temp_file(tmp_path)
-            raise
-
-    tmp_file.close()
-
-    try:
-        async with aiofiles.open(tmp_path, "wb") as f:
-            total_size = 0
             while True:
-                chunk = await run_in_threadpool(file.file.read, 1024 * 1024)
+                chunk = file.file.read(1024 * 1024)  # 1MB chunks
                 if not chunk:
                     break
                 total_size += len(chunk)
@@ -364,7 +334,12 @@ async def _save_upload_temp(file: UploadFile, suffix: str) -> Path:
                         status_code=413,
                         detail=f"Payload Too Large. Maximum size is {MAX_UPLOAD_SIZE} bytes.",
                     )
-                await f.write(chunk)
+                tmp_file.write(chunk)
+        finally:
+            tmp_file.close()
+
+    try:
+        await run_in_threadpool(_sync_write)
         return tmp_path
     except Exception:
         # Cleanup on any exception
