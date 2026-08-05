@@ -18,7 +18,7 @@ Docling（v2.x）を基盤とした、高度な構造化ドキュメント変換
 セキュリティを「後付け」ではなくコア機能として実装しています：
 
 - **API Key Authentication**: `X-API-Key` ヘッダーによるリクエスト認証（条件付き有効化）。
-- **IP-based Rate Limiting**: 過度なリソース消費を防ぐためのIPベースのインメモリ・レートリミッター（10分周期の自動メモリクリーンアップ付き）。
+- **IP-based Rate Limiting & Spoofing Defense**: 信頼されたプロキシチェーン（`X-Forwarded-For`）を右から左へ辿る厳格な IP 検証による IP スプーフィング回避防止、および非同期バックグラウンドタスクによるメモリクリーンアップ。
 - **Path Traversal Protection**: 入出力パスに対する `resolve()` および `is_relative_to()` による厳格なサンドボックス化。
 - **Injection Mitigation**: 
   - **Log Injection**: ログ出力前のメタデータサニタイズ。
@@ -27,6 +27,8 @@ Docling（v2.x）を基盤とした、高度な構造化ドキュメント変換
 
 ## ⚡ パフォーマンス最適化
 
+- **Fast File Upload Saving**: 単一のブロック書き込みタスクによる保存最適化（コンテキストスイッチ削除によりファイル保存レイテンシを約 84% 削減）。
+- **$O(1)$ Picture Serialization**: 画像参照インデックスをハッシュマップで事前生成し、$O(N^2)$ 線形探索を廃止してシリアル化速度を大幅向上。
 - **VLM Caption Prefetching**: ドキュメント内から切り出した複数画像に対し、`ThreadPoolExecutor` を用いて Ollama や各種クラウド API 等へのVLMリクエストを**非同期並列で一括事前取得 (Prefetch)** しキャッシュ。直列実行による同期ブロッキングを排除し、処理時間を大幅に短縮します。
 - **マルチプロバイダ VLM 連携と流量制御 (Rate Limiting)**: ローカルの Ollama に加え、OpenAI, Google Gemini, Anthropic Claude、および vLLM/llama.cpp などの OpenAI 互換のローカル推論サーバーをサポート。さらに、各プロバイダ・エンドポイントごとの接続制限に対応したセマフォによる並列流量制御を行います。
 - **GPU Accelerator Tuning**: `DOCLING_NUM_THREADS` (CPU処理スレッド数) や `DOCLING_CUDA_FLASH_ATTENTION` (FlashAttention2トグル) の環境変数制御をサポートし、高性能GPUのハードウェア性能を最大化させます。
