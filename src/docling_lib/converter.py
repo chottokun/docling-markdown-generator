@@ -176,6 +176,8 @@ class CustomMarkdownPictureSerializer(MarkdownPictureSerializer):
         self.vlm_max_concurrent = vlm_max_concurrent
         self.vlm_captions = vlm_captions if vlm_captions is not None else {}
         self.image_dir_name = image_dir_name
+        self._cached_doc = None
+        self._pic_ref_to_idx = {}
 
     def serialize(
         self,
@@ -191,11 +193,15 @@ class CustomMarkdownPictureSerializer(MarkdownPictureSerializer):
 
         # Find the index of the current picture element to map it to the saved image file name
         idx = -1
-        if hasattr(doc, "pictures") and doc.pictures:
-            for i, pic in enumerate(doc.pictures):
-                if pic.self_ref == item.self_ref:
-                    idx = i
-                    break
+        if doc is self._cached_doc:
+            idx = self._pic_ref_to_idx.get(item.self_ref, -1)
+        else:
+            self._cached_doc = doc
+            self._pic_ref_to_idx = {}
+            if hasattr(doc, "pictures") and doc.pictures:
+                for i, pic in enumerate(doc.pictures):
+                    self._pic_ref_to_idx[pic.self_ref] = i
+                idx = self._pic_ref_to_idx.get(item.self_ref, -1)
 
         if idx != -1:
             image_filename = f"picture_{idx + 1}.png"
