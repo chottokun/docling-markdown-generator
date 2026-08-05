@@ -188,3 +188,77 @@ def test_rate_limit_trusted_proxies_ipv6():
                         headers={"X-Forwarded-For": "2001:db8::2"},
                     )
                     assert response2.status_code != 429
+
+
+def test_rate_limit_secure_proxy_chain_traversal():
+    # Reset rate limit data
+    docling_lib.server._rate_limit_data.clear()
+
+    with patch("docling_lib.server.RATE_LIMIT_REQUESTS", 1):
+        with patch("docling_lib.server.RATE_LIMIT_WINDOW", 60):
+            with patch("docling_lib.server.API_KEY", None):
+                # Let's trust '192.168.1.0/24' and 'testclient' but NOT others
+                with patch(
+                    "docling_lib.server.TRUSTED_PROXIES",
+                    ["192.168.1.0/24", "testclient"],
+                ):
+                    client = TestClient(app)
+
+                    # Chain: 1.1.1.1 (untrusted), 192.168.1.5 (trusted), 192.168.1.10 (trusted)
+                    # Connection IP is 'testclient' (trusted)
+                    # Since we traverse backwards (right to left):
+                    # - 192.168.1.10 is trusted
+                    # - 192.168.1.5 is trusted
+                    # - 1.1.1.1 is untrusted -> should resolve to 1.1.1.1
+                    response1 = client.get(
+                        "/download/id1/file1.md",
+                        headers={"X-Forwarded-For": "1.1.1.1, 192.168.1.5, 192.168.1.10"},
+                    )
+                    assert response1.status_code != 429
+
+                    # If client tries to spoof with a malicious untrusted prefix:
+                    # Chain: 2.2.2.2 (untrusted-spoofed), 9.9.9.9 (untrusted-original), 192.168.1.10 (trusted)
+                    # Traverse right to left:
+                    # - 192.168.1.10 is trusted
+                    # - 9.9.9.9 is untrusted -> should stop here and resolve client IP as 9.9.9.9 (and ignore 2.2.2.2)
+                    # Let's make a request from 9.9.9.9 (via spoofed header)
+                    response2 = client.get(
+                        "/download/id2/file2.md",
+                        headers={"X-Forwarded-For": "2.2.2.2, 9.9.9.9, 192.168.1.10"},
+                    )
+                    assert response2.status_code != 429
+
+                    # Now send another request with a different leftmost IP but same untrusted intermediary 9.9.9.9
+                    # Chain: 3.3.3.3 (untrusted-spoofed), 9.9.9.9 (untrusted-original), 192.168.1.10 (trusted)
+                    # Since the resolved IP is still 9.9.9.9, it should be rate limited (429)!
+                    response3 = client.get(
+                        "/download/id3/file3.md",
+                        headers={"X-Forwarded-For": "3.3.3.3, 9.9.9.9, 192.168.1.10"},
+                    )
+                    assert response3.status_code == 429
+
+
+def test_rate_limit_secure_proxy_chain_all_trusted():
+    # Reset rate limit data
+    docling_lib.server._rate_limit_data.clear()
+
+    with patch("docling_lib.server.RATE_LIMIT_REQUESTS", 1):
+        with patch("docling_lib.server.RATE_LIMIT_WINDOW", 60):
+            with patch("docling_lib.server.API_KEY", None):
+                # Trust everyone/wildcard
+                with patch("docling_lib.server.TRUSTED_PROXIES", ["*"]):
+                    client = TestClient(app)
+
+                    # Chain has only trusted proxies, should default to the leftmost one.
+                    response1 = client.get(
+                        "/download/id1/file1.md",
+                        headers={"X-Forwarded-For": "1.1.1.1, 2.2.2.2, 3.3.3.3"},
+                    )
+                    assert response1.status_code != 429
+
+                    # Same leftmost IP, should rate limit.
+                    response2 = client.get(
+                        "/download/id2/file2.md",
+                        headers={"X-Forwarded-For": "1.1.1.1, 4.4.4.4, 5.5.5.5"},
+                    )
+                    assert response2.status_code == 429

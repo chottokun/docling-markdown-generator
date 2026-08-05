@@ -234,9 +234,17 @@ def _get_client_ip(request: Request) -> str:
         # Check X-Forwarded-For header
         x_forwarded_for = request.headers.get("X-Forwarded-For")
         if x_forwarded_for:
-            # X-Forwarded-For can be a comma-separated list.
-            # The leftmost IP is the original client.
-            return x_forwarded_for.split(",")[0].strip()
+            # Parse all IPs from the header
+            ips = [ip.strip() for ip in x_forwarded_for.split(",") if ip.strip()]
+            if ips:
+                # Traverse backwards starting from the rightmost IP in the proxy chain
+                for i in range(len(ips) - 1, -1, -1):
+                    current_ip = ips[i]
+                    # If this IP is not a trusted proxy, it represents the first untrusted source/client
+                    if not _is_trusted_proxy(current_ip):
+                        return current_ip
+                # If all IPs in the chain are trusted proxies, default to the leftmost one.
+                return ips[0]
 
         # Check X-Real-IP header
         x_real_ip = request.headers.get("X-Real-IP")
