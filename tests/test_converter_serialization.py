@@ -105,3 +105,66 @@ def test_serialize_to_markdown_different_format():
             params=mock_params_cls.return_value,
         )
         assert result == "Another Mocked Content"
+
+
+def test_custom_picture_serializer_caching_and_lookup():
+    """Test that CustomMarkdownPictureSerializer caches index lookups and invalidates cache when doc changes."""
+    from unittest.mock import MagicMock
+
+    from docling_core.types.doc import DoclingDocument, PictureItem
+
+    from docling_lib.converter import CustomMarkdownPictureSerializer
+
+    class MockPicture:
+        def __init__(self, self_ref):
+            self.self_ref = self_ref
+            self.image = None
+
+    serializer = CustomMarkdownPictureSerializer(vlm_enabled=False)
+
+    # Prepare doc1
+    doc1 = MagicMock(spec=DoclingDocument)
+    pic1 = MockPicture("#/pictures/1")
+    pic2 = MockPicture("#/pictures/2")
+    doc1.pictures = [pic1, pic2]
+
+    # First serialize item on doc1 (populates cache)
+    item1 = PictureItem(self_ref="#/pictures/1")
+    with patch(
+        "docling_core.transforms.serializer.markdown.MarkdownPictureSerializer.serialize"
+    ) as mock_super_serialize:
+        mock_super_serialize.return_value = MagicMock()
+        serializer.serialize(item=item1, doc_serializer=MagicMock(), doc=doc1)
+
+    assert serializer._cached_doc is doc1
+    assert serializer._pic_ref_to_idx == {"#/pictures/1": 0, "#/pictures/2": 1}
+
+    # Second serialize item on doc1 (uses cache, doesn't re-loop doc1.pictures)
+    item2 = PictureItem(self_ref="#/pictures/2")
+    with patch(
+        "docling_core.transforms.serializer.markdown.MarkdownPictureSerializer.serialize"
+    ) as mock_super_serialize:
+        mock_super_serialize.return_value = MagicMock()
+        # We delete doc1.pictures to prove it does not attempt to traverse or access it
+        del doc1.pictures
+        serializer.serialize(item=item2, doc_serializer=MagicMock(), doc=doc1)
+
+    # Cache hit should return correct index
+    # We can check that the index of f"picture_{idx + 1}.png" is reflected in the result or path logic
+    # Let's verify by checking id changes or cache presence
+    assert serializer._cached_doc is doc1
+
+    # Prepare doc2 (cache invalidation check)
+    doc2 = MagicMock(spec=DoclingDocument)
+    pic3 = MockPicture("#/pictures/3")
+    doc2.pictures = [pic3]
+
+    item3 = PictureItem(self_ref="#/pictures/3")
+    with patch(
+        "docling_core.transforms.serializer.markdown.MarkdownPictureSerializer.serialize"
+    ) as mock_super_serialize:
+        mock_super_serialize.return_value = MagicMock()
+        serializer.serialize(item=item3, doc_serializer=MagicMock(), doc=doc2)
+
+    assert serializer._cached_doc is doc2
+    assert serializer._pic_ref_to_idx == {"#/pictures/3": 0}
