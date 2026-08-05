@@ -30,6 +30,31 @@ def test_setup_logging_idempotent():
     config.setup_logging()
 
 
+def test_setup_logging_live_configuration():
+    """Verify that setup_logging actually configures the root logger when it has no handlers."""
+    root_logger = logging.getLogger()
+    original_level = root_logger.level
+    original_handlers = root_logger.handlers[:]
+
+    # Temporarily remove handlers and change level to verify basicConfig takes effect
+    root_logger.handlers = []
+    root_logger.setLevel(logging.WARNING)
+
+    try:
+        config.setup_logging()
+        # After setup_logging, level should be INFO
+        assert root_logger.level == logging.INFO
+        # A handler should have been added by basicConfig
+        assert len(root_logger.handlers) > 0
+        handler = root_logger.handlers[0]
+        assert handler.formatter is not None
+        assert handler.formatter._fmt == "%(asctime)s - %(levelname)s - %(message)s"
+    finally:
+        # Restore original state
+        root_logger.handlers = original_handlers
+        root_logger.setLevel(original_level)
+
+
 def test_environment_variable_overrides():
     """Verify that configuration constants are correctly updated from environment variables."""
     env_vars = {
