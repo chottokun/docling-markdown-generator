@@ -23,7 +23,7 @@ from docling_lib.converter import (
     EnhancedMarkdownSerializer,
     PDFConverter,
 )
-from docling_lib.vlm import generate_caption_sync, _encode_image_to_base64
+from docling_lib.vlm import _encode_image_to_base64, generate_caption_sync
 
 
 class TestVLMAndPageBreaks(unittest.TestCase):
@@ -68,7 +68,7 @@ class TestVLMAndPageBreaks(unittest.TestCase):
     def test_encode_image_to_base64_exception_propagation(self):
         # If image save fails, the function should propagate the exception.
         mock_image = MagicMock(spec=Image.Image)
-        mock_image.save.side_effect = IOError("Failed to save image")
+        mock_image.save.side_effect = OSError("Failed to save image")
 
         with self.assertRaises(IOError):
             _encode_image_to_base64(mock_image)
