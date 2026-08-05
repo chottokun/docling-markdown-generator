@@ -23,10 +23,56 @@ from docling_lib.converter import (
     EnhancedMarkdownSerializer,
     PDFConverter,
 )
-from docling_lib.vlm import generate_caption_sync
+from docling_lib.vlm import _encode_image_to_base64, generate_caption_sync
 
 
 class TestVLMAndPageBreaks(unittest.TestCase):
+    def test_encode_image_to_base64_rgb(self):
+        # Create a simple 2x2 RGB image
+        img = Image.new("RGB", (2, 2), color="red")
+        encoded = _encode_image_to_base64(img)
+
+        # Verify it returns a string
+        self.assertIsInstance(encoded, str)
+        self.assertTrue(len(encoded) > 0)
+
+        # Decode it back and verify it matches
+        import base64
+        import io
+        decoded_bytes = base64.b64decode(encoded)
+        decoded_img = Image.open(io.BytesIO(decoded_bytes))
+
+        self.assertEqual(decoded_img.format, "PNG")
+        self.assertEqual(decoded_img.size, (2, 2))
+        self.assertEqual(decoded_img.mode, "RGB")
+        # Check pixel color
+        self.assertEqual(decoded_img.getpixel((0, 0)), (255, 0, 0))
+
+    def test_encode_image_to_base64_rgba_and_grayscale(self):
+        import base64
+        import io
+        # RGBA image
+        img_rgba = Image.new("RGBA", (2, 2), color=(10, 20, 30, 40))
+        encoded_rgba = _encode_image_to_base64(img_rgba)
+        decoded_rgba = Image.open(io.BytesIO(base64.b64decode(encoded_rgba)))
+        self.assertEqual(decoded_rgba.mode, "RGBA")
+        self.assertEqual(decoded_rgba.getpixel((0, 0)), (10, 20, 30, 40))
+
+        # Grayscale image
+        img_l = Image.new("L", (2, 2), color=128)
+        encoded_l = _encode_image_to_base64(img_l)
+        decoded_l = Image.open(io.BytesIO(base64.b64decode(encoded_l)))
+        self.assertEqual(decoded_l.mode, "L")
+        self.assertEqual(decoded_l.getpixel((0, 0)), 128)
+
+    def test_encode_image_to_base64_exception_propagation(self):
+        # If image save fails, the function should propagate the exception.
+        mock_image = MagicMock(spec=Image.Image)
+        mock_image.save.side_effect = OSError("Failed to save image")
+
+        with self.assertRaises(IOError):
+            _encode_image_to_base64(mock_image)
+
     @patch("httpx.Client")
     def test_vlm_sync_client_success(self, mock_client_cls):
         # Setup mock client
