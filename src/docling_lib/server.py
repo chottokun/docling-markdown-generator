@@ -125,6 +125,28 @@ async def api_key_auth(x_api_key: str | None = Header(None)):
 _rate_limit_data = defaultdict(deque)
 _last_rate_limit_cleanup = 0.0
 
+
+async def cleanup_expired_rate_limits(now: float):
+    """
+    Asynchronously clean up expired rate limit timestamps and empty deques.
+    Yields control to the event loop every 100 entries to prevent blocking.
+    """
+    try:
+        keys = list(_rate_limit_data.keys())
+        for i, ip in enumerate(keys):
+            if i > 0 and i % 100 == 0:
+                await asyncio.sleep(0)
+
+            dq = _rate_limit_data.get(ip)
+            if dq is not None:
+                while dq and now - dq[0] >= RATE_LIMIT_WINDOW:
+                    dq.popleft()
+                if not dq:
+                    _rate_limit_data.pop(ip, None)
+    except Exception as e:
+        logger.error(f"Error during async rate limit cleanup: {sanitize_log_message(e)}")
+
+
 _concurrency_semaphore = None
 _semaphore_loop = None
 _semaphore_lock = asyncio.Lock()
@@ -257,14 +279,8 @@ async def rate_limiter(request: Request):
 
     # Periodic interval-based cleanup of _rate_limit_data to avoid memory leaks/growth
     if now - _last_rate_limit_cleanup >= 600.0:
-        # Avoid dictionary size change during iteration
-        for ip in list(_rate_limit_data.keys()):
-            dq = _rate_limit_data[ip]
-            while dq and now - dq[0] >= RATE_LIMIT_WINDOW:
-                dq.popleft()
-            if not dq:
-                _rate_limit_data.pop(ip, None)
         _last_rate_limit_cleanup = now
+        asyncio.create_task(cleanup_expired_rate_limits(now))
 
     # Clean up old timestamps for current client
     dq = _rate_limit_data[client_ip]
