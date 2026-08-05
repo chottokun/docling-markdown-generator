@@ -1,3 +1,4 @@
+import asyncio
 import time
 from unittest.mock import MagicMock, patch
 
@@ -132,6 +133,8 @@ async def test_rate_limiter_periodic_cleanup():
 
     with patch("time.time", return_value=time.time()):
         await rate_limiter(mock_request)
+        # Yield to allow the asynchronously scheduled cleanup task to complete
+        await asyncio.sleep(0.01)
 
     # Stale-client1 has expired timestamp, and since deque becomes empty, key should be removed.
     assert "stale-client1" not in server._rate_limit_data
