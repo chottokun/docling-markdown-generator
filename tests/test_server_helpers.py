@@ -243,7 +243,8 @@ def test_get_client_ip_x_forwarded_for_multiple():
 
     with patch("docling_lib.server.TRUSTED_PROXIES", ["127.0.0.1"]):
         ip = _get_client_ip(mock_request)
-        assert ip == "203.0.113.195"
+        # Security logic traverses right-to-left. 150.172.238.178 is untrusted, so it's resolved as the real client IP.
+        assert ip == "150.172.238.178"
 
 
 def test_get_client_ip_x_real_ip():
