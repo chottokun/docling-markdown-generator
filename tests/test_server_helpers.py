@@ -118,6 +118,68 @@ async def test_create_output_dir(tmp_path, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_create_output_dir_file_exists_error(tmp_path, monkeypatch):
+    """Test that _create_output_dir propagates FileExistsError when a regular file exists at the path."""
+    monkeypatch.setattr(docling_lib.server, "OUTPUT_DIR", tmp_path)
+
+    import os
+    original_urandom = os.urandom
+
+    def mock_urandom(size):
+        if size == 8:
+            return b"12345678"
+        return original_urandom(size)
+
+    monkeypatch.setattr(os, "urandom", mock_urandom)
+
+    # In case uuid is used instead of os.urandom in some environments:
+    try:
+        import uuid
+        mock_uuid = uuid.UUID("12345678-1234-5678-1234-567812345678")
+        monkeypatch.setattr(uuid, "uuid4", lambda: mock_uuid)
+    except ImportError:
+        pass
+
+    # Pre-create files for BOTH possible paths to support either implementation seamlessly
+    file_path_urandom = tmp_path / b"12345678".hex()
+    file_path_urandom.write_text("not a directory")
+
+    file_path_uuid = tmp_path / "12345678-1234-5678-1234-567812345678"
+    file_path_uuid.write_text("not a directory")
+
+    with pytest.raises(FileExistsError):
+        await _create_output_dir()
+
+
+@pytest.mark.asyncio
+async def test_create_output_dir_permission_error(tmp_path, monkeypatch):
+    """Test that _create_output_dir propagates PermissionError when folder creation is not permitted."""
+    monkeypatch.setattr(docling_lib.server, "OUTPUT_DIR", tmp_path)
+
+    async def mock_run(func, *args, **kwargs):
+        raise PermissionError("Permission denied")
+
+    monkeypatch.setattr(docling_lib.server, "run_in_threadpool", mock_run)
+
+    with pytest.raises(PermissionError):
+        await _create_output_dir()
+
+
+@pytest.mark.asyncio
+async def test_create_output_dir_os_error(tmp_path, monkeypatch):
+    """Test that _create_output_dir propagates OSError when an unexpected OS error occurs."""
+    monkeypatch.setattr(docling_lib.server, "OUTPUT_DIR", tmp_path)
+
+    async def mock_run(func, *args, **kwargs):
+        raise OSError("Unexpected filesystem failure")
+
+    monkeypatch.setattr(docling_lib.server, "run_in_threadpool", mock_run)
+
+    with pytest.raises(OSError, match="Unexpected filesystem failure"):
+        await _create_output_dir()
+
+
+@pytest.mark.asyncio
 async def test_validate_and_format_response_none():
     """Test that _validate_and_format_response raises 500 when result_path is None."""
     with pytest.raises(HTTPException) as exc_info:
