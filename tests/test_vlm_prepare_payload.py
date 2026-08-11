@@ -101,9 +101,9 @@ class TestVLMPreparePayload(unittest.TestCase):
             api_key="gemini-key",
             endpoint="https://generativelanguage.googleapis.com",
         )
-        expected_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=gemini-key"
+        expected_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent"
         self.assertEqual(url, expected_url)
-        self.assertEqual(headers, {"Content-Type": "application/json"})
+        self.assertEqual(headers["x-goog-api-key"], "gemini-key")
 
         parts = json_body["contents"][0]["parts"]
         self.assertEqual(len(parts), 2)
@@ -125,8 +125,9 @@ class TestVLMPreparePayload(unittest.TestCase):
             api_key="gemini-key",
             endpoint="https://generativelanguage.googleapis.com/",
         )
-        expected_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=gemini-key"
+        expected_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent"
         self.assertEqual(url, expected_url)
+        self.assertEqual(headers["x-goog-api-key"], "gemini-key")
 
         parts = json_body["contents"][0]["parts"]
         self.assertEqual(len(parts), 1)
