@@ -236,7 +236,9 @@ def _prepare_rest_payload(
     # 3. Google Gemini
     elif provider_lower in ("google", "gemini"):
         # Default endpoint for Google is usually https://generativelanguage.googleapis.com
-        url = f"{endpoint.rstrip('/')}/v1beta/models/{model}:generateContent?key={api_key}"
+        url = f"{endpoint.rstrip('/')}/v1beta/models/{model}:generateContent"
+        if api_key:
+            headers["x-goog-api-key"] = api_key
 
         if img_base64:
             parts = [

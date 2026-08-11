@@ -1,11 +1,30 @@
+import re
+
+# Regex to redact sensitive query parameters in strings/URLs (e.g., key=..., api_key=..., etc.)
+_SENSITIVE_PARAM_RE = re.compile(
+    r"((?:key|api_key|token|secret|credential|api-key)=(?:\w+))",
+    re.IGNORECASE
+)
+
 def sanitize_log_message(message: str) -> str:
     """
     Sanitizes a message for logging by replacing newline characters with spaces.
     This prevents log injection vulnerabilities.
+    Also redacts potential API keys or sensitive query parameters to prevent leakage.
     """
     if not isinstance(message, str):
         message = str(message)
-    return message.replace("\n", " ").replace("\r", " ")
+    sanitized = message.replace("\n", " ").replace("\r", " ")
+    # Redact sensitive parameters
+    sanitized = _SENSITIVE_PARAM_RE.sub(r"\1_REDACTED", sanitized)
+    # Also handle specific key=... format where value is a mix of characters
+    sanitized = re.sub(
+        r"([?&](?:key|api_key|token|secret|credential|api[-_]key)=)[^&\s'\"]+",
+        r"\1REDACTED",
+        sanitized,
+        flags=re.IGNORECASE
+    )
+    return sanitized
 
 
 def serialize_table_data_to_markdown(table_data) -> str:

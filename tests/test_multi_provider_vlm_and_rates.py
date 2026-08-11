@@ -115,8 +115,10 @@ class TestMultiProviderVLMAndRates(unittest.TestCase):
         self.assertEqual(res, "Gemini Description")
         mock_client.post.assert_called_once()
         url_called = mock_client.post.call_args[0][0]
-        self.assertIn("key=gem-test-key", url_called)
+        self.assertNotIn("key=gem-test-key", url_called)
         self.assertIn("gemini-1.5-flash", url_called)
+        headers_called = mock_client.post.call_args[1].get("headers", {})
+        self.assertEqual(headers_called.get("x-goog-api-key"), "gem-test-key")
 
     def test_semaphore_rate_limiting_isolation(self):
         """
@@ -166,6 +168,53 @@ class TestMultiProviderVLMAndRates(unittest.TestCase):
         url_called = mock_client.post.call_args[0][0]
         # Should be automatically adjusted to Anthropic URL
         self.assertTrue(url_called.startswith("https://api.anthropic.com"))
+
+    def test_sanitize_log_message_redacts_credentials(self):
+        """
+        Verify that sanitize_log_message correctly redacts key/api_key query parameters.
+        """
+        from docling_lib.utils import sanitize_log_message
+        msg1 = "URL: https://api.com/v1?key=secret-key-123-abc"
+        msg2 = "HTTP Error on https://api.com/v1?api_key=sk_live_5123abc&other=param"
+
+        self.assertIn("key=REDACTED", sanitize_log_message(msg1))
+        self.assertNotIn("secret-key-123-abc", sanitize_log_message(msg1))
+
+        self.assertIn("api_key=REDACTED", sanitize_log_message(msg2))
+        self.assertNotIn("sk_live_5123abc", sanitize_log_message(msg2))
+
+    @patch("httpx.Client")
+    def test_google_provider_exception_does_not_leak_key(self, mock_client_cls):
+        """
+        Verify that even if an exception occurs during Gemini provider execution,
+        the API key is not exposed or leaked to logs.
+        """
+        mock_client = mock_client_cls.return_value.__enter__.return_value
+        # Force a raise_for_status exception
+        mock_response = MagicMock()
+        import httpx
+        mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
+            message="403 Forbidden",
+            request=MagicMock(),
+            response=mock_response
+        )
+        mock_client.post.return_value = mock_response
+
+        with patch("docling_lib.vlm.logger") as mock_logger:
+            res = generate_caption_sync(
+                image=None,
+                provider="google",
+                api_key="my-secret-key-999",
+                model="gemini-1.5-flash",
+                endpoint="https://generativelanguage.googleapis.com",
+                prompt="Explain",
+            )
+            self.assertEqual(res, "")
+
+            # Check logger warnings
+            warn_args = [call[0][0] for call in mock_logger.warning.call_args_list]
+            for arg in warn_args:
+                self.assertNotIn("my-secret-key-999", arg)
 
     def test_escape_pipe_characters_in_markdown_table(self):
         """
