@@ -265,7 +265,7 @@ class HTMLTableMarkdownSerializer(MarkdownTableSerializer):
         if hasattr(item, "_mock_name") or "Mock" in type(item).__name__:
             # Keep backward compatibility with existing tests by defaulting to True if item is a Mock
             has_merged_cells = True
-        elif hasattr(item, "data") and item.data and hasattr(item.data, "table_cells"):
+        elif hasattr(item, "data") and item.data and hasattr(item.data, "table_cells") and item.data.table_cells is not None:
             cells = item.data.table_cells
             for cell in cells:
                 if (getattr(cell, "row_span", 1) or 1) > 1 or (
