@@ -39,7 +39,7 @@ CORS_ORIGINS = set(
     o.strip() for o in os.getenv("DOCLING_CORS_ORIGINS", "").split(",") if o.strip()
 )
 
-# API Key for authentication (Optional: if not set, authentication is disabled)
+# API Key for authentication (Required: server startup will fail if not set)
 API_KEY = os.getenv("DOCLING_API_KEY")
 
 # Rate limiting configurations
