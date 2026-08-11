@@ -34,3 +34,27 @@ def test_convert_file_size_limit_read(mock_ext, tmp_path, monkeypatch):
     response = client.post("/convert/", files=files)
     assert response.status_code == 413
     assert "Payload Too Large" in response.json()["detail"]
+
+
+@patch("tempfile.NamedTemporaryFile")
+def test_convert_file_spooling_prevented_on_too_large(mock_temp_file, tmp_path, monkeypatch):
+    """
+    Verify that our ContentSizeLimitMiddleware prevents file spooling to disk.
+    If the request body is too large, the upload should be terminated and rejected
+    without ever invoking NamedTemporaryFile or saving upload temp files.
+    """
+    # Reset rate limit data
+    docling_lib.server._rate_limit_data.clear()
+
+    # Set a small limit of 5 bytes
+    monkeypatch.setattr(docling_lib.server, "MAX_UPLOAD_SIZE", 5)
+    monkeypatch.setattr(docling_lib.server, "UPLOAD_DIR", tmp_path)
+
+    files = {"file": ("test.pdf", b"this is more than five bytes", "application/pdf")}
+    response = client.post("/convert/", files=files)
+
+    assert response.status_code == 413
+    assert "Payload Too Large" in response.json()["detail"]
+
+    # Assert that no NamedTemporaryFile was created/spooled
+    mock_temp_file.assert_not_called()
