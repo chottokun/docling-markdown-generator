@@ -396,7 +396,7 @@ def _prepare_caption_args(
     img_base64 = None
     if image is not None:
         try:
-            img_base64 = _encode_image_to_base64(image)
+            img_base64 = await asyncio.to_thread(_encode_image_to_base64, image)
         except Exception as e:
             logger.warning(
                 f"Failed to encode image to base64 for VLM: {sanitize_log_message(e)}"
