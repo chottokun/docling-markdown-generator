@@ -311,6 +311,9 @@ class HTMLTableMarkdownSerializer(MarkdownTableSerializer):
         return create_ser_result(text=text_res, span_source=res_parts)
 
 
+_ENHANCED_SERIALIZER_MODEL_FIELDS: list[str] | None = None
+
+
 class EnhancedMarkdownSerializer(MarkdownDocSerializer):
     """
     Custom Markdown Serializer that:
@@ -338,8 +341,12 @@ class EnhancedMarkdownSerializer(MarkdownDocSerializer):
         # Initialize other fields to avoid Pydantic errors if they are accessed
         # Bypassing getattr avoids the expensive overhead of Pydantic's custom
         # descriptors and attribute lookup hooks when attributes are missing.
+        global _ENHANCED_SERIALIZER_MODEL_FIELDS
+        if _ENHANCED_SERIALIZER_MODEL_FIELDS is None:
+            _ENHANCED_SERIALIZER_MODEL_FIELDS = list(self.model_fields)
+
         self_dict = self.__dict__
-        for field in self.model_fields:
+        for field in _ENHANCED_SERIALIZER_MODEL_FIELDS:
             if field not in self_dict:
                 object.__setattr__(self, field, None)
 
