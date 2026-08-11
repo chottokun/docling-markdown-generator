@@ -111,10 +111,27 @@ async def test_create_output_dir(tmp_path, monkeypatch):
 
     # Assert
     assert isinstance(request_id, str)
-    assert len(request_id) == 16  # 8 bytes hex
+    assert len(request_id) == 32  # 16 bytes hex
     assert request_output_dir == tmp_path / request_id
     assert request_output_dir.exists()
     assert request_output_dir.is_dir()
+
+
+@pytest.mark.asyncio
+async def test_create_output_dir_entropy_and_uniqueness(tmp_path, monkeypatch):
+    """Test that generated request IDs have sufficient entropy and are unique across multiple calls."""
+    monkeypatch.setattr(docling_lib.server, "OUTPUT_DIR", tmp_path)
+
+    ids = set()
+    for _ in range(100):
+        req_id, _ = await _create_output_dir()
+        # Verify length and format (should be hex characters)
+        assert len(req_id) == 32
+        assert all(c in "0123456789abcdef" for c in req_id)
+        ids.add(req_id)
+
+    # All generated IDs must be unique
+    assert len(ids) == 100
 
 
 @pytest.mark.asyncio
