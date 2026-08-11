@@ -373,7 +373,7 @@ async def _save_upload_temp(file: UploadFile, suffix: str) -> Path:
 
 async def _create_output_dir() -> tuple[str, Path]:
     """Create a unique output directory for the request and return its ID and path."""
-    request_id = os.urandom(8).hex()
+    request_id = os.urandom(16).hex()
     request_output_dir = OUTPUT_DIR / request_id
     await run_in_threadpool(request_output_dir.mkdir, parents=True, exist_ok=True)
     return request_id, request_output_dir
