@@ -1,5 +1,6 @@
 import asyncio
 import ipaddress
+import json
 import logging
 import os
 import secrets
@@ -25,6 +26,89 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
+from starlette.datastructures import Headers
+from starlette.types import ASGIApp, Receive, Scope, Send
+
+
+class RequestBodyTooLarge(Exception):
+    """Exception raised when the request body exceeds MAX_UPLOAD_SIZE."""
+    pass
+
+
+class ContentSizeLimitMiddleware:
+    """
+    ASGI middleware to prevent Denial of Service (DoS) via Unrestricted File Upload Spooling.
+    Enforces the MAX_UPLOAD_SIZE limit at the ASGI level, stopping excessive uploads
+    before they are spooled to disk or processed by Starlette's multipart parser.
+    """
+    def __init__(self, app: ASGIApp, max_content_size: int):
+        self.app = app
+        self.max_content_size = max_content_size
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        # Dynamically fetch the current MAX_UPLOAD_SIZE to support test-level overrides/monkeypatching
+        limit = MAX_UPLOAD_SIZE
+
+        # 1. Inspect Content-Length header if present
+        headers = Headers(scope=scope)
+        content_length_str = headers.get("content-length")
+        if content_length_str is not None:
+            try:
+                content_length = int(content_length_str)
+                if content_length > limit:
+                    await self._send_413_response(send, limit)
+                    return
+            except ValueError:
+                pass
+
+        # 2. Track body size dynamically for chunked/streamed uploads
+        total_size = 0
+        response_started = False
+
+        async def wrapped_receive() -> dict:
+            nonlocal total_size
+            message = await receive()
+            if message["type"] == "http.request":
+                chunk_len = len(message.get("body", b""))
+                total_size += chunk_len
+                if total_size > limit:
+                    raise RequestBodyTooLarge("Payload Too Large")
+            return message
+
+        async def wrapped_send(message: dict) -> None:
+            nonlocal response_started
+            if message["type"] == "http.response.start":
+                response_started = True
+            await send(message)
+
+        try:
+            await self.app(scope, wrapped_receive, wrapped_send)
+        except RequestBodyTooLarge:
+            if not response_started:
+                await self._send_413_response(send, limit)
+
+    async def _send_413_response(self, send: Send, limit: int) -> None:
+        body = json.dumps({
+            "detail": f"Payload Too Large. Maximum size is {limit} bytes."
+        }).encode("utf-8")
+
+        await send({
+            "type": "http.response.start",
+            "status": 413,
+            "headers": [
+                (b"content-type", b"application/json"),
+                (b"content-length", str(len(body)).encode("latin-1")),
+            ],
+        })
+        await send({
+            "type": "http.response.body",
+            "body": body,
+            "more_body": False,
+        })
 
 from .config import (
     ALLOWED_EXTENSIONS,
@@ -565,6 +649,12 @@ def create_app() -> FastAPI:
         allow_credentials=bool(CORS_ORIGINS) and "*" not in CORS_ORIGINS,
         allow_methods=["GET", "POST"],
         allow_headers=["Content-Type", "Content-Length"],
+    )
+
+    # Add content size limit middleware to prevent DoS via upload spooling
+    new_app.add_middleware(
+        ContentSizeLimitMiddleware,
+        max_content_size=MAX_UPLOAD_SIZE,
     )
 
     # Ensure directories exist
