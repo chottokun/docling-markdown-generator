@@ -118,6 +118,79 @@ class TestMultiProviderVLMAndRates(unittest.TestCase):
         self.assertIn("key=gem-test-key", url_called)
         self.assertIn("gemini-1.5-flash", url_called)
 
+    def test_generate_caption_sync_semaphore_acquire_exception(self):
+        """
+        Verify that generate_caption_sync handles semaphore acquire exception gracefully,
+        returns empty string, and does not release the semaphore since it was never acquired.
+        """
+        from docling_lib.vlm import get_semaphore
+        real_sem = get_semaphore(5, provider="ollama", endpoint="http://localhost:11434")
+
+        mock_sem = MagicMock(wraps=real_sem)
+        # Mock acquire method to raise Exception
+        mock_sem.acquire.side_effect = Exception("Semaphore acquisition failed")
+
+        with patch("docling_lib.vlm.get_semaphore", return_value=mock_sem):
+            img = Image.new("RGB", (10, 10))
+            res = generate_caption_sync(
+                image=img,
+                provider="ollama",
+                endpoint="http://localhost:11434",
+            )
+            self.assertEqual(res, "")
+            mock_sem.acquire.assert_called_once()
+            mock_sem.release.assert_not_called()
+
+    @patch("httpx.Client")
+    def test_generate_caption_sync_client_context_exception(self, mock_client_cls):
+        """
+        Verify that generate_caption_sync handles exception raised inside the context manager gracefully,
+        logs warning, returns empty string, and properly releases the semaphore.
+        """
+        # Mock __enter__ of Client context manager to throw Exception
+        mock_client = mock_client_cls.return_value
+        mock_client.__enter__.side_effect = Exception("Context manager enter failed")
+
+        from docling_lib.vlm import get_semaphore
+        real_sem = get_semaphore(5, provider="ollama", endpoint="http://localhost:11434")
+
+        mock_sem = MagicMock(wraps=real_sem)
+        with patch("docling_lib.vlm.get_semaphore", return_value=mock_sem):
+            img = Image.new("RGB", (10, 10))
+            res = generate_caption_sync(
+                image=img,
+                provider="ollama",
+                endpoint="http://localhost:11434",
+            )
+            self.assertEqual(res, "")
+            mock_sem.acquire.assert_called_once()
+            mock_sem.release.assert_called_once()
+
+    @patch("httpx.Client")
+    def test_generate_caption_sync_post_exception(self, mock_client_cls):
+        """
+        Verify that generate_caption_sync handles post exception gracefully,
+        logs warning, returns empty string, and properly releases the semaphore.
+        """
+        mock_client = mock_client_cls.return_value.__enter__.return_value
+        mock_client.post.side_effect = Exception("HTTP post failure")
+
+        # Mock get_semaphore to return a spy/mock semaphore
+        from docling_lib.vlm import get_semaphore
+        real_sem = get_semaphore(5, provider="ollama", endpoint="http://localhost:11434")
+
+        mock_sem = MagicMock(wraps=real_sem)
+        with patch("docling_lib.vlm.get_semaphore", return_value=mock_sem):
+            img = Image.new("RGB", (10, 10))
+            res = generate_caption_sync(
+                image=img,
+                provider="ollama",
+                endpoint="http://localhost:11434",
+            )
+            self.assertEqual(res, "")
+            mock_sem.acquire.assert_called_once()
+            mock_sem.release.assert_called_once()
+
     def test_semaphore_rate_limiting_isolation(self):
         """
         Verify that rate-limiting semaphores are isolated per provider & endpoint.
