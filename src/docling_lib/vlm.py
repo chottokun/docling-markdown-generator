@@ -160,6 +160,143 @@ def _encode_image_to_base64(image: Image.Image) -> str:
     return base64.b64encode(buffered.getvalue()).decode("utf-8")
 
 
+def _build_openai_payload(
+    endpoint: str,
+    api_key: str,
+    model: str,
+    full_prompt: str,
+    img_base64: str | None,
+    headers: dict,
+) -> tuple[str, dict, dict]:
+    url = f"{endpoint.rstrip('/')}/chat/completions"
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+
+    if img_base64:
+        content_list = [
+            {"type": "text", "text": full_prompt},
+            {
+                "type": "image_url",
+                "image_url": {"url": f"data:image/png;base64,{img_base64}"},
+            },
+        ]
+    else:
+        content_list = [{"type": "text", "text": full_prompt}]
+
+    json_body = {
+        "model": model,
+        "messages": [{"role": "user", "content": content_list}],
+        "stream": False,
+    }
+    return url, headers, json_body
+
+
+def _build_anthropic_payload(
+    endpoint: str,
+    api_key: str,
+    model: str,
+    full_prompt: str,
+    img_base64: str | None,
+    headers: dict,
+) -> tuple[str, dict, dict]:
+    url = f"{endpoint.rstrip('/')}/v1/messages"
+    headers.update(
+        {
+            "x-api-key": api_key,
+            "anthropic-version": "2023-06-01",
+        }
+    )
+
+    if img_base64:
+        content_list = [
+            {
+                "type": "image",
+                "source": {
+                    "type": "base64",
+                    "media_type": "image/png",
+                    "data": img_base64,
+                    },
+            },
+            {"type": "text", "text": full_prompt},
+        ]
+    else:
+        content_list = [{"type": "text", "text": full_prompt}]
+
+    json_body = {
+        "model": model,
+        "max_tokens": 1024,
+        "messages": [{"role": "user", "content": content_list}],
+    }
+    return url, headers, json_body
+
+
+def _build_google_payload(
+    endpoint: str,
+    api_key: str,
+    model: str,
+    full_prompt: str,
+    img_base64: str | None,
+    headers: dict,
+) -> tuple[str, dict, dict]:
+    url = f"{endpoint.rstrip('/')}/v1beta/models/{model}:generateContent?key={api_key}"
+
+    if img_base64:
+        parts = [
+            {"text": full_prompt},
+            {
+                "inlineData": {
+                    "mimeType": "image/png",
+                    "data": img_base64,
+                }
+            },
+        ]
+    else:
+        parts = [{"text": full_prompt}]
+
+    json_body = {"contents": [{"parts": parts}]}
+    return url, headers, json_body
+
+
+def _build_ollama_payload(
+    endpoint: str,
+    api_key: str,
+    model: str,
+    full_prompt: str,
+    img_base64: str | None,
+    headers: dict,
+) -> tuple[str, dict, dict]:
+    url = f"{endpoint.rstrip('/')}/api/chat"
+    if img_base64:
+        message_content = {
+            "role": "user",
+            "content": full_prompt,
+            "images": [img_base64],
+        }
+    else:
+        message_content = {
+            "role": "user",
+            "content": full_prompt,
+        }
+
+    json_body = {
+        "model": model,
+        "messages": [message_content],
+        "stream": False,
+    }
+    return url, headers, json_body
+
+
+# Register strategies / builder functions for each provider mapping
+_PROVIDER_BUILDERS = {
+    "openai": _build_openai_payload,
+    "vllm": _build_openai_payload,
+    "llama.cpp": _build_openai_payload,
+    "anthropic": _build_anthropic_payload,
+    "google": _build_google_payload,
+    "gemini": _build_google_payload,
+}
+
+
 def _prepare_rest_payload(
     provider: str,
     model: str,
@@ -179,102 +316,15 @@ def _prepare_rest_payload(
     if text_content:
         full_prompt = f"{prompt}\n\n[Content]\n{text_content}"
 
-    # 1. OpenAI / OpenAI-compatible (vLLM, llama.cpp, etc.)
-    if provider_lower in ("openai", "vllm", "llama.cpp"):
-        url = f"{endpoint.rstrip('/')}/chat/completions"
-        if api_key:
-            headers["Authorization"] = f"Bearer {api_key}"
-
-        if img_base64:
-            content_list = [
-                {"type": "text", "text": full_prompt},
-                {
-                    "type": "image_url",
-                    "image_url": {"url": f"data:image/png;base64,{img_base64}"},
-                },
-            ]
-        else:
-            content_list = [{"type": "text", "text": full_prompt}]
-
-        json_body = {
-            "model": model,
-            "messages": [{"role": "user", "content": content_list}],
-            "stream": False,
-        }
-
-    # 2. Anthropic Claude
-    elif provider_lower == "anthropic":
-        url = f"{endpoint.rstrip('/')}/v1/messages"
-        headers.update(
-            {
-                "x-api-key": api_key,
-                "anthropic-version": "2023-06-01",
-            }
-        )
-
-        if img_base64:
-            content_list = [
-                {
-                    "type": "image",
-                    "source": {
-                        "type": "base64",
-                        "media_type": "image/png",
-                        "data": img_base64,
-                    },
-                },
-                {"type": "text", "text": full_prompt},
-            ]
-        else:
-            content_list = [{"type": "text", "text": full_prompt}]
-
-        json_body = {
-            "model": model,
-            "max_tokens": 1024,
-            "messages": [{"role": "user", "content": content_list}],
-        }
-
-    # 3. Google Gemini
-    elif provider_lower in ("google", "gemini"):
-        # Default endpoint for Google is usually https://generativelanguage.googleapis.com
-        url = f"{endpoint.rstrip('/')}/v1beta/models/{model}:generateContent?key={api_key}"
-
-        if img_base64:
-            parts = [
-                {"text": full_prompt},
-                {
-                    "inlineData": {
-                        "mimeType": "image/png",
-                        "data": img_base64,
-                    }
-                },
-            ]
-        else:
-            parts = [{"text": full_prompt}]
-
-        json_body = {"contents": [{"parts": parts}]}
-
-    # 4. Default: Ollama (Existing)
-    else:
-        url = f"{endpoint.rstrip('/')}/api/chat"
-        if img_base64:
-            message_content = {
-                "role": "user",
-                "content": full_prompt,
-                "images": [img_base64],
-            }
-        else:
-            message_content = {
-                "role": "user",
-                "content": full_prompt,
-            }
-
-        json_body = {
-            "model": model,
-            "messages": [message_content],
-            "stream": False,
-        }
-
-    return url, headers, json_body
+    builder = _PROVIDER_BUILDERS.get(provider_lower, _build_ollama_payload)
+    return builder(
+        endpoint=endpoint,
+        api_key=api_key,
+        model=model,
+        full_prompt=full_prompt,
+        img_base64=img_base64,
+        headers=headers,
+    )
 
 
 def _extract_response_content(provider: str, data: dict) -> str:
