@@ -224,9 +224,8 @@ def _is_trusted_proxy(ip_str: str | None) -> bool:
 
     ip_str = ip_str.strip()
 
-    wildcard, exact_matches, cidr_networks = _parse_trusted_proxies(
-        tuple(TRUSTED_PROXIES)
-    )
+    proxies_tuple = TRUSTED_PROXIES if isinstance(TRUSTED_PROXIES, tuple) else tuple(TRUSTED_PROXIES)
+    wildcard, exact_matches, cidr_networks = _parse_trusted_proxies(proxies_tuple)
 
     if wildcard:
         return True
