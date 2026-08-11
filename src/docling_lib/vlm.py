@@ -301,22 +301,19 @@ def _extract_response_content(provider: str, data: dict) -> str:
         return ""
 
 
-async def generate_caption(
-    image: Image.Image | None = None,
-    provider: str = "ollama",
-    api_key: str = "",
-    model: str = "qwen2-vl:2b",
-    endpoint: str = "http://localhost:11434",
-    prompt: str = (
-        "この画像の概要を1〜2文程度で簡潔に日本語で説明してください。"
-        "なお、グラフや図表の場合は主要な数値や傾向（増減・ピークなど）を含めて説明してください。"
-    ),
-    text_content: str | None = None,
-    vlm_max_concurrent: int = 5,
-) -> str:
+def _prepare_caption_args(
+    image: Image.Image | None,
+    provider: str,
+    api_key: str,
+    model: str,
+    endpoint: str,
+    prompt: str,
+    text_content: str | None,
+) -> tuple[str, str, str, dict, dict] | None:
     """
-    Asynchronously generates a description/caption/summary for an image or structured text
-    using the selected VLM/LLM REST provider with dynamic rate-limiting control.
+    Forces parameter defaults, automatically adjusts endpoints, encodes images to base64,
+    and prepares the REST payload.
+    Returns (provider_resolved, endpoint_resolved, url, headers, json_body) or None if image encoding fails.
     """
     # Force defaults if parameters are None/empty to match backward-compatible tests
     if not provider:
@@ -354,7 +351,7 @@ async def generate_caption(
             logger.warning(
                 f"Failed to encode image to base64 for VLM: {sanitize_log_message(e)}"
             )
-            return ""
+            return None
 
     url, headers, json_body = _prepare_rest_payload(
         provider=provider,
@@ -366,8 +363,42 @@ async def generate_caption(
         endpoint=endpoint,
     )
 
+    return provider, endpoint, url, headers, json_body
+
+
+async def generate_caption(
+    image: Image.Image | None = None,
+    provider: str = "ollama",
+    api_key: str = "",
+    model: str = "qwen2-vl:2b",
+    endpoint: str = "http://localhost:11434",
+    prompt: str = (
+        "この画像の概要を1〜2文程度で簡潔に日本語で説明してください。"
+        "なお、グラフや図表の場合は主要な数値や傾向（増減・ピークなど）を含めて説明してください。"
+    ),
+    text_content: str | None = None,
+    vlm_max_concurrent: int = 5,
+) -> str:
+    """
+    Asynchronously generates a description/caption/summary for an image or structured text
+    using the selected VLM/LLM REST provider with dynamic rate-limiting control.
+    """
+    prepared = _prepare_caption_args(
+        image=image,
+        provider=provider,
+        api_key=api_key,
+        model=model,
+        endpoint=endpoint,
+        prompt=prompt,
+        text_content=text_content,
+    )
+    if prepared is None:
+        return ""
+
+    provider_resolved, endpoint_resolved, url, headers, json_body = prepared
+
     # Use semaphore for rate limiting, isolated per provider & endpoint
-    sem = get_semaphore(vlm_max_concurrent, provider=provider, endpoint=endpoint)
+    sem = get_semaphore(vlm_max_concurrent, provider=provider_resolved, endpoint=endpoint_resolved)
     acquired = False
     try:
         # Acquire semaphore asynchronously using to_thread to prevent event-loop blocking
@@ -386,11 +417,11 @@ async def generate_caption(
             response = await client.post(url, headers=headers, json=json_body)
             response.raise_for_status()
             data = response.json()
-            content = _extract_response_content(provider, data)
+            content = _extract_response_content(provider_resolved, data)
             return content.strip()
     except Exception as e:
         logger.warning(
-            f"VLM/LLM caption generation failed for {provider}: {sanitize_log_message(e)}"
+            f"VLM/LLM caption generation failed for {provider_resolved}: {sanitize_log_message(e)}"
         )
         return ""
     finally:
@@ -415,56 +446,22 @@ def generate_caption_sync(
     Synchronously generates a description/caption/summary for an image or structured text
     using the selected VLM/LLM REST provider with dynamic rate-limiting control.
     """
-    # Force defaults if parameters are None/empty to match backward-compatible tests
-    if not provider:
-        provider = "ollama"
-    provider_lower = provider.strip().lower()
-
-    if not model:
-        model = "qwen2-vl:2b"
-
-    # Automatically adjust default endpoints for other cloud providers
-    if not endpoint or (
-        endpoint == "http://localhost:11434" and provider_lower != "ollama"
-    ):
-        if provider_lower == "ollama":
-            endpoint = "http://localhost:11434"
-        elif provider_lower in ("openai", "vllm", "llama.cpp"):
-            endpoint = "https://api.openai.com/v1"
-        elif provider_lower == "anthropic":
-            endpoint = "https://api.anthropic.com"
-        elif provider_lower in ("google", "gemini"):
-            endpoint = "https://generativelanguage.googleapis.com"
-
-    if not prompt:
-        prompt = (
-            "この画像の概要を1〜2文程度で簡潔に日本語で説明してください。"
-            "なお、グラフや図表の場合は主要な数値や傾向（増減・ピークなど）を含めて説明してください。"
-        )
-
-    # Encode image if provided
-    img_base64 = None
-    if image is not None:
-        try:
-            img_base64 = _encode_image_to_base64(image)
-        except Exception as e:
-            logger.warning(
-                f"Failed to encode image to base64 for VLM: {sanitize_log_message(e)}"
-            )
-            return ""
-
-    url, headers, json_body = _prepare_rest_payload(
+    prepared = _prepare_caption_args(
+        image=image,
         provider=provider,
-        model=model,
-        prompt=prompt,
-        img_base64=img_base64,
-        text_content=text_content,
         api_key=api_key,
+        model=model,
         endpoint=endpoint,
+        prompt=prompt,
+        text_content=text_content,
     )
+    if prepared is None:
+        return ""
+
+    provider_resolved, endpoint_resolved, url, headers, json_body = prepared
 
     # Use semaphore for rate limiting, isolated per provider & endpoint
-    sem = get_semaphore(vlm_max_concurrent, provider=provider, endpoint=endpoint)
+    sem = get_semaphore(vlm_max_concurrent, provider=provider_resolved, endpoint=endpoint_resolved)
     acquired = False
     try:
         sem.acquire()
@@ -482,11 +479,11 @@ def generate_caption_sync(
             response = client.post(url, headers=headers, json=json_body)
             response.raise_for_status()
             data = response.json()
-            content = _extract_response_content(provider, data)
+            content = _extract_response_content(provider_resolved, data)
             return content.strip()
     except Exception as e:
         logger.warning(
-            f"VLM/LLM caption generation failed for {provider}: {sanitize_log_message(e)}"
+            f"VLM/LLM caption generation failed for {provider_resolved}: {sanitize_log_message(e)}"
         )
         return ""
     finally:
