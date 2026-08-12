@@ -866,6 +866,7 @@ class EnhancedDoclingConverter:
     def convert_to_markdown(
         self,
         input_path: Path,
+        slug: str | None = None,
         image_tag_template: str = "![{image_name}](assets/{slug}/{image_name})",
         assets_dir: Path | None = None,
     ) -> str:
@@ -878,13 +879,16 @@ class EnhancedDoclingConverter:
         result = self.docling_converter.doc_converter.convert(input_path)
         doc = result.document
 
-        # 2. Generate clean URL-friendly slug from input_path.stem
-        # e.g. lowercasing, converting spaces and special characters to hyphens
-        raw_slug = input_path.stem.lower()
-        # Replace non-alphanumeric characters with hyphens
-        slug = re.sub(r"[^a-z0-9]+", "-", raw_slug).strip("-")
-        if not slug:
-            slug = "document"
+        # 2. Determine slug: prioritize explicit slug, then assets_dir.name, then generated slug from filename
+        if slug is None:
+            if assets_dir is not None:
+                slug = assets_dir.name
+            else:
+                raw_slug = input_path.stem.lower()
+                # Replace non-alphanumeric characters with hyphens
+                slug = re.sub(r"[^a-z0-9]+", "-", raw_slug).strip("-")
+                if not slug:
+                    slug = "document"
 
         # 3. Save images to assets_dir if provided
         if assets_dir is not None:

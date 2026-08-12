@@ -85,6 +85,95 @@ def test_convert_to_markdown_saves_images_when_assets_dir_provided(MockPDFConver
     mock_pdf_conv._save_images.assert_called_once_with(mock_doc, assets_dir)
 
 
+@patch("docling_lib.converter.PDFConverter")
+def test_convert_to_markdown_priority_slug_explicit(MockPDFConverter, tmp_path):
+    """Verify that explicit slug argument takes highest priority."""
+    mock_pdf_conv = MockPDFConverter.return_value
+    mock_doc = MagicMock(spec=DoclingDocument)
+    mock_result = MagicMock()
+    mock_result.document = mock_doc
+    mock_pdf_conv.doc_converter.convert.return_value = mock_result
+    mock_pdf_conv._serialize_to_markdown.return_value = "Content"
+    mock_pdf_conv.options = DocumentConversionOptions()
+    mock_pdf_conv._apply_metadata_frontmatter.return_value = "Content"
+
+    conv = EnhancedDoclingConverter(docling_converter=mock_pdf_conv)
+    assets_dir = tmp_path / "custom-assets-folder"
+
+    # Both slug and assets_dir are provided, explicit slug should win
+    conv.convert_to_markdown(
+        tmp_path / "test-doc-name.pdf",
+        slug="my-highly-specific-slug",
+        assets_dir=assets_dir,
+    )
+
+    mock_pdf_conv._serialize_to_markdown.assert_called_with(
+        doc=mock_doc,
+        table_format="html",
+        options=mock_pdf_conv.options,
+        image_tag_template="![{image_name}](assets/{slug}/{image_name})",
+        slug="my-highly-specific-slug",
+    )
+
+
+@patch("docling_lib.converter.PDFConverter")
+def test_convert_to_markdown_priority_slug_assets_dir(MockPDFConverter, tmp_path):
+    """Verify that assets_dir name takes priority over filename when slug is None."""
+    mock_pdf_conv = MockPDFConverter.return_value
+    mock_doc = MagicMock(spec=DoclingDocument)
+    mock_result = MagicMock()
+    mock_result.document = mock_doc
+    mock_pdf_conv.doc_converter.convert.return_value = mock_result
+    mock_pdf_conv._serialize_to_markdown.return_value = "Content"
+    mock_pdf_conv.options = DocumentConversionOptions()
+    mock_pdf_conv._apply_metadata_frontmatter.return_value = "Content"
+
+    conv = EnhancedDoclingConverter(docling_converter=mock_pdf_conv)
+    assets_dir = tmp_path / "assets" / "llm_llm-as-a-judge"
+
+    # slug is None, assets_dir is provided -> slug should be 'llm_llm-as-a-judge'
+    conv.convert_to_markdown(
+        tmp_path / "test-doc-name.pdf",
+        assets_dir=assets_dir,
+    )
+
+    mock_pdf_conv._serialize_to_markdown.assert_called_with(
+        doc=mock_doc,
+        table_format="html",
+        options=mock_pdf_conv.options,
+        image_tag_template="![{image_name}](assets/{slug}/{image_name})",
+        slug="llm_llm-as-a-judge",
+    )
+
+
+@patch("docling_lib.converter.PDFConverter")
+def test_convert_to_markdown_priority_slug_filename(MockPDFConverter, tmp_path):
+    """Verify that filename stem is used when both slug and assets_dir are None."""
+    mock_pdf_conv = MockPDFConverter.return_value
+    mock_doc = MagicMock(spec=DoclingDocument)
+    mock_result = MagicMock()
+    mock_result.document = mock_doc
+    mock_pdf_conv.doc_converter.convert.return_value = mock_result
+    mock_pdf_conv._serialize_to_markdown.return_value = "Content"
+    mock_pdf_conv.options = DocumentConversionOptions()
+    mock_pdf_conv._apply_metadata_frontmatter.return_value = "Content"
+
+    conv = EnhancedDoclingConverter(docling_converter=mock_pdf_conv)
+
+    # Both slug and assets_dir are None -> slug should be generated from input_path
+    conv.convert_to_markdown(
+        tmp_path / "My Awesome Test Document.pdf",
+    )
+
+    mock_pdf_conv._serialize_to_markdown.assert_called_with(
+        doc=mock_doc,
+        table_format="html",
+        options=mock_pdf_conv.options,
+        image_tag_template="![{image_name}](assets/{slug}/{image_name})",
+        slug="my-awesome-test-document",
+    )
+
+
 def test_custom_picture_serializer_template_interpolation():
     """Verify custom template is correctly interpolated when serializing picture item."""
     from docling_core.transforms.serializer.markdown import SerializationResult
