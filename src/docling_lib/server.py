@@ -9,6 +9,7 @@ import time
 from collections import defaultdict, deque
 from functools import lru_cache
 from pathlib import Path
+from typing import Any
 
 import psutil
 from fastapi import (
@@ -24,7 +25,6 @@ from fastapi import (
 )
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
-from typing import Any
 from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
 from starlette.datastructures import Headers
@@ -37,13 +37,13 @@ from .config import (
     DOCLING_CUDA_FLASH_ATTENTION,
     DOCLING_INCLUDE_KV_EXTRACTION,
     DOCLING_INCLUDE_PAGE_BREAKS,
+    DOCLING_MATH_BLOCK_DELIM,
+    DOCLING_MATH_BLOCK_NEWLINE,
+    DOCLING_MATH_INLINE_DELIM,
     DOCLING_NUM_THREADS,
     DOCLING_TABLE_FORMAT,
     DOCLING_VLM_API_KEY,
     DOCLING_VLM_ENABLED,
-    DOCLING_MATH_INLINE_DELIM,
-    DOCLING_MATH_BLOCK_DELIM,
-    DOCLING_MATH_BLOCK_NEWLINE,
     DOCLING_VLM_ENDPOINT,
     DOCLING_VLM_MAX_CONCURRENT,
     DOCLING_VLM_MODEL,

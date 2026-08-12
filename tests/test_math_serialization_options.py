@@ -1,10 +1,10 @@
 from unittest.mock import MagicMock, patch
-import pytest
-from fastapi.testclient import TestClient
-from docling_core.types.doc import FormulaItem, ImageRefMode
 
-from docling_lib.converter import EnhancedMarkdownTextSerializer, PDFConverter
+from docling_core.types.doc import FormulaItem
+from fastapi.testclient import TestClient
+
 from docling_lib.cli import setup_parser
+from docling_lib.converter import EnhancedMarkdownTextSerializer, PDFConverter
 from docling_lib.server import app
 
 

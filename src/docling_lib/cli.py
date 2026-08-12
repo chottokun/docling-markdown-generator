@@ -5,12 +5,12 @@ from pathlib import Path
 
 # Import from config and converter
 from .config import (
+    DOCLING_MATH_BLOCK_DELIM,
+    DOCLING_MATH_BLOCK_NEWLINE,
+    DOCLING_MATH_INLINE_DELIM,
     IMAGE_DIR_NAME,
     IMAGE_RESOLUTION_SCALE,
     MD_OUTPUT_NAME,
-    DOCLING_MATH_INLINE_DELIM,
-    DOCLING_MATH_BLOCK_DELIM,
-    DOCLING_MATH_BLOCK_NEWLINE,
     setup_logging,
 )
 from .converter import DocumentConversionOptions, process_pdf
