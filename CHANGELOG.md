@@ -8,17 +8,27 @@
 ## [Unreleased]
 
 ### セキュリティ (Security)
+- ファイルアップロード時のディスク枯渇（DoS）防止: ASGI レベルの `ContentSizeLimitMiddleware` を実装し、`MAX_UPLOAD_SIZE` を超えるリクエストを一時ファイル作成（スプール）前に `413 Payload Too Large` で即時遮断 (PR #212)。
+- Request ID のエントロピー強化: バースデーパラドックスによるフォルダ衝突・データ漏洩を防ぐため、Request ID のエントロピーを 8 バイト (64bit) から 16 バイト (128bit / 32桁HEX) に拡張 (PR #209)。
+- VLM ログ出力における API Key 漏洩防止: Google Gemini API キーを URL クエリパラメータから `x-goog-api-key` ヘッダーへ移行し、ログサニタイズ処理に正規表現伏字化（`REDACTED`）を追加 (PR #219)。
 - `X-Forwarded-For` ヘッダーパース時における IP スプーフィング脆弱性の修正。信頼されたプロキシチェーンを右から左へ辿り、最初に現れた未検証 IP をクライアント IP として抽出する厳格な検証を追加 (PR #201)。
 
 ### パフォーマンス (Performance)
+- `EnhancedDoclingConverter` の追加: Obsidian 形式 (`![[assets/{slug}/{image_name}]]`) などのカスタム画像タグテンプレートおよび `assets_dir` への自動画像保存に対応 (PR #220)。
+- 信頼できるプロキシ (`TRUSTED_PROXIES`) 検索の高速化: tuple データ構造化および型判定ファストパスによりホットパスで約 29.2% の速度向上を達成 (PR #208)。
+- VLM 画像 base64 エンコードの非同期非ブロック化: 非同期 `generate_caption` 内の CPU/IO 負荷の高い画像エンコードを `asyncio.to_thread` にオフロードし、FastAPI イベントループの滞留を防止 (PR #211)。
+- カスタムシリアライザのモデルフィールド初期化最適化: Pydantic モデルフィールド一覧のモジュールレベルキャッシュにより初期化を 18〜20% 高速化 (PR #213)。
 - `_save_upload_temp` におけるファイルアップロード保存処理の最適化。不要なループ内での `run_in_threadpool` 呼出を単一のブロック書き込みタスクに一括集約し、保存処理時間を約 84% 削減 (PR #204)。
 - `CustomMarkdownPictureSerializer` における画像インデックス検索の $O(1)$ ハッシュマップキャッシュ最適化。大量画像含有ドキュメントでのシリアル化計算量を大幅削減 (PR #203)。
 - インメモリ・レートリミッターのクリーンアップ処理 `cleanup_expired_rate_limits` の非同期バックグラウンドタスク化。`await asyncio.sleep(0)` による協調的イベントループ解放により、クリーンアップ時のレスポンス遅延を 98% 以上削減 (PR #199)。
 
-### 追加・改善 (Added / Improved)
-- RAG メタデータ抽出の強化: Docling ドキュメントからページ数 (`page_count`) を安全に自動抽出して YAML フロントマターへ埋め込む機能を追加 (PR #202)。
-- テストカバレッジの向上: `setup_logging` (`tests/test_config.py`)、ルートエンドポイント・CORS 動作 (`tests/test_root_endpoint.py`)、および VLM base64 エンコード処理 (`tests/test_vlm_and_page_breaks.py`) のユニットテストを追加 (PR #195, #197, #200)。
-- 実動作検証・高負荷ストレステスト用スクリプト (`scripts/run_stress_and_integration_test.py`) の追加。
+### リファクタリング・コード構造 (Refactoring & Code Health)
+- VLM ペイロード作成ロジック `_prepare_rest_payload` のリファクタリング: プロバイダ別ビルダー関数マッピング (`_PROVIDER_BUILDERS`) へ分割整理し可読性と保守性を向上 (PR #210)。
+- VLM キャプション生成前処理の共通化: `generate_caption` と `generate_caption_sync` のパラメータ補正・エンドポイント自動解決ロジックを共有ヘルパー関数へ抽出 (PR #205)。
+
+### テスト・品質管理 (Testing Improvement)
+- VLM ペイロード作成 (`tests/test_vlm_prepare_payload.py`)、レスポンス抽出 (`tests/test_vlm_extract_response.py`)、例外ハンドリング (`tests/test_vlm_encoding_failure.py`, `tests/test_vlm_async_error.py`) の包括的なユニットテストを追加 (PR #206, #207, #214, #218)。
+- 出力ディレクトリ作成 (`tests/test_server_helpers.py`) および HTML テーブルシリアライザ (`tests/test_table_serialization.py`) のエッジケーステストを拡充 (PR #215, #216)。
 
 ## [0.1.0] - 2026-07-30
 
