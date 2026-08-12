@@ -29,6 +29,33 @@ from starlette.concurrency import run_in_threadpool
 from starlette.datastructures import Headers
 from starlette.types import ASGIApp, Receive, Scope, Send
 
+from .config import (
+    ALLOWED_EXTENSIONS,
+    API_KEY,
+    CORS_ORIGINS,
+    DOCLING_CUDA_FLASH_ATTENTION,
+    DOCLING_INCLUDE_KV_EXTRACTION,
+    DOCLING_INCLUDE_PAGE_BREAKS,
+    DOCLING_NUM_THREADS,
+    DOCLING_TABLE_FORMAT,
+    DOCLING_VLM_API_KEY,
+    DOCLING_VLM_ENABLED,
+    DOCLING_VLM_ENDPOINT,
+    DOCLING_VLM_MAX_CONCURRENT,
+    DOCLING_VLM_MODEL,
+    DOCLING_VLM_PROMPT,
+    DOCLING_VLM_PROVIDER,
+    MAX_UPLOAD_SIZE,
+    OUTPUT_DIR,
+    RATE_LIMIT_REQUESTS,
+    RATE_LIMIT_WINDOW,
+    TRUSTED_PROXIES,
+    UPLOAD_DIR,
+    setup_logging,
+)
+from .converter import DocumentConversionOptions, process_pdf
+from .utils import sanitize_log_message
+
 
 class RequestBodyTooLarge(Exception):
     """Exception raised when the request body exceeds MAX_UPLOAD_SIZE."""
@@ -110,32 +137,6 @@ class ContentSizeLimitMiddleware:
             "more_body": False,
         })
 
-from .config import (
-    ALLOWED_EXTENSIONS,
-    API_KEY,
-    CORS_ORIGINS,
-    DOCLING_CUDA_FLASH_ATTENTION,
-    DOCLING_INCLUDE_KV_EXTRACTION,
-    DOCLING_INCLUDE_PAGE_BREAKS,
-    DOCLING_NUM_THREADS,
-    DOCLING_TABLE_FORMAT,
-    DOCLING_VLM_API_KEY,
-    DOCLING_VLM_ENABLED,
-    DOCLING_VLM_ENDPOINT,
-    DOCLING_VLM_MAX_CONCURRENT,
-    DOCLING_VLM_MODEL,
-    DOCLING_VLM_PROMPT,
-    DOCLING_VLM_PROVIDER,
-    MAX_UPLOAD_SIZE,
-    OUTPUT_DIR,
-    RATE_LIMIT_REQUESTS,
-    RATE_LIMIT_WINDOW,
-    TRUSTED_PROXIES,
-    UPLOAD_DIR,
-    setup_logging,
-)
-from .converter import DocumentConversionOptions, process_pdf
-from .utils import sanitize_log_message
 
 # --- Logging Setup ---
 setup_logging()

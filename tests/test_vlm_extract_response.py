@@ -1,5 +1,6 @@
 import unittest
 from unittest.mock import patch
+
 from tests.mock_docling import mock_docling
 
 # Mock docling and torch before importing PDFConverter or anything else

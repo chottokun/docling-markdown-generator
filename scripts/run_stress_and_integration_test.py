@@ -1,12 +1,10 @@
-import asyncio
 import time
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
 
 from docling_lib.converter import PDFConverter
-from docling_lib.server import app, _rate_limit_data, RATE_LIMIT_REQUESTS, RATE_LIMIT_WINDOW
+from docling_lib.server import RATE_LIMIT_REQUESTS, _rate_limit_data, app
 
 
 def test_real_converter_pipeline():
@@ -49,7 +47,7 @@ def test_server_stress_and_concurrency():
     limited = 0
 
     with patch("docling_lib.server.TRUSTED_PROXIES", ["127.0.0.1", "testclient"]):
-        for i in range(RATE_LIMIT_REQUESTS + 10):
+        for _i in range(RATE_LIMIT_REQUESTS + 10):
             res = client.get("/download/test/doc.md", headers=headers_legit)
             if res.status_code != 429:
                 accepted += 1

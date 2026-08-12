@@ -1,6 +1,8 @@
 import time
+
 import docling_lib.server as server
 from docling_lib.server import _is_trusted_proxy, _parse_trusted_proxies
+
 
 def run_benchmark():
     # Keep original list for baseline

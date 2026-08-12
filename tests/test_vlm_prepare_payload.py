@@ -1,5 +1,7 @@
 import unittest
+
 from docling_lib.vlm import _prepare_rest_payload
+
 
 class TestVLMPreparePayload(unittest.TestCase):
     def test_openai_payload_no_image_no_api_key(self):

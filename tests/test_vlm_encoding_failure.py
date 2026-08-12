@@ -1,9 +1,10 @@
-import unittest
 from unittest.mock import MagicMock, patch
-from PIL import Image
+
 import pytest
+from PIL import Image
 
 from docling_lib.vlm import generate_caption, generate_caption_sync
+
 
 def test_generate_caption_sync_encoding_exception():
     """

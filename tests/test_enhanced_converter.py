@@ -1,7 +1,5 @@
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
 from docling_core.types.doc import DoclingDocument, PictureItem
 
 from docling_lib.converter import DocumentConversionOptions, EnhancedDoclingConverter
@@ -91,6 +89,7 @@ def test_custom_picture_serializer_template_interpolation():
     """Verify custom template is correctly interpolated when serializing picture item."""
     from docling_core.transforms.serializer.markdown import SerializationResult
     from docling_core.types.doc import PictureItem
+
     from docling_lib.converter import CustomMarkdownPictureSerializer
 
     # We mock serialize behavior

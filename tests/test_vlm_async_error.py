@@ -1,15 +1,15 @@
-import asyncio
-import unittest
-from unittest.mock import MagicMock, AsyncMock, patch
-from PIL import Image
-import pytest
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import httpx
+import pytest
+from PIL import Image
 
 from tests.mock_docling import mock_docling
 
 mock_docling()
 
 from docling_lib.vlm import generate_caption
+
 
 @pytest.mark.asyncio
 @patch("httpx.AsyncClient")
