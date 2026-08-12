@@ -164,6 +164,8 @@ class CustomMarkdownPictureSerializer(MarkdownPictureSerializer):
         vlm_max_concurrent: int = 5,
         vlm_captions: dict[str, str] | None = None,
         image_dir_name: str = "images",
+        image_tag_template: str | None = None,
+        slug: str | None = None,
         **kwargs: Any,
     ):
         super().__init__(**kwargs)
@@ -176,6 +178,8 @@ class CustomMarkdownPictureSerializer(MarkdownPictureSerializer):
         self.vlm_max_concurrent = vlm_max_concurrent
         self.vlm_captions = vlm_captions if vlm_captions is not None else {}
         self.image_dir_name = image_dir_name
+        self.image_tag_template = image_tag_template
+        self.slug = slug
         self._cached_doc = None
         self._pic_ref_to_idx = {}
 
@@ -205,9 +209,15 @@ class CustomMarkdownPictureSerializer(MarkdownPictureSerializer):
 
         if idx != -1:
             image_filename = f"picture_{idx + 1}.png"
-            image_rel_path = f"{self.image_dir_name}/{image_filename}"
-            # Output the actual relative image link instead of placeholder
-            res.text = f"![image]({image_rel_path})"
+            if self.image_tag_template:
+                res.text = self.image_tag_template.format(
+                    slug=self.slug or "",
+                    image_name=image_filename
+                )
+            else:
+                image_rel_path = f"{self.image_dir_name}/{image_filename}"
+                # Output the actual relative image link instead of placeholder
+                res.text = f"![image]({image_rel_path})"
 
         if self.vlm_enabled:
             # 1. Check prefetch cache first
@@ -349,6 +359,8 @@ class EnhancedMarkdownSerializer(MarkdownDocSerializer):
         vlm_max_concurrent: int = 5,
         vlm_captions: dict[str, str] | None = None,
         image_dir_name: str = "images",
+        image_tag_template: str | None = None,
+        slug: str | None = None,
         **kwargs,
     ):
         # In tests, doc might be a MagicMock. Pydantic models (like
@@ -384,6 +396,8 @@ class EnhancedMarkdownSerializer(MarkdownDocSerializer):
             vlm_max_concurrent=vlm_max_concurrent,
             vlm_captions=vlm_captions,
             image_dir_name=image_dir_name,
+            image_tag_template=image_tag_template,
+            slug=slug,
         )
         if self._is_mock(doc):
             object.__setattr__(self, "picture_serializer", pic_serializer)
@@ -599,6 +613,8 @@ class PDFConverter:
         doc: DoclingDocument,
         table_format: str,
         options: DocumentConversionOptions | None = None,
+        image_tag_template: str | None = None,
+        slug: str | None = None,
     ) -> str:
         """
         Serializes the document to Markdown using the enhanced serializer.
@@ -621,6 +637,8 @@ class PDFConverter:
             vlm_max_concurrent=actual_options.vlm_max_concurrent,
             vlm_captions=vlm_captions,
             image_dir_name=actual_options.image_dir_name,
+            image_tag_template=image_tag_template,
+            slug=slug,
             params=MarkdownParams(
                 image_mode=ImageRefMode.REFERENCED,
                 image_placeholder="<!-- image -->",
@@ -826,6 +844,77 @@ class ThreadSafeModelPool:
             self._pool[key] = converter
             self._access_order.append(key)
             return converter
+
+
+class EnhancedDoclingConverter:
+    """
+    Enhanced Docling Converter wrapper that produces customized image tags
+    using custom templates (e.g. `![[assets/{slug}/{image_name}]]`)
+    and allows extracting/saving images directly to a specified directory.
+    """
+
+    def __init__(self, docling_converter: PDFConverter | None = None):
+        self.docling_converter = docling_converter or PDFConverter()
+
+    def convert_to_markdown(
+        self,
+        input_path: Path,
+        image_tag_template: str = "![[assets/{slug}/{image_name}]]",
+        assets_dir: Path | None = None,
+    ) -> str:
+        """
+        Converts document at input_path and returns the markdown text with formatted image tags.
+        If assets_dir is provided, saves images in that directory.
+        """
+        input_path = Path(input_path)
+        # 1. Convert input document using docling_converter
+        result = self.docling_converter.doc_converter.convert(input_path)
+        doc = result.document
+
+        # 2. Generate clean URL-friendly slug from input_path.stem
+        # e.g. lowercasing, converting spaces and special characters to hyphens
+        raw_slug = input_path.stem.lower()
+        # Replace non-alphanumeric characters with hyphens
+        slug = re.sub(r"[^a-z0-9]+", "-", raw_slug).strip("-")
+        if not slug:
+            slug = "document"
+
+        # 3. Save images to assets_dir if provided
+        if assets_dir is not None:
+            assets_dir = Path(assets_dir)
+            assets_dir.mkdir(parents=True, exist_ok=True)
+            self.docling_converter._save_images(doc, assets_dir)
+
+        # 4. Render the document with custom image tags
+        return self._render_with_image_tags(doc, template=image_tag_template, slug=slug)
+
+    def _render_with_image_tags(self, doc: DoclingDocument, template: str, slug: str) -> str:
+        """
+        Renders the document's structure to Markdown text using CustomMarkdownPictureSerializer
+        with custom template and slug.
+        """
+        # We invoke the internal _serialize_to_markdown of docling_converter
+        md_content = self.docling_converter._serialize_to_markdown(
+            doc=doc,
+            table_format=self.docling_converter.options.table_format,
+            options=self.docling_converter.options,
+            image_tag_template=template,
+            slug=slug,
+        )
+
+        # Post-process page breaks if required by options
+        if self.docling_converter.options.include_page_breaks:
+            if not md_content.strip().startswith("<!-- PAGE_BREAK: Page 1 -->"):
+                md_content = "<!-- PAGE_BREAK: Page 1 -->\n\n" + md_content
+
+        # Apply metadata frontmatter if available
+        md_content = self.docling_converter._apply_metadata_frontmatter(
+            doc=doc,
+            md_content=md_content,
+            options=self.docling_converter.options,
+        )
+
+        return md_content
 
 
 # Thread-safe model pool for reuse
