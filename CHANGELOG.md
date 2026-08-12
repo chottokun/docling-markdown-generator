@@ -14,7 +14,7 @@
 - `X-Forwarded-For` ヘッダーパース時における IP スプーフィング脆弱性の修正。信頼されたプロキシチェーンを右から左へ辿り、最初に現れた未検証 IP をクライアント IP として抽出する厳格な検証を追加 (PR #201)。
 
 ### パフォーマンス (Performance)
-- `EnhancedDoclingConverter` の追加: Obsidian 形式 (`![[assets/{slug}/{image_name}]]`) などのカスタム画像タグテンプレートおよび `assets_dir` への自動画像保存に対応 (PR #220)。
+- `EnhancedDoclingConverter` の追加・強化: 画像リンクのカスタマイズ対応。スラッグ決定の優先順位制御（明示指定 `slug` > `assets_dir.name` > ファイル名からの自動クレンジング生成）を追加 (PR #220, #221)。
 - 信頼できるプロキシ (`TRUSTED_PROXIES`) 検索の高速化: tuple データ構造化および型判定ファストパスによりホットパスで約 29.2% の速度向上を達成 (PR #208)。
 - VLM 画像 base64 エンコードの非同期非ブロック化: 非同期 `generate_caption` 内の CPU/IO 負荷の高い画像エンコードを `asyncio.to_thread` にオフロードし、FastAPI イベントループの滞留を防止 (PR #211)。
 - カスタムシリアライザのモデルフィールド初期化最適化: Pydantic モデルフィールド一覧のモジュールレベルキャッシュにより初期化を 18〜20% 高速化 (PR #213)。
