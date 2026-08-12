@@ -42,7 +42,7 @@ def test_convert_to_markdown_slug_generation(MockPDFConverter, tmp_path):
         doc=mock_doc,
         table_format="html",
         options=mock_pdf_conv.options,
-        image_tag_template="![[assets/{slug}/{image_name}]]",
+        image_tag_template="![{image_name}](assets/{slug}/{image_name})",
         slug="my-awesome-document-123",
     )
 
@@ -54,7 +54,7 @@ def test_convert_to_markdown_slug_generation(MockPDFConverter, tmp_path):
         doc=mock_doc,
         table_format="html",
         options=mock_pdf_conv.options,
-        image_tag_template="![[assets/{slug}/{image_name}]]",
+        image_tag_template="![{image_name}](assets/{slug}/{image_name})",
         slug="document",
     )
 
@@ -113,3 +113,30 @@ def test_custom_picture_serializer_template_interpolation():
         )
 
         assert res.text == "![[assets/my-cool-doc/picture_1.png]]"
+
+
+@patch("docling_lib.converter.PDFConverter")
+def test_convert_to_markdown_obsidian_style_option(MockPDFConverter, tmp_path):
+    """Verify specifying Obsidian style template option explicitly works as expected."""
+    mock_pdf_conv = MockPDFConverter.return_value
+    mock_doc = MagicMock(spec=DoclingDocument)
+    mock_result = MagicMock()
+    mock_result.document = mock_doc
+    mock_pdf_conv.doc_converter.convert.return_value = mock_result
+    mock_pdf_conv._serialize_to_markdown.return_value = "Obsidian Content"
+    mock_pdf_conv.options = DocumentConversionOptions()
+    mock_pdf_conv._apply_metadata_frontmatter.return_value = "Obsidian Content"
+
+    conv = EnhancedDoclingConverter(docling_converter=mock_pdf_conv)
+    conv.convert_to_markdown(
+        tmp_path / "obsidian_doc.pdf",
+        image_tag_template="![[assets/{slug}/{image_name}]]",
+    )
+
+    mock_pdf_conv._serialize_to_markdown.assert_called_with(
+        doc=mock_doc,
+        table_format="html",
+        options=mock_pdf_conv.options,
+        image_tag_template="![[assets/{slug}/{image_name}]]",
+        slug="obsidian-doc",
+    )

@@ -866,7 +866,7 @@ class EnhancedDoclingConverter:
     def convert_to_markdown(
         self,
         input_path: Path,
-        image_tag_template: str = "![[assets/{slug}/{image_name}]]",
+        image_tag_template: str = "![{image_name}](assets/{slug}/{image_name})",
         assets_dir: Path | None = None,
     ) -> str:
         """
