@@ -8,6 +8,9 @@ from .config import (
     IMAGE_DIR_NAME,
     IMAGE_RESOLUTION_SCALE,
     MD_OUTPUT_NAME,
+    DOCLING_MATH_INLINE_DELIM,
+    DOCLING_MATH_BLOCK_DELIM,
+    DOCLING_MATH_BLOCK_NEWLINE,
     setup_logging,
 )
 from .converter import DocumentConversionOptions, process_pdf
@@ -54,6 +57,24 @@ def setup_parser():
         default=IMAGE_RESOLUTION_SCALE,
         help=f"Image resolution scale (default: {IMAGE_RESOLUTION_SCALE}). Higher values mean better quality but larger files.",
     )
+    parser.add_argument(
+        "--math-inline-delim",
+        type=str,
+        default=DOCLING_MATH_INLINE_DELIM,
+        help=f"Inline LaTeX math delimiter (default: '{DOCLING_MATH_INLINE_DELIM}').",
+    )
+    parser.add_argument(
+        "--math-block-delim",
+        type=str,
+        default=DOCLING_MATH_BLOCK_DELIM,
+        help=f"Block LaTeX math delimiter (default: '{DOCLING_MATH_BLOCK_DELIM}').",
+    )
+    parser.add_argument(
+        "--math-block-newline",
+        action="store_true",
+        default=DOCLING_MATH_BLOCK_NEWLINE,
+        help="Whether to insert newlines inside LaTeX block math delimiters.",
+    )
     return parser
 
 
@@ -71,6 +92,9 @@ def main(args=None):
         image_dir_name=parsed_args.image_dir,
         md_output_name=parsed_args.output_name,
         image_scale=parsed_args.image_scale,
+        math_inline_delim=parsed_args.math_inline_delim,
+        math_block_delim=parsed_args.math_block_delim,
+        math_block_newline=parsed_args.math_block_newline,
     )
 
     # Call the new, unified processing function

@@ -32,6 +32,7 @@ from docling_core.transforms.serializer.markdown import (
     MarkdownParams,
     MarkdownPictureSerializer,
     MarkdownTableSerializer,
+    MarkdownTextSerializer,
     SerializationResult,
     create_ser_result,
 )
@@ -64,6 +65,9 @@ from .config import (
     IMAGE_RESOLUTION_SCALE,
     MD_OUTPUT_NAME,
     USE_GPU,
+    DOCLING_MATH_INLINE_DELIM,
+    DOCLING_MATH_BLOCK_DELIM,
+    DOCLING_MATH_BLOCK_NEWLINE,
 )
 from .utils import sanitize_log_message
 
@@ -142,6 +146,9 @@ class DocumentConversionOptions:
     vlm_max_concurrent: int = DOCLING_VLM_MAX_CONCURRENT
     num_threads: int = DOCLING_NUM_THREADS
     cuda_use_flash_attention: bool = DOCLING_CUDA_FLASH_ATTENTION
+    math_inline_delim: str = DOCLING_MATH_INLINE_DELIM
+    math_block_delim: str = DOCLING_MATH_BLOCK_DELIM
+    math_block_newline: bool = DOCLING_MATH_BLOCK_NEWLINE
 
 
 class CustomMarkdownPictureSerializer(MarkdownPictureSerializer):
@@ -182,6 +189,13 @@ class CustomMarkdownPictureSerializer(MarkdownPictureSerializer):
         self.slug = slug
         self._cached_doc = None
         self._pic_ref_to_idx = {}
+
+    def _get_closing_delim(self, delim: str) -> str:
+        if delim == "\\(":
+            return "\\)"
+        if delim == "\\[":
+            return "\\]"
+        return delim
 
     def serialize(
         self,
@@ -244,6 +258,64 @@ class CustomMarkdownPictureSerializer(MarkdownPictureSerializer):
                 res.text = res.text + caption_block
 
         return res
+
+
+class EnhancedMarkdownTextSerializer(MarkdownTextSerializer):
+    """
+    Custom Markdown Text Serializer that formats FormulaItem (math LaTeX) with
+    configurable inline and block delimiters and newline display options.
+    """
+    math_inline_delim: str = "$"
+    math_block_delim: str = "$$"
+    math_block_newline: bool = False
+
+    def _get_closing_delim(self, delim: str) -> str:
+        if delim == "\\(":
+            return "\\)"
+        if delim == "\\[":
+            return "\\]"
+        return delim
+
+    def serialize(
+        self,
+        *,
+        item: Any,
+        doc_serializer: Any,
+        doc: DoclingDocument,
+        is_inline_scope: bool = False,
+        visited: set[str] | None = None,
+        **kwargs: Any,
+    ) -> SerializationResult:
+        from docling_core.types.doc import FormulaItem
+        if isinstance(item, FormulaItem):
+            text = item.text
+            if text:
+                if is_inline_scope:
+                    close_delim = self._get_closing_delim(self.math_inline_delim)
+                    text_part = f"{self.math_inline_delim}{text}{close_delim}"
+                else:
+                    close_delim = self._get_closing_delim(self.math_block_delim)
+                    if self.math_block_newline:
+                        text_part = f"{self.math_block_delim}\n{text}\n{close_delim}"
+                    else:
+                        text_part = f"{self.math_block_delim}{text}{close_delim}"
+            elif item.orig:
+                text_part = "<!-- formula-not-decoded -->"
+            else:
+                text_part = ""
+
+            res_parts = [create_ser_result(text=text_part, span_source=item)] if text_part else []
+            text_res = (" " if is_inline_scope else "\n\n").join([r.text for r in res_parts])
+            return create_ser_result(text=text_res, span_source=res_parts)
+
+        return super().serialize(
+            item=item,
+            doc_serializer=doc_serializer,
+            doc=doc,
+            is_inline_scope=is_inline_scope,
+            visited=visited,
+            **kwargs,
+        )
 
 
 class HTMLTableMarkdownSerializer(MarkdownTableSerializer):
@@ -368,6 +440,9 @@ class EnhancedMarkdownSerializer(MarkdownDocSerializer):
         image_dir_name: str = "images",
         image_tag_template: str | None = None,
         slug: str | None = None,
+        math_inline_delim: str = "$",
+        math_block_delim: str = "$$",
+        math_block_newline: bool = False,
         **kwargs,
     ):
         # In tests, doc might be a MagicMock. Pydantic models (like
@@ -377,6 +452,16 @@ class EnhancedMarkdownSerializer(MarkdownDocSerializer):
             self._init_from_mock(doc, **kwargs)
         else:
             super().__init__(doc=doc, **kwargs)
+
+        text_serializer = EnhancedMarkdownTextSerializer(
+            math_inline_delim=math_inline_delim,
+            math_block_delim=math_block_delim,
+            math_block_newline=math_block_newline,
+        )
+        if self._is_mock(doc):
+            object.__setattr__(self, "text_serializer", text_serializer)
+        else:
+            self.text_serializer = text_serializer
 
         if table_format.lower() == "html":
             # If we initialized from a mock, we must use object.__setattr__
@@ -646,6 +731,9 @@ class PDFConverter:
             image_dir_name=actual_options.image_dir_name,
             image_tag_template=image_tag_template,
             slug=slug,
+            math_inline_delim=actual_options.math_inline_delim,
+            math_block_delim=actual_options.math_block_delim,
+            math_block_newline=actual_options.math_block_newline,
             params=MarkdownParams(
                 image_mode=ImageRefMode.REFERENCED,
                 image_placeholder="<!-- image -->",
@@ -1128,6 +1216,9 @@ def get_process_pool() -> ProcessPoolExecutor:
                     "vlm_max_concurrent": DOCLING_VLM_MAX_CONCURRENT,
                     "num_threads": DOCLING_NUM_THREADS,
                     "cuda_use_flash_attention": DOCLING_CUDA_FLASH_ATTENTION,
+                    "math_inline_delim": DOCLING_MATH_INLINE_DELIM,
+                    "math_block_delim": DOCLING_MATH_BLOCK_DELIM,
+                    "math_block_newline": DOCLING_MATH_BLOCK_NEWLINE,
                 }
 
                 _process_pool = ProcessPoolExecutor(

@@ -336,6 +336,9 @@ class TestMultiProviderVLMAndRates(unittest.TestCase):
             vlm_max_concurrent=10,
             num_threads=8,
             cuda_use_flash_attention=True,
+            math_inline_delim="\\(",
+            math_block_delim="\\[",
+            math_block_newline=True,
         )
 
         self.assertEqual(req.table_format, "markdown")
@@ -350,6 +353,9 @@ class TestMultiProviderVLMAndRates(unittest.TestCase):
         self.assertEqual(req.vlm_max_concurrent, 10)
         self.assertEqual(req.num_threads, 8)
         self.assertTrue(req.cuda_use_flash_attention)
+        self.assertEqual(req.math_inline_delim, "\\(")
+        self.assertEqual(req.math_block_delim, "\\[")
+        self.assertTrue(req.math_block_newline)
 
 
     def test_prepare_caption_args_directly(self):

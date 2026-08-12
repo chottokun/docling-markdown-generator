@@ -40,6 +40,9 @@ from .config import (
     DOCLING_TABLE_FORMAT,
     DOCLING_VLM_API_KEY,
     DOCLING_VLM_ENABLED,
+    DOCLING_MATH_INLINE_DELIM,
+    DOCLING_MATH_BLOCK_DELIM,
+    DOCLING_MATH_BLOCK_NEWLINE,
     DOCLING_VLM_ENDPOINT,
     DOCLING_VLM_MAX_CONCURRENT,
     DOCLING_VLM_MODEL,
@@ -158,6 +161,9 @@ class DocumentConversionRequest(BaseModel):
     vlm_max_concurrent: int
     num_threads: int
     cuda_use_flash_attention: bool
+    math_inline_delim: str
+    math_block_delim: str
+    math_block_newline: bool
 
 
 def get_conversion_request(
@@ -172,6 +178,9 @@ def get_conversion_request(
     vlm_max_concurrent: int = Form(DOCLING_VLM_MAX_CONCURRENT),
     num_threads: int = Form(DOCLING_NUM_THREADS),
     cuda_use_flash_attention: bool = Form(DOCLING_CUDA_FLASH_ATTENTION),
+    math_inline_delim: str = Form(DOCLING_MATH_INLINE_DELIM),
+    math_block_delim: str = Form(DOCLING_MATH_BLOCK_DELIM),
+    math_block_newline: bool = Form(DOCLING_MATH_BLOCK_NEWLINE),
 ) -> DocumentConversionRequest:
     return DocumentConversionRequest(
         table_format=table_format,
@@ -186,6 +195,9 @@ def get_conversion_request(
         vlm_max_concurrent=vlm_max_concurrent,
         num_threads=num_threads,
         cuda_use_flash_attention=cuda_use_flash_attention,
+        math_inline_delim=math_inline_delim,
+        math_block_delim=math_block_delim,
+        math_block_newline=math_block_newline,
     )
 
 
@@ -512,6 +524,9 @@ async def convert_file(
             vlm_max_concurrent=req_options.vlm_max_concurrent,
             num_threads=req_options.num_threads,
             cuda_use_flash_attention=req_options.cuda_use_flash_attention,
+            math_inline_delim=req_options.math_inline_delim,
+            math_block_delim=req_options.math_block_delim,
+            math_block_newline=req_options.math_block_newline,
         )
 
         # Check if process_pdf is mocked in tests
@@ -550,6 +565,9 @@ async def convert_file(
                     "vlm_max_concurrent": options.vlm_max_concurrent,
                     "num_threads": options.num_threads,
                     "cuda_use_flash_attention": options.cuda_use_flash_attention,
+                    "math_inline_delim": options.math_inline_delim,
+                    "math_block_delim": options.math_block_delim,
+                    "math_block_newline": options.math_block_newline,
                 }
 
                 result_path_str = await loop.run_in_executor(
