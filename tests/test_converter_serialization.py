@@ -54,6 +54,8 @@ def test_serialize_to_markdown():
             vlm_max_concurrent=5,
             vlm_captions={},
             image_dir_name="images",
+            image_tag_template=None,
+            slug=None,
             params=mock_params_inst,
         )
 
@@ -102,6 +104,8 @@ def test_serialize_to_markdown_different_format():
             vlm_max_concurrent=5,
             vlm_captions={},
             image_dir_name="images",
+            image_tag_template=None,
+            slug=None,
             params=mock_params_cls.return_value,
         )
         assert result == "Another Mocked Content"

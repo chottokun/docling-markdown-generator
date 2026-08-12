@@ -24,5 +24,10 @@ def test_init_version():
 
 def test_all_export_consistency():
     """Verify that __all__ matches the exported members."""
-    expected_exports = ["PDFConverter", "DocumentConversionOptions", "process_pdf"]
+    expected_exports = [
+        "PDFConverter",
+        "DocumentConversionOptions",
+        "process_pdf",
+        "EnhancedDoclingConverter",
+    ]
     assert sorted(docling_lib.__all__) == sorted(expected_exports)
