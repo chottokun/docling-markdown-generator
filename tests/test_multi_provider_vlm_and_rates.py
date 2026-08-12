@@ -230,5 +230,45 @@ class TestMultiProviderVLMAndRates(unittest.TestCase):
         self.assertTrue(req.cuda_use_flash_attention)
 
 
+    def test_prepare_caption_args_directly(self):
+        """
+        Verify that _prepare_caption_args correctly resolves endpoints, defaults, and returns payload specs.
+        """
+        from docling_lib.vlm import _prepare_caption_args
+
+        img = Image.new("RGB", (10, 10))
+        res = _prepare_caption_args(
+            image=img,
+            provider="openai",
+            api_key="sk-test",
+            model="gpt-4o",
+            endpoint="http://localhost:11434",  # left default
+            prompt="Test prompt",
+            text_content=None,
+        )
+        self.assertIsNotNone(res)
+        provider_res, endpoint_res, url, headers, json_body = res
+        self.assertEqual(provider_res, "openai")
+        self.assertEqual(endpoint_res, "https://api.openai.com/v1")
+        self.assertTrue(url.endswith("/chat/completions"))
+        self.assertEqual(headers["Authorization"], "Bearer sk-test")
+        self.assertEqual(json_body["model"], "gpt-4o")
+
+        # Test invalid image returns None
+        bad_img = MagicMock()
+        bad_img.save.side_effect = Exception("Encoding failure")
+        res_bad = _prepare_caption_args(
+            image=bad_img,
+            provider="ollama",
+            api_key="",
+            model="qwen2-vl:2b",
+            endpoint="http://localhost:11434",
+            prompt="Test",
+            text_content=None,
+        )
+        self.assertIsNone(res_bad)
+
+
 if __name__ == "__main__":
     unittest.main()
+
