@@ -52,6 +52,7 @@ PyTorch や C++ 拡張を含む Docling の重い変換処理は、Python の GI
 ## 3. 高度な解析パイプライン (v2.x 準拠)
 
 - **数式抽出 (LaTeX)**: `PdfPipelineOptions.do_formula_enrichment` を活用し、画像としての数式を LaTeX コードへと変換。
+- **柔軟な画像タグテンプレートと資産抽出 (`EnhancedDoclingConverter`)**: デフォルトで最高レベルの互換性を持つ CommonMark 形式 (`![image](path)`) の画像リンクを出力しつつ、オプション指定で Obsidian 形式 (`![[...]]`) への即時切替および指定ディレクトリ (`assets_dir`) への画像自動保存に対応。
 - **構造化テーブル**: `HTMLTableMarkdownSerializer` により、Markdown標準では表現不可能な「セルの結合」を HTML `<table>` タグとして忠実に再現。
 - **OCR・レイアウト解析**: `RapidOCR` または環境に応じた OCR エンジンを選択可能。
 
