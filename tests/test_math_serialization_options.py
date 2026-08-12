@@ -66,6 +66,80 @@ def test_enhanced_markdown_text_serializer_block():
     assert res_nl.text == "$$\nx + y = z\n$$"
 
 
+def test_auto_math_delimiters():
+    """Test that math delimiters are automatically detected based on the document type (e.g. .tex vs others)."""
+    serializer = EnhancedMarkdownTextSerializer(
+        math_inline_delim="auto",
+        math_block_delim="auto",
+    )
+    item = FormulaItem(self_ref="#/formula/1", text="a + b = c", orig="a + b = c")
+    doc_serializer = MagicMock()
+    doc_serializer.post_process = lambda text, **kwargs: text
+
+    # Standard document (PDF/HTML/etc) -> should use $ and $$
+    doc_pdf = MagicMock()
+    doc_pdf.name = "math_paper.pdf"
+
+    res_inline_pdf = serializer.serialize(
+        item=item, doc_serializer=doc_serializer, doc=doc_pdf, is_inline_scope=True
+    )
+    assert res_inline_pdf.text == "$a + b = c$"
+
+    res_block_pdf = serializer.serialize(
+        item=item, doc_serializer=doc_serializer, doc=doc_pdf, is_inline_scope=False
+    )
+    assert res_block_pdf.text == "$$a + b = c$$"
+
+    # LaTeX document (.tex / .latex) -> should use \( and \[
+    doc_tex = MagicMock()
+    doc_tex.name = "quantum_mechanics.tex"
+
+    res_inline_tex = serializer.serialize(
+        item=item, doc_serializer=doc_serializer, doc=doc_tex, is_inline_scope=True
+    )
+    assert res_inline_tex.text == "\\(a + b = c\\)"
+
+    res_block_tex = serializer.serialize(
+        item=item, doc_serializer=doc_serializer, doc=doc_tex, is_inline_scope=False
+    )
+    assert res_block_tex.text == "\\[a + b = c\\]"
+
+
+def test_auto_block_newline_complexity():
+    """Test that block newline formatting is automatically determined based on formula complexity."""
+    serializer = EnhancedMarkdownTextSerializer(
+        math_inline_delim="$",
+        math_block_delim="$$",
+        math_block_newline="auto",
+    )
+    doc_serializer = MagicMock()
+    doc_serializer.post_process = lambda text, **kwargs: text
+    doc = MagicMock()
+
+    # Simple formula -> single-line (saves tokens/layout space)
+    simple_item = FormulaItem(self_ref="#/formula/1", text="E = mc^2", orig="E = mc^2")
+    res_simple = serializer.serialize(
+        item=simple_item, doc_serializer=doc_serializer, doc=doc, is_inline_scope=False
+    )
+    assert res_simple.text == "$$E = mc^2$$"
+
+    # Complex formula (long length > 60 chars) -> multi-line
+    long_text = "x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a} + \\int_{a}^{b} f(t) dt + g(x)"
+    complex_item_long = FormulaItem(self_ref="#/formula/2", text=long_text, orig=long_text)
+    res_complex_long = serializer.serialize(
+        item=complex_item_long, doc_serializer=doc_serializer, doc=doc, is_inline_scope=False
+    )
+    assert res_complex_long.text == f"$$\n{long_text}\n$$"
+
+    # Complex formula (contains multiline LaTeX commands like \\ or \begin) -> multi-line
+    multiline_text = "A = \\begin{pmatrix} 1 & 0 \\\\ 0 & 1 \\end{pmatrix}"
+    complex_item_multiline = FormulaItem(self_ref="#/formula/3", text=multiline_text, orig=multiline_text)
+    res_complex_multiline = serializer.serialize(
+        item=complex_item_multiline, doc_serializer=doc_serializer, doc=doc, is_inline_scope=False
+    )
+    assert res_complex_multiline.text == f"$$\n{multiline_text}\n$$"
+
+
 def test_pdf_converter_math_options_propagation():
     """Test that PDFConverter propagates math formatting options down to the serializer."""
     converter = PDFConverter()
@@ -127,11 +201,11 @@ def test_cli_math_arguments():
         "dummy.pdf",
         "--math-inline-delim", "\\(",
         "--math-block-delim", "\\[",
-        "--math-block-newline",
+        "--math-block-newline", "true",
     ])
     assert args.math_inline_delim == "\\("
     assert args.math_block_delim == "\\["
-    assert args.math_block_newline is True
+    assert args.math_block_newline == "true"
 
 
 def test_fastapi_server_math_form_fields():

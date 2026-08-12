@@ -71,9 +71,9 @@ def setup_parser():
     )
     parser.add_argument(
         "--math-block-newline",
-        action="store_true",
-        default=DOCLING_MATH_BLOCK_NEWLINE,
-        help="Whether to insert newlines inside LaTeX block math delimiters.",
+        type=str,
+        default=str(DOCLING_MATH_BLOCK_NEWLINE),
+        help="Whether to insert newlines inside LaTeX block math delimiters ('auto', 'true', or 'false').",
     )
     return parser
 
@@ -88,13 +88,22 @@ def main(args=None):
 
     logger.info(f"Starting high-accuracy workflow for: {parsed_args.pdf_file}")
 
+    math_nl = parsed_args.math_block_newline
+    if isinstance(math_nl, str):
+        if math_nl.lower() == "true":
+            math_nl = True
+        elif math_nl.lower() == "false":
+            math_nl = False
+        elif math_nl.lower() == "auto":
+            math_nl = "auto"
+
     options = DocumentConversionOptions(
         image_dir_name=parsed_args.image_dir,
         md_output_name=parsed_args.output_name,
         image_scale=parsed_args.image_scale,
         math_inline_delim=parsed_args.math_inline_delim,
         math_block_delim=parsed_args.math_block_delim,
-        math_block_newline=parsed_args.math_block_newline,
+        math_block_newline=math_nl,
     )
 
     # Call the new, unified processing function

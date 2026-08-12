@@ -148,7 +148,7 @@ class DocumentConversionOptions:
     cuda_use_flash_attention: bool = DOCLING_CUDA_FLASH_ATTENTION
     math_inline_delim: str = DOCLING_MATH_INLINE_DELIM
     math_block_delim: str = DOCLING_MATH_BLOCK_DELIM
-    math_block_newline: bool = DOCLING_MATH_BLOCK_NEWLINE
+    math_block_newline: Any = DOCLING_MATH_BLOCK_NEWLINE
 
 
 class CustomMarkdownPictureSerializer(MarkdownPictureSerializer):
@@ -265,9 +265,9 @@ class EnhancedMarkdownTextSerializer(MarkdownTextSerializer):
     Custom Markdown Text Serializer that formats FormulaItem (math LaTeX) with
     configurable inline and block delimiters and newline display options.
     """
-    math_inline_delim: str = "$"
-    math_block_delim: str = "$$"
-    math_block_newline: bool = False
+    math_inline_delim: str = "auto"
+    math_block_delim: str = "auto"
+    math_block_newline: Any = "auto"
 
     def _get_closing_delim(self, delim: str) -> str:
         if delim == "\\(":
@@ -290,15 +290,43 @@ class EnhancedMarkdownTextSerializer(MarkdownTextSerializer):
         if isinstance(item, FormulaItem):
             text = item.text
             if text:
-                if is_inline_scope:
-                    close_delim = self._get_closing_delim(self.math_inline_delim)
-                    text_part = f"{self.math_inline_delim}{text}{close_delim}"
-                else:
-                    close_delim = self._get_closing_delim(self.math_block_delim)
-                    if self.math_block_newline:
-                        text_part = f"{self.math_block_delim}\n{text}\n{close_delim}"
+                # 1. Determine inline delimiter
+                inline_delim = self.math_inline_delim
+                if inline_delim == "auto":
+                    doc_name = getattr(doc, "name", "") or ""
+                    if doc_name.lower().endswith((".tex", ".latex")):
+                        inline_delim = "\\("
                     else:
-                        text_part = f"{self.math_block_delim}{text}{close_delim}"
+                        inline_delim = "$"
+
+                # 2. Determine block delimiter
+                block_delim = self.math_block_delim
+                if block_delim == "auto":
+                    doc_name = getattr(doc, "name", "") or ""
+                    if doc_name.lower().endswith((".tex", ".latex")):
+                        block_delim = "\\["
+                    else:
+                        block_delim = "$$"
+
+                # 3. Determine newline behavior
+                block_nl = self.math_block_newline
+                if block_nl == "auto" or (isinstance(block_nl, str) and block_nl.lower() == "auto"):
+                    if "\\\\" in text or "\\begin" in text or "\\end" in text or len(text) > 60:
+                        block_nl = True
+                    else:
+                        block_nl = False
+                elif isinstance(block_nl, str):
+                    block_nl = block_nl.lower() == "true"
+
+                if is_inline_scope:
+                    close_delim = self._get_closing_delim(inline_delim)
+                    text_part = f"{inline_delim}{text}{close_delim}"
+                else:
+                    close_delim = self._get_closing_delim(block_delim)
+                    if block_nl:
+                        text_part = f"{block_delim}\n{text}\n{close_delim}"
+                    else:
+                        text_part = f"{block_delim}{text}{close_delim}"
             elif item.orig:
                 text_part = "<!-- formula-not-decoded -->"
             else:

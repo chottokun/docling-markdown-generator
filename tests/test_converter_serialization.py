@@ -56,9 +56,9 @@ def test_serialize_to_markdown():
             image_dir_name="images",
             image_tag_template=None,
             slug=None,
-            math_inline_delim="$",
-            math_block_delim="$$",
-            math_block_newline=False,
+            math_inline_delim="auto",
+            math_block_delim="auto",
+            math_block_newline="auto",
             params=mock_params_inst,
         )
 
@@ -109,9 +109,9 @@ def test_serialize_to_markdown_different_format():
             image_dir_name="images",
             image_tag_template=None,
             slug=None,
-            math_inline_delim="$",
-            math_block_delim="$$",
-            math_block_newline=False,
+            math_inline_delim="auto",
+            math_block_delim="auto",
+            math_block_newline="auto",
             params=mock_params_cls.return_value,
         )
         assert result == "Another Mocked Content"

@@ -24,6 +24,7 @@ from fastapi import (
 )
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+from typing import Any
 from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
 from starlette.datastructures import Headers
@@ -163,7 +164,7 @@ class DocumentConversionRequest(BaseModel):
     cuda_use_flash_attention: bool
     math_inline_delim: str
     math_block_delim: str
-    math_block_newline: bool
+    math_block_newline: Any
 
 
 def get_conversion_request(
@@ -180,8 +181,18 @@ def get_conversion_request(
     cuda_use_flash_attention: bool = Form(DOCLING_CUDA_FLASH_ATTENTION),
     math_inline_delim: str = Form(DOCLING_MATH_INLINE_DELIM),
     math_block_delim: str = Form(DOCLING_MATH_BLOCK_DELIM),
-    math_block_newline: bool = Form(DOCLING_MATH_BLOCK_NEWLINE),
+    math_block_newline: str = Form(str(DOCLING_MATH_BLOCK_NEWLINE)),
 ) -> DocumentConversionRequest:
+    # If the string represents boolean, convert it or pass it on
+    resolved_nl = math_block_newline
+    if isinstance(math_block_newline, str):
+        if math_block_newline.lower() == "true":
+            resolved_nl = True
+        elif math_block_newline.lower() == "false":
+            resolved_nl = False
+        elif math_block_newline.lower() == "auto":
+            resolved_nl = "auto"
+
     return DocumentConversionRequest(
         table_format=table_format,
         include_page_breaks=include_page_breaks,
@@ -197,7 +208,7 @@ def get_conversion_request(
         cuda_use_flash_attention=cuda_use_flash_attention,
         math_inline_delim=math_inline_delim,
         math_block_delim=math_block_delim,
-        math_block_newline=math_block_newline,
+        math_block_newline=resolved_nl,
     )
 
 
