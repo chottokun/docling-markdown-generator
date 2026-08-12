@@ -351,6 +351,70 @@ def _extract_response_content(provider: str, data: dict) -> str:
         return ""
 
 
+async def _prepare_caption_args_async(
+    image: Image.Image | None,
+    provider: str,
+    api_key: str,
+    model: str,
+    endpoint: str,
+    prompt: str,
+    text_content: str | None,
+) -> tuple[str, str, str, dict, dict] | None:
+    """
+    Asynchronously forces parameter defaults, automatically adjusts endpoints, encodes images to base64 via threadpool,
+    and prepares the REST payload.
+    """
+    # Force defaults if parameters are None/empty to match backward-compatible tests
+    if not provider:
+        provider = "ollama"
+    provider_lower = provider.strip().lower()
+
+    if not model:
+        model = "qwen2-vl:2b"
+
+    # Automatically adjust default endpoints for other cloud providers
+    if not endpoint or (
+        endpoint == "http://localhost:11434" and provider_lower != "ollama"
+    ):
+        if provider_lower == "ollama":
+            endpoint = "http://localhost:11434"
+        elif provider_lower in ("openai", "vllm", "llama.cpp"):
+            endpoint = "https://api.openai.com/v1"
+        elif provider_lower == "anthropic":
+            endpoint = "https://api.anthropic.com"
+        elif provider_lower in ("google", "gemini"):
+            endpoint = "https://generativelanguage.googleapis.com"
+
+    if not prompt:
+        prompt = (
+            "この画像の概要を1〜2文程度で簡潔に日本語で説明してください。"
+            "なお、グラフや図表の場合は主要な数値や傾向（増減・ピークなど）を含めて説明してください。"
+        )
+
+    # Encode image if provided asynchronously using thread pool
+    img_base64 = None
+    if image is not None:
+        try:
+            img_base64 = await asyncio.to_thread(_encode_image_to_base64, image)
+        except Exception as e:
+            logger.warning(
+                f"Failed to encode image to base64 for VLM: {sanitize_log_message(e)}"
+            )
+            return None
+
+    url, headers, json_body = _prepare_rest_payload(
+        provider=provider,
+        model=model,
+        prompt=prompt,
+        img_base64=img_base64,
+        text_content=text_content,
+        api_key=api_key,
+        endpoint=endpoint,
+    )
+
+    return provider, endpoint, url, headers, json_body
+
+
 def _prepare_caption_args(
     image: Image.Image | None,
     provider: str,
@@ -396,7 +460,7 @@ def _prepare_caption_args(
     img_base64 = None
     if image is not None:
         try:
-            img_base64 = await asyncio.to_thread(_encode_image_to_base64, image)
+            img_base64 = _encode_image_to_base64(image)
         except Exception as e:
             logger.warning(
                 f"Failed to encode image to base64 for VLM: {sanitize_log_message(e)}"
@@ -433,7 +497,7 @@ async def generate_caption(
     Asynchronously generates a description/caption/summary for an image or structured text
     using the selected VLM/LLM REST provider with dynamic rate-limiting control.
     """
-    prepared = _prepare_caption_args(
+    prepared = await _prepare_caption_args_async(
         image=image,
         provider=provider,
         api_key=api_key,
