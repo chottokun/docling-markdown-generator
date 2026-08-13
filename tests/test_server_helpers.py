@@ -337,6 +337,92 @@ def test_get_client_ip_fallback_to_client_host():
         assert ip == "192.0.2.1"
 
 
+def test_build_conversion_options():
+    """Test that _build_conversion_options correctly populates options."""
+    from docling_lib.server import _build_conversion_options, DocumentConversionRequest
+    req_options = DocumentConversionRequest(
+        table_format="html",
+        include_page_breaks=True,
+        include_kv_extraction=False,
+        vlm_enabled=True,
+        vlm_provider="ollama",
+        vlm_api_key="secret",
+        vlm_model="llama3",
+        vlm_endpoint="http://localhost:11434",
+        vlm_prompt="describe",
+        vlm_max_concurrent=5,
+        num_threads=4,
+        cuda_use_flash_attention=True,
+    )
+    options = _build_conversion_options(req_options)
+    assert options.table_format == "html"
+    assert options.include_page_breaks is True
+    assert options.include_kv_extraction is False
+    assert options.vlm_enabled is True
+    assert options.vlm_provider == "ollama"
+    assert options.vlm_api_key == "secret"
+    assert options.vlm_model == "llama3"
+    assert options.vlm_endpoint == "http://localhost:11434"
+    assert options.vlm_prompt == "describe"
+    assert options.vlm_max_concurrent == 5
+    assert options.num_threads == 4
+    assert options.cuda_use_flash_attention is True
+
+
+def test_build_options_dict():
+    """Test that _build_options_dict correctly converts options to dict."""
+    from docling_lib.server import _build_options_dict
+    from docling_lib.converter import DocumentConversionOptions
+    options = DocumentConversionOptions(
+        table_format="html",
+        include_page_breaks=True,
+        include_kv_extraction=False,
+        vlm_enabled=True,
+        vlm_provider="ollama",
+        vlm_api_key="secret",
+        vlm_model="llama3",
+        vlm_endpoint="http://localhost:11434",
+        vlm_prompt="describe",
+        vlm_max_concurrent=5,
+        num_threads=4,
+        cuda_use_flash_attention=True,
+    )
+    opt_dict = _build_options_dict(options)
+    assert opt_dict["table_format"] == "html"
+    assert opt_dict["include_page_breaks"] is True
+    assert opt_dict["include_kv_extraction"] is False
+    assert opt_dict["vlm_enabled"] is True
+    assert opt_dict["vlm_provider"] == "ollama"
+    assert opt_dict["vlm_api_key"] == "secret"
+    assert opt_dict["vlm_model"] == "llama3"
+    assert opt_dict["vlm_endpoint"] == "http://localhost:11434"
+    assert opt_dict["vlm_prompt"] == "describe"
+    assert opt_dict["vlm_max_concurrent"] == 5
+    assert opt_dict["num_threads"] == 4
+    assert opt_dict["cuda_use_flash_attention"] is True
+
+
+@pytest.mark.asyncio
+async def test_run_multiprocess_conversion(tmp_path):
+    """Test that _run_multiprocess_conversion runs the multi process task worker and returns output path."""
+    from docling_lib.server import _run_multiprocess_conversion
+    from pathlib import Path
+
+    dummy_result = tmp_path / "output.md"
+
+    async def mock_run_in_executor(executor, func, *args):
+        # Simply return a dummy path string as if the worker succeeded
+        return str(dummy_result)
+
+    with patch("asyncio.get_running_loop") as mock_loop_getter:
+        mock_loop = MagicMock()
+        mock_loop.run_in_executor = mock_run_in_executor
+        mock_loop_getter.return_value = mock_loop
+
+        res = await _run_multiprocess_conversion(tmp_path / "input.pdf", tmp_path, {})
+        assert res == dummy_result
+
+
 def test_get_client_ip_fallback_to_unknown():
     """Test _get_client_ip when proxy headers are missing and request.client is None."""
     mock_request = MagicMock(spec=Request)
