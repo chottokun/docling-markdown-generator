@@ -353,20 +353,16 @@ def _extract_response_content(provider: str, data: dict) -> str:
         return ""
 
 
-async def _prepare_caption_args_async(
-    image: Image.Image | None,
+def _resolve_caption_defaults(
     provider: str,
-    api_key: str,
     model: str,
     endpoint: str,
     prompt: str,
-    text_content: str | None,
-) -> tuple[str, str, str, dict, dict] | None:
+) -> tuple[str, str, str, str]:
     """
-    Asynchronously forces parameter defaults, automatically adjusts endpoints, encodes images to base64 via threadpool,
-    and prepares the REST payload.
+    Forces parameter defaults and automatically adjusts default endpoints for non-ollama providers.
+    Returns: (provider_resolved, model_resolved, endpoint_resolved, prompt_resolved)
     """
-    # Force defaults if parameters are None/empty to match backward-compatible tests
     if not provider:
         provider = "ollama"
     provider_lower = provider.strip().lower()
@@ -374,7 +370,6 @@ async def _prepare_caption_args_async(
     if not model:
         model = "qwen2-vl:2b"
 
-    # Automatically adjust default endpoints for other cloud providers
     if not endpoint or (
         endpoint == "http://localhost:11434" and provider_lower != "ollama"
     ):
@@ -392,6 +387,26 @@ async def _prepare_caption_args_async(
             "この画像の概要を1〜2文程度で簡潔に日本語で説明してください。"
             "なお、グラフや図表の場合は主要な数値や傾向（増減・ピークなど）を含めて説明してください。"
         )
+
+    return provider, model, endpoint, prompt
+
+
+async def _prepare_caption_args_async(
+    image: Image.Image | None,
+    provider: str,
+    api_key: str,
+    model: str,
+    endpoint: str,
+    prompt: str,
+    text_content: str | None,
+) -> tuple[str, str, str, dict, dict] | None:
+    """
+    Asynchronously forces parameter defaults, automatically adjusts endpoints, encodes images to base64 via threadpool,
+    and prepares the REST payload.
+    """
+    provider, model, endpoint, prompt = _resolve_caption_defaults(
+        provider, model, endpoint, prompt
+    )
 
     # Encode image if provided asynchronously using thread pool
     img_base64 = None
@@ -431,32 +446,9 @@ def _prepare_caption_args(
     and prepares the REST payload.
     Returns (provider_resolved, endpoint_resolved, url, headers, json_body) or None if image encoding fails.
     """
-    # Force defaults if parameters are None/empty to match backward-compatible tests
-    if not provider:
-        provider = "ollama"
-    provider_lower = provider.strip().lower()
-
-    if not model:
-        model = "qwen2-vl:2b"
-
-    # Automatically adjust default endpoints for other cloud providers
-    if not endpoint or (
-        endpoint == "http://localhost:11434" and provider_lower != "ollama"
-    ):
-        if provider_lower == "ollama":
-            endpoint = "http://localhost:11434"
-        elif provider_lower in ("openai", "vllm", "llama.cpp"):
-            endpoint = "https://api.openai.com/v1"
-        elif provider_lower == "anthropic":
-            endpoint = "https://api.anthropic.com"
-        elif provider_lower in ("google", "gemini"):
-            endpoint = "https://generativelanguage.googleapis.com"
-
-    if not prompt:
-        prompt = (
-            "この画像の概要を1〜2文程度で簡潔に日本語で説明してください。"
-            "なお、グラフや図表の場合は主要な数値や傾向（増減・ピークなど）を含めて説明してください。"
-        )
+    provider, model, endpoint, prompt = _resolve_caption_defaults(
+        provider, model, endpoint, prompt
+    )
 
     # Encode image if provided
     img_base64 = None

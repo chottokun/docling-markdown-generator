@@ -210,10 +210,18 @@ class CustomMarkdownPictureSerializer(MarkdownPictureSerializer):
         if idx != -1:
             image_filename = f"picture_{idx + 1}.png"
             if self.image_tag_template:
-                res.text = self.image_tag_template.format(
-                    slug=self.slug or "",
-                    image_name=image_filename
-                )
+                try:
+                    res.text = self.image_tag_template.format(
+                        slug=self.slug or "",
+                        image_name=image_filename,
+                    )
+                except Exception as e:
+                    logger.warning(
+                        f"Failed to format image_tag_template with template '{self.image_tag_template}': "
+                        f"{sanitize_log_message(e)}. Falling back to default format."
+                    )
+                    image_rel_path = f"{self.image_dir_name}/{image_filename}"
+                    res.text = f"![image]({image_rel_path})"
             else:
                 image_rel_path = f"{self.image_dir_name}/{image_filename}"
                 # Output the actual relative image link instead of placeholder
