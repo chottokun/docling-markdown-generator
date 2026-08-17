@@ -1,8 +1,6 @@
 import logging
 from unittest.mock import MagicMock
 
-import pytest
-
 from docling_lib.converter import CustomMarkdownPictureSerializer
 from docling_lib.utils import serialize_table_data_to_markdown
 from docling_lib.vlm import _resolve_caption_defaults
