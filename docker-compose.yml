@@ -18,6 +18,7 @@ services:
       - DOCLING_UPLOAD_DIR=/app/data/uploads
       - DOCLING_OUTPUT_DIR=/app/data/output
       - HF_HOME=/app/data/models
+      - DOCLING_RATE_LIMIT_REQUESTS=100
     # 開発用コマンド。本番用は Dockerfile の CMD を使用。
     command: uvicorn docling_lib.server:app --host 0.0.0.0 --port 8000 --reload
     deploy:
