@@ -83,6 +83,16 @@ DOCLING_INCLUDE_KV_EXTRACTION = (
     os.getenv("DOCLING_INCLUDE_KV_EXTRACTION", "False").lower() == "true"
 )
 
+# LaTeX/Formula formatting options
+DOCLING_MATH_INLINE_DELIM = os.getenv("DOCLING_MATH_INLINE_DELIM", "auto")
+DOCLING_MATH_BLOCK_DELIM = os.getenv("DOCLING_MATH_BLOCK_DELIM", "auto")
+
+_math_nl_env = os.getenv("DOCLING_MATH_BLOCK_NEWLINE", "auto")
+if _math_nl_env.lower() == "auto":
+    DOCLING_MATH_BLOCK_NEWLINE = "auto"
+else:
+    DOCLING_MATH_BLOCK_NEWLINE = _math_nl_env.lower() == "true"
+
 
 def setup_logging():
     """Configures global logging for the library/CLI."""

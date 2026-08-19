@@ -32,6 +32,7 @@ from docling_core.transforms.serializer.markdown import (
     MarkdownParams,
     MarkdownPictureSerializer,
     MarkdownTableSerializer,
+    MarkdownTextSerializer,
     SerializationResult,
     create_ser_result,
 )
@@ -50,6 +51,9 @@ from .config import (
     DOCLING_CUDA_FLASH_ATTENTION,
     DOCLING_INCLUDE_KV_EXTRACTION,
     DOCLING_INCLUDE_PAGE_BREAKS,
+    DOCLING_MATH_BLOCK_DELIM,
+    DOCLING_MATH_BLOCK_NEWLINE,
+    DOCLING_MATH_INLINE_DELIM,
     DOCLING_MAX_WORKERS,
     DOCLING_NUM_THREADS,
     DOCLING_TABLE_FORMAT,
@@ -142,6 +146,9 @@ class DocumentConversionOptions:
     vlm_max_concurrent: int = DOCLING_VLM_MAX_CONCURRENT
     num_threads: int = DOCLING_NUM_THREADS
     cuda_use_flash_attention: bool = DOCLING_CUDA_FLASH_ATTENTION
+    math_inline_delim: str = DOCLING_MATH_INLINE_DELIM
+    math_block_delim: str = DOCLING_MATH_BLOCK_DELIM
+    math_block_newline: Any = DOCLING_MATH_BLOCK_NEWLINE
 
 
 class CustomMarkdownPictureSerializer(MarkdownPictureSerializer):
@@ -183,6 +190,13 @@ class CustomMarkdownPictureSerializer(MarkdownPictureSerializer):
         self._cached_doc = None
         self._pic_ref_to_idx = {}
 
+    def _get_closing_delim(self, delim: str) -> str:
+        if delim == "\\(":
+            return "\\)"
+        if delim == "\\[":
+            return "\\]"
+        return delim
+
     def serialize(
         self,
         *,
@@ -211,8 +225,7 @@ class CustomMarkdownPictureSerializer(MarkdownPictureSerializer):
             image_filename = f"picture_{idx + 1}.png"
             if self.image_tag_template:
                 res.text = self.image_tag_template.format(
-                    slug=self.slug or "",
-                    image_name=image_filename
+                    slug=self.slug or "", image_name=image_filename
                 )
             else:
                 image_rel_path = f"{self.image_dir_name}/{image_filename}"
@@ -246,6 +259,107 @@ class CustomMarkdownPictureSerializer(MarkdownPictureSerializer):
         return res
 
 
+class EnhancedMarkdownTextSerializer(MarkdownTextSerializer):
+    """
+    Custom Markdown Text Serializer that formats FormulaItem (math LaTeX) with
+    configurable inline and block delimiters and newline display options.
+    """
+
+    math_inline_delim: str = "auto"
+    math_block_delim: str = "auto"
+    math_block_newline: Any = "auto"
+
+    def _get_closing_delim(self, delim: str) -> str:
+        if delim == "\\(":
+            return "\\)"
+        if delim == "\\[":
+            return "\\]"
+        return delim
+
+    def serialize(
+        self,
+        *,
+        item: Any,
+        doc_serializer: Any,
+        doc: DoclingDocument,
+        is_inline_scope: bool = False,
+        visited: set[str] | None = None,
+        **kwargs: Any,
+    ) -> SerializationResult:
+        from docling_core.types.doc import FormulaItem
+
+        if isinstance(item, FormulaItem):
+            text = item.text
+            if text:
+                # 1. Determine inline delimiter
+                inline_delim = self.math_inline_delim
+                if inline_delim == "auto":
+                    doc_name = getattr(doc, "name", "") or ""
+                    if doc_name.lower().endswith((".tex", ".latex")):
+                        inline_delim = "\\("
+                    else:
+                        inline_delim = "$"
+
+                # 2. Determine block delimiter
+                block_delim = self.math_block_delim
+                if block_delim == "auto":
+                    doc_name = getattr(doc, "name", "") or ""
+                    if doc_name.lower().endswith((".tex", ".latex")):
+                        block_delim = "\\["
+                    else:
+                        block_delim = "$$"
+
+                # 3. Determine newline behavior
+                block_nl = self.math_block_newline
+                if block_nl == "auto" or (
+                    isinstance(block_nl, str) and block_nl.lower() == "auto"
+                ):
+                    if (
+                        "\\\\" in text
+                        or "\\begin" in text
+                        or "\\end" in text
+                        or len(text) > 60
+                    ):
+                        block_nl = True
+                    else:
+                        block_nl = False
+                elif isinstance(block_nl, str):
+                    block_nl = block_nl.lower() == "true"
+
+                if is_inline_scope:
+                    close_delim = self._get_closing_delim(inline_delim)
+                    text_part = f"{inline_delim}{text}{close_delim}"
+                else:
+                    close_delim = self._get_closing_delim(block_delim)
+                    if block_nl:
+                        text_part = f"{block_delim}\n{text}\n{close_delim}"
+                    else:
+                        text_part = f"{block_delim}{text}{close_delim}"
+            elif item.orig:
+                text_part = "<!-- formula-not-decoded -->"
+            else:
+                text_part = ""
+
+            res_parts = (
+                [create_ser_result(text=text_part, span_source=item)]
+                if text_part
+                else []
+            )
+            text_res = (" " if is_inline_scope else "\n\n").join(
+                [r.text for r in res_parts]
+            )
+            return create_ser_result(text=text_res, span_source=res_parts)
+
+        return super().serialize(
+            item=item,
+            doc_serializer=doc_serializer,
+            doc=doc,
+            is_inline_scope=is_inline_scope,
+            visited=visited,
+            **kwargs,
+        )
+
+
 class HTMLTableMarkdownSerializer(MarkdownTableSerializer):
     """
     Custom Markdown Table Serializer that exports tables as HTML
@@ -265,7 +379,12 @@ class HTMLTableMarkdownSerializer(MarkdownTableSerializer):
         if hasattr(item, "_mock_name") or "Mock" in type(item).__name__:
             # Keep backward compatibility with existing tests by defaulting to True if item is a Mock
             has_merged_cells = True
-        elif hasattr(item, "data") and item.data and hasattr(item.data, "table_cells") and item.data.table_cells is not None:
+        elif (
+            hasattr(item, "data")
+            and item.data
+            and hasattr(item.data, "table_cells")
+            and item.data.table_cells is not None
+        ):
             cells = item.data.table_cells
             for cell in cells:
                 if (getattr(cell, "row_span", 1) or 1) > 1 or (
@@ -368,6 +487,9 @@ class EnhancedMarkdownSerializer(MarkdownDocSerializer):
         image_dir_name: str = "images",
         image_tag_template: str | None = None,
         slug: str | None = None,
+        math_inline_delim: str = "$",
+        math_block_delim: str = "$$",
+        math_block_newline: bool = False,
         **kwargs,
     ):
         # In tests, doc might be a MagicMock. Pydantic models (like
@@ -377,6 +499,16 @@ class EnhancedMarkdownSerializer(MarkdownDocSerializer):
             self._init_from_mock(doc, **kwargs)
         else:
             super().__init__(doc=doc, **kwargs)
+
+        text_serializer = EnhancedMarkdownTextSerializer(
+            math_inline_delim=math_inline_delim,
+            math_block_delim=math_block_delim,
+            math_block_newline=math_block_newline,
+        )
+        if self._is_mock(doc):
+            object.__setattr__(self, "text_serializer", text_serializer)
+        else:
+            self.text_serializer = text_serializer
 
         if table_format.lower() == "html":
             # If we initialized from a mock, we must use object.__setattr__
@@ -646,6 +778,9 @@ class PDFConverter:
             image_dir_name=actual_options.image_dir_name,
             image_tag_template=image_tag_template,
             slug=slug,
+            math_inline_delim=actual_options.math_inline_delim,
+            math_block_delim=actual_options.math_block_delim,
+            math_block_newline=actual_options.math_block_newline,
             params=MarkdownParams(
                 image_mode=ImageRefMode.REFERENCED,
                 image_placeholder="<!-- image -->",
@@ -681,7 +816,9 @@ class PDFConverter:
                 if page_count > 0:
                     metadata["page_count"] = page_count
             except Exception as e:
-                logger.warning(f"Failed to extract page count: {sanitize_log_message(e)}")
+                logger.warning(
+                    f"Failed to extract page count: {sanitize_log_message(e)}"
+                )
 
         if metadata:
             import yaml
@@ -899,7 +1036,9 @@ class EnhancedDoclingConverter:
         # 4. Render the document with custom image tags
         return self._render_with_image_tags(doc, template=image_tag_template, slug=slug)
 
-    def _render_with_image_tags(self, doc: DoclingDocument, template: str, slug: str) -> str:
+    def _render_with_image_tags(
+        self, doc: DoclingDocument, template: str, slug: str
+    ) -> str:
         """
         Renders the document's structure to Markdown text using CustomMarkdownPictureSerializer
         with custom template and slug.
@@ -1128,6 +1267,9 @@ def get_process_pool() -> ProcessPoolExecutor:
                     "vlm_max_concurrent": DOCLING_VLM_MAX_CONCURRENT,
                     "num_threads": DOCLING_NUM_THREADS,
                     "cuda_use_flash_attention": DOCLING_CUDA_FLASH_ATTENTION,
+                    "math_inline_delim": DOCLING_MATH_INLINE_DELIM,
+                    "math_block_delim": DOCLING_MATH_BLOCK_DELIM,
+                    "math_block_newline": DOCLING_MATH_BLOCK_NEWLINE,
                 }
 
                 _process_pool = ProcessPoolExecutor(

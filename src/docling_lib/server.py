@@ -9,6 +9,7 @@ import time
 from collections import defaultdict, deque
 from functools import lru_cache
 from pathlib import Path
+from typing import Any
 
 import psutil
 from fastapi import (
@@ -36,6 +37,9 @@ from .config import (
     DOCLING_CUDA_FLASH_ATTENTION,
     DOCLING_INCLUDE_KV_EXTRACTION,
     DOCLING_INCLUDE_PAGE_BREAKS,
+    DOCLING_MATH_BLOCK_DELIM,
+    DOCLING_MATH_BLOCK_NEWLINE,
+    DOCLING_MATH_INLINE_DELIM,
     DOCLING_NUM_THREADS,
     DOCLING_TABLE_FORMAT,
     DOCLING_VLM_API_KEY,
@@ -59,6 +63,7 @@ from .utils import sanitize_log_message
 
 class RequestBodyTooLarge(Exception):
     """Exception raised when the request body exceeds MAX_UPLOAD_SIZE."""
+
     pass
 
 
@@ -68,6 +73,7 @@ class ContentSizeLimitMiddleware:
     Enforces the MAX_UPLOAD_SIZE limit at the ASGI level, stopping excessive uploads
     before they are spooled to disk or processed by Starlette's multipart parser.
     """
+
     def __init__(self, app: ASGIApp, max_content_size: int):
         self.app = app
         self.max_content_size = max_content_size
@@ -119,28 +125,33 @@ class ContentSizeLimitMiddleware:
                 await self._send_413_response(send, limit)
 
     async def _send_413_response(self, send: Send, limit: int) -> None:
-        body = json.dumps({
-            "detail": f"Payload Too Large. Maximum size is {limit} bytes."
-        }).encode("utf-8")
+        body = json.dumps(
+            {"detail": f"Payload Too Large. Maximum size is {limit} bytes."}
+        ).encode("utf-8")
 
-        await send({
-            "type": "http.response.start",
-            "status": 413,
-            "headers": [
-                (b"content-type", b"application/json"),
-                (b"content-length", str(len(body)).encode("latin-1")),
-            ],
-        })
-        await send({
-            "type": "http.response.body",
-            "body": body,
-            "more_body": False,
-        })
+        await send(
+            {
+                "type": "http.response.start",
+                "status": 413,
+                "headers": [
+                    (b"content-type", b"application/json"),
+                    (b"content-length", str(len(body)).encode("latin-1")),
+                ],
+            }
+        )
+        await send(
+            {
+                "type": "http.response.body",
+                "body": body,
+                "more_body": False,
+            }
+        )
 
 
 # --- Logging Setup ---
 setup_logging()
 logger = logging.getLogger(__name__)
+
 
 # --- Simple In-Memory Prometheus Metrics Collector ---
 class _MetricsRegistry:
@@ -159,33 +170,41 @@ class _MetricsRegistry:
         lines = []
 
         # Counter: docling_conversions_total
-        lines.append("# HELP docling_conversions_total Total number of document conversion requests.")
+        lines.append(
+            "# HELP docling_conversions_total Total number of document conversion requests."
+        )
         lines.append("# TYPE docling_conversions_total counter")
         for status, count in sorted(self.conversions_total.items()):
             lines.append(f'docling_conversions_total{{status="{status}"}} {count}')
 
         # Gauge: docling_active_conversions
-        lines.append("# HELP docling_active_conversions Current active document conversion tasks.")
+        lines.append(
+            "# HELP docling_active_conversions Current active document conversion tasks."
+        )
         lines.append("# TYPE docling_active_conversions gauge")
-        lines.append(f'docling_active_conversions {self.active_conversions}')
+        lines.append(f"docling_active_conversions {self.active_conversions}")
 
         # Gauge: docling_memory_used_bytes
-        lines.append("# HELP docling_memory_used_bytes Memory used in bytes by the server.")
+        lines.append(
+            "# HELP docling_memory_used_bytes Memory used in bytes by the server."
+        )
         lines.append("# TYPE docling_memory_used_bytes gauge")
         try:
             mem_bytes = psutil.Process().memory_info().rss
-            lines.append(f'docling_memory_used_bytes {mem_bytes}')
+            lines.append(f"docling_memory_used_bytes {mem_bytes}")
         except (psutil.Error, OSError, AttributeError):
-            lines.append('docling_memory_used_bytes 0')
+            lines.append("docling_memory_used_bytes 0")
 
         # Histogram summary: docling_conversion_duration_seconds
-        lines.append("# HELP docling_conversion_duration_seconds Duration of conversion requests in seconds.")
+        lines.append(
+            "# HELP docling_conversion_duration_seconds Duration of conversion requests in seconds."
+        )
         lines.append("# TYPE docling_conversion_duration_seconds summary")
         durations = self.conversion_duration_seconds
         count = len(durations)
         total_sum = sum(durations)
-        lines.append(f'docling_conversion_duration_seconds_count {count}')
-        lines.append(f'docling_conversion_duration_seconds_sum {total_sum:.4f}')
+        lines.append(f"docling_conversion_duration_seconds_count {count}")
+        lines.append(f"docling_conversion_duration_seconds_sum {total_sum:.4f}")
 
         return "\n".join(lines) + "\n"
 
@@ -208,6 +227,9 @@ class DocumentConversionRequest(BaseModel):
     vlm_max_concurrent: int
     num_threads: int
     cuda_use_flash_attention: bool
+    math_inline_delim: str
+    math_block_delim: str
+    math_block_newline: Any
 
 
 def get_conversion_request(
@@ -222,7 +244,20 @@ def get_conversion_request(
     vlm_max_concurrent: int = Form(DOCLING_VLM_MAX_CONCURRENT),
     num_threads: int = Form(DOCLING_NUM_THREADS),
     cuda_use_flash_attention: bool = Form(DOCLING_CUDA_FLASH_ATTENTION),
+    math_inline_delim: str = Form(DOCLING_MATH_INLINE_DELIM),
+    math_block_delim: str = Form(DOCLING_MATH_BLOCK_DELIM),
+    math_block_newline: str = Form(str(DOCLING_MATH_BLOCK_NEWLINE)),
 ) -> DocumentConversionRequest:
+    # If the string represents boolean, convert it or pass it on
+    resolved_nl = math_block_newline
+    if isinstance(math_block_newline, str):
+        if math_block_newline.lower() == "true":
+            resolved_nl = True
+        elif math_block_newline.lower() == "false":
+            resolved_nl = False
+        elif math_block_newline.lower() == "auto":
+            resolved_nl = "auto"
+
     return DocumentConversionRequest(
         table_format=table_format,
         include_page_breaks=include_page_breaks,
@@ -236,6 +271,9 @@ def get_conversion_request(
         vlm_max_concurrent=vlm_max_concurrent,
         num_threads=num_threads,
         cuda_use_flash_attention=cuda_use_flash_attention,
+        math_inline_delim=math_inline_delim,
+        math_block_delim=math_block_delim,
+        math_block_newline=resolved_nl,
     )
 
 
@@ -278,7 +316,9 @@ async def cleanup_expired_rate_limits(now: float):
                 if not dq:
                     _rate_limit_data.pop(ip, None)
     except (RuntimeError, KeyError, IndexError) as e:
-        logger.error(f"Error during async rate limit cleanup: {sanitize_log_message(e)}")
+        logger.error(
+            f"Error during async rate limit cleanup: {sanitize_log_message(e)}"
+        )
 
 
 _concurrency_semaphore = None
@@ -359,7 +399,11 @@ def _is_trusted_proxy(ip_str: str | None) -> bool:
 
     ip_str = ip_str.strip()
 
-    proxies_tuple = TRUSTED_PROXIES if isinstance(TRUSTED_PROXIES, tuple) else tuple(TRUSTED_PROXIES)
+    proxies_tuple = (
+        TRUSTED_PROXIES
+        if isinstance(TRUSTED_PROXIES, tuple)
+        else tuple(TRUSTED_PROXIES)
+    )
     wildcard, exact_matches, cidr_networks = _parse_trusted_proxies(proxies_tuple)
 
     if wildcard:
@@ -545,6 +589,9 @@ def _build_conversion_options(
         vlm_max_concurrent=req_options.vlm_max_concurrent,
         num_threads=req_options.num_threads,
         cuda_use_flash_attention=req_options.cuda_use_flash_attention,
+        math_inline_delim=req_options.math_inline_delim,
+        math_block_delim=req_options.math_block_delim,
+        math_block_newline=req_options.math_block_newline,
     )
 
 
@@ -570,6 +617,9 @@ def _build_options_dict(options: DocumentConversionOptions) -> dict:
         "vlm_max_concurrent": options.vlm_max_concurrent,
         "num_threads": options.num_threads,
         "cuda_use_flash_attention": options.cuda_use_flash_attention,
+        "math_inline_delim": options.math_inline_delim,
+        "math_block_delim": options.math_block_delim,
+        "math_block_newline": options.math_block_newline,
     }
 
 
@@ -602,8 +652,8 @@ async def convert_file(
     content_length: int | None = Header(None),
 ):
     """
-    Endpoint to upload a document and convert it to Markdown.
-    Includes validation for file size (via Content-Length header and read loop).
+    Unified endpoint to convert documents (PDF, DOCX, PPTX, etc.) to Markdown with extracted images.
+    Protected by API key authentication and concurrency throttling.
     """
     _validate_content_length(content_length)
 
@@ -650,7 +700,9 @@ async def convert_file(
             status_code=500, detail="An internal error occurred during conversion."
         ) from e
     finally:
-        metrics_registry.active_conversions = max(0, metrics_registry.active_conversions - 1)
+        metrics_registry.active_conversions = max(
+            0, metrics_registry.active_conversions - 1
+        )
         duration = time.time() - start_time
         metrics_registry.record_conversion(status, duration)
         await _cleanup_temp_file(tmp_path)
@@ -725,7 +777,7 @@ async def metrics():
     """
     return PlainTextResponse(
         content=metrics_registry.generate_prometheus_text(),
-        media_type="text/plain; version=0.0.4; charset=utf-8"
+        media_type="text/plain; version=0.0.4; charset=utf-8",
     )
 
 

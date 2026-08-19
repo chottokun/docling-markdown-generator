@@ -140,6 +140,7 @@ async def test_create_output_dir_file_exists_error(tmp_path, monkeypatch):
     monkeypatch.setattr(docling_lib.server, "OUTPUT_DIR", tmp_path)
 
     import os
+
     original_urandom = os.urandom
 
     def mock_urandom(size):
@@ -339,7 +340,8 @@ def test_get_client_ip_fallback_to_client_host():
 
 def test_build_conversion_options():
     """Test that _build_conversion_options correctly populates options."""
-    from docling_lib.server import _build_conversion_options, DocumentConversionRequest
+    from docling_lib.server import DocumentConversionRequest, _build_conversion_options
+
     req_options = DocumentConversionRequest(
         table_format="html",
         include_page_breaks=True,
@@ -353,6 +355,9 @@ def test_build_conversion_options():
         vlm_max_concurrent=5,
         num_threads=4,
         cuda_use_flash_attention=True,
+        math_inline_delim="$",
+        math_block_delim="$$",
+        math_block_newline=False,
     )
     options = _build_conversion_options(req_options)
     assert options.table_format == "html"
@@ -367,12 +372,16 @@ def test_build_conversion_options():
     assert options.vlm_max_concurrent == 5
     assert options.num_threads == 4
     assert options.cuda_use_flash_attention is True
+    assert options.math_inline_delim == "$"
+    assert options.math_block_delim == "$$"
+    assert options.math_block_newline is False
 
 
 def test_build_options_dict():
     """Test that _build_options_dict correctly converts options to dict."""
-    from docling_lib.server import _build_options_dict
     from docling_lib.converter import DocumentConversionOptions
+    from docling_lib.server import _build_options_dict
+
     options = DocumentConversionOptions(
         table_format="html",
         include_page_breaks=True,
@@ -386,6 +395,9 @@ def test_build_options_dict():
         vlm_max_concurrent=5,
         num_threads=4,
         cuda_use_flash_attention=True,
+        math_inline_delim="$",
+        math_block_delim="$$",
+        math_block_newline=False,
     )
     opt_dict = _build_options_dict(options)
     assert opt_dict["table_format"] == "html"
@@ -400,13 +412,16 @@ def test_build_options_dict():
     assert opt_dict["vlm_max_concurrent"] == 5
     assert opt_dict["num_threads"] == 4
     assert opt_dict["cuda_use_flash_attention"] is True
+    assert opt_dict["math_inline_delim"] == "$"
+    assert opt_dict["math_block_delim"] == "$$"
+    assert opt_dict["math_block_newline"] is False
 
 
 @pytest.mark.asyncio
 async def test_run_multiprocess_conversion(tmp_path):
     """Test that _run_multiprocess_conversion runs the multi process task worker and returns output path."""
+
     from docling_lib.server import _run_multiprocess_conversion
-    from pathlib import Path
 
     dummy_result = tmp_path / "output.md"
 

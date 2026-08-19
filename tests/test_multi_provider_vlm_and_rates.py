@@ -126,7 +126,10 @@ class TestMultiProviderVLMAndRates(unittest.TestCase):
         returns empty string, and does not release the semaphore since it was never acquired.
         """
         from docling_lib.vlm import get_semaphore
-        real_sem = get_semaphore(5, provider="ollama", endpoint="http://localhost:11434")
+
+        real_sem = get_semaphore(
+            5, provider="ollama", endpoint="http://localhost:11434"
+        )
 
         mock_sem = MagicMock(wraps=real_sem)
         # Mock acquire method to raise Exception
@@ -154,7 +157,10 @@ class TestMultiProviderVLMAndRates(unittest.TestCase):
         mock_client.__enter__.side_effect = Exception("Context manager enter failed")
 
         from docling_lib.vlm import get_semaphore
-        real_sem = get_semaphore(5, provider="ollama", endpoint="http://localhost:11434")
+
+        real_sem = get_semaphore(
+            5, provider="ollama", endpoint="http://localhost:11434"
+        )
 
         mock_sem = MagicMock(wraps=real_sem)
         with patch("docling_lib.vlm.get_semaphore", return_value=mock_sem):
@@ -174,11 +180,14 @@ class TestMultiProviderVLMAndRates(unittest.TestCase):
         Verify that generate_caption_sync retries on 429 status and succeeds on subsequent try.
         """
         import httpx
+
         mock_client = mock_client_cls.return_value.__enter__.return_value
 
         res_429 = MagicMock()
         res_429.status_code = 429
-        err_429 = httpx.HTTPStatusError("429 Too Many Requests", request=MagicMock(), response=res_429)
+        err_429 = httpx.HTTPStatusError(
+            "429 Too Many Requests", request=MagicMock(), response=res_429
+        )
 
         res_200 = MagicMock()
         res_200.json.return_value = {"message": {"content": "Retry Success"}}
@@ -208,7 +217,10 @@ class TestMultiProviderVLMAndRates(unittest.TestCase):
 
         # Mock get_semaphore to return a spy/mock semaphore
         from docling_lib.vlm import get_semaphore
-        real_sem = get_semaphore(5, provider="ollama", endpoint="http://localhost:11434")
+
+        real_sem = get_semaphore(
+            5, provider="ollama", endpoint="http://localhost:11434"
+        )
 
         mock_sem = MagicMock(wraps=real_sem)
         with patch("docling_lib.vlm.get_semaphore", return_value=mock_sem):
@@ -276,6 +288,7 @@ class TestMultiProviderVLMAndRates(unittest.TestCase):
         Verify that sanitize_log_message correctly redacts key/api_key query parameters.
         """
         from docling_lib.utils import sanitize_log_message
+
         msg1 = "URL: https://api.com/v1?key=secret-key-123-abc"
         msg2 = "HTTP Error on https://api.com/v1?api_key=sk_live_5123abc&other=param"
 
@@ -295,10 +308,9 @@ class TestMultiProviderVLMAndRates(unittest.TestCase):
         # Force a raise_for_status exception
         mock_response = MagicMock()
         import httpx
+
         mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
-            message="403 Forbidden",
-            request=MagicMock(),
-            response=mock_response
+            message="403 Forbidden", request=MagicMock(), response=mock_response
         )
         mock_client.post.return_value = mock_response
 
@@ -365,6 +377,9 @@ class TestMultiProviderVLMAndRates(unittest.TestCase):
             vlm_max_concurrent=10,
             num_threads=8,
             cuda_use_flash_attention=True,
+            math_inline_delim="\\(",
+            math_block_delim="\\[",
+            math_block_newline=True,
         )
 
         self.assertEqual(req.table_format, "markdown")
@@ -379,7 +394,9 @@ class TestMultiProviderVLMAndRates(unittest.TestCase):
         self.assertEqual(req.vlm_max_concurrent, 10)
         self.assertEqual(req.num_threads, 8)
         self.assertTrue(req.cuda_use_flash_attention)
-
+        self.assertEqual(req.math_inline_delim, "\\(")
+        self.assertEqual(req.math_block_delim, "\\[")
+        self.assertTrue(req.math_block_newline)
 
     def test_prepare_caption_args_directly(self):
         """
@@ -422,4 +439,3 @@ class TestMultiProviderVLMAndRates(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
