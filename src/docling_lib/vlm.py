@@ -3,7 +3,9 @@ import atexit
 import base64
 import io
 import logging
+import secrets
 import threading
+import time
 import weakref
 
 import httpx
@@ -353,20 +355,16 @@ def _extract_response_content(provider: str, data: dict) -> str:
         return ""
 
 
-async def _prepare_caption_args_async(
-    image: Image.Image | None,
+def _resolve_caption_defaults(
     provider: str,
-    api_key: str,
     model: str,
     endpoint: str,
     prompt: str,
-    text_content: str | None,
-) -> tuple[str, str, str, dict, dict] | None:
+) -> tuple[str, str, str, str]:
     """
-    Asynchronously forces parameter defaults, automatically adjusts endpoints, encodes images to base64 via threadpool,
-    and prepares the REST payload.
+    Helper to resolve default values and provider endpoints in a single DRY pure function.
+    Returns: (provider_resolved, model_resolved, endpoint_resolved, prompt_resolved)
     """
-    # Force defaults if parameters are None/empty to match backward-compatible tests
     if not provider:
         provider = "ollama"
     provider_lower = provider.strip().lower()
@@ -374,7 +372,6 @@ async def _prepare_caption_args_async(
     if not model:
         model = "qwen2-vl:2b"
 
-    # Automatically adjust default endpoints for other cloud providers
     if not endpoint or (
         endpoint == "http://localhost:11434" and provider_lower != "ollama"
     ):
@@ -392,6 +389,26 @@ async def _prepare_caption_args_async(
             "この画像の概要を1〜2文程度で簡潔に日本語で説明してください。"
             "なお、グラフや図表の場合は主要な数値や傾向（増減・ピークなど）を含めて説明してください。"
         )
+
+    return provider, model, endpoint, prompt
+
+
+async def _prepare_caption_args_async(
+    image: Image.Image | None,
+    provider: str,
+    api_key: str,
+    model: str,
+    endpoint: str,
+    prompt: str,
+    text_content: str | None,
+) -> tuple[str, str, str, dict, dict] | None:
+    """
+    Asynchronously forces parameter defaults, automatically adjusts endpoints, encodes images to base64 via threadpool,
+    and prepares the REST payload.
+    """
+    provider, model, endpoint, prompt = _resolve_caption_defaults(
+        provider, model, endpoint, prompt
+    )
 
     # Encode image if provided asynchronously using thread pool
     img_base64 = None
@@ -431,32 +448,9 @@ def _prepare_caption_args(
     and prepares the REST payload.
     Returns (provider_resolved, endpoint_resolved, url, headers, json_body) or None if image encoding fails.
     """
-    # Force defaults if parameters are None/empty to match backward-compatible tests
-    if not provider:
-        provider = "ollama"
-    provider_lower = provider.strip().lower()
-
-    if not model:
-        model = "qwen2-vl:2b"
-
-    # Automatically adjust default endpoints for other cloud providers
-    if not endpoint or (
-        endpoint == "http://localhost:11434" and provider_lower != "ollama"
-    ):
-        if provider_lower == "ollama":
-            endpoint = "http://localhost:11434"
-        elif provider_lower in ("openai", "vllm", "llama.cpp"):
-            endpoint = "https://api.openai.com/v1"
-        elif provider_lower == "anthropic":
-            endpoint = "https://api.anthropic.com"
-        elif provider_lower in ("google", "gemini"):
-            endpoint = "https://generativelanguage.googleapis.com"
-
-    if not prompt:
-        prompt = (
-            "この画像の概要を1〜2文程度で簡潔に日本語で説明してください。"
-            "なお、グラフや図表の場合は主要な数値や傾向（増減・ピークなど）を含めて説明してください。"
-        )
+    provider, model, endpoint, prompt = _resolve_caption_defaults(
+        provider, model, endpoint, prompt
+    )
 
     # Encode image if provided
     img_base64 = None
@@ -482,6 +476,11 @@ def _prepare_caption_args(
     return provider, endpoint, url, headers, json_body
 
 
+def _should_retry_status(status_code: int) -> bool:
+    """Returns True for transient HTTP status codes (429 Too Many Requests, 502/503/504 Bad Gateway/Service Unavailable)."""
+    return status_code in (429, 502, 503, 504)
+
+
 async def generate_caption(
     image: Image.Image | None = None,
     provider: str = "ollama",
@@ -494,10 +493,12 @@ async def generate_caption(
     ),
     text_content: str | None = None,
     vlm_max_concurrent: int = 5,
+    max_retries: int = 2,
+    base_delay: float = 0.5,
 ) -> str:
     """
     Asynchronously generates a description/caption/summary for an image or structured text
-    using the selected VLM/LLM REST provider with dynamic rate-limiting control.
+    using the selected VLM/LLM REST provider with dynamic rate-limiting control and exponential backoff.
     """
     prepared = await _prepare_caption_args_async(
         image=image,
@@ -530,11 +531,43 @@ async def generate_caption(
             client_ctx = raw_client
 
         async with client_ctx as client:
-            response = await client.post(url, headers=headers, json=json_body)
-            response.raise_for_status()
-            data = response.json()
-            content = _extract_response_content(provider_resolved, data)
-            return content.strip()
+            last_exc = None
+            for attempt in range(max_retries + 1):
+                try:
+                    response = await client.post(url, headers=headers, json=json_body)
+                    response.raise_for_status()
+                    data = response.json()
+                    content = _extract_response_content(provider_resolved, data)
+                    return content.strip()
+                except httpx.HTTPStatusError as e:
+                    last_exc = e
+                    status_code = e.response.status_code if e.response is not None else 0
+                    if attempt < max_retries and _should_retry_status(status_code):
+                        jitter = (secrets.randbelow(100) / 1000.0)
+                        backoff = base_delay * (2 ** attempt) + jitter
+                        logger.warning(
+                            f"Transient HTTP {status_code} from VLM provider {provider_resolved}. "
+                            f"Retrying in {backoff:.2f}s (Attempt {attempt + 1}/{max_retries})."
+                        )
+                        await asyncio.sleep(backoff)
+                    else:
+                        raise e
+                except (httpx.RequestError, TimeoutError) as e:
+                    last_exc = e
+                    if attempt < max_retries:
+                        jitter = (secrets.randbelow(100) / 1000.0)
+                        backoff = base_delay * (2 ** attempt) + jitter
+                        logger.warning(
+                            f"Network error contacting VLM provider {provider_resolved}: {sanitize_log_message(e)}. "
+                            f"Retrying in {backoff:.2f}s (Attempt {attempt + 1}/{max_retries})."
+                        )
+                        await asyncio.sleep(backoff)
+                    else:
+                        raise e
+
+            if last_exc:
+                raise last_exc
+            return ""
     except Exception as e:
         logger.warning(
             f"VLM/LLM caption generation failed for {provider_resolved}: {sanitize_log_message(e)}"
@@ -557,10 +590,12 @@ def generate_caption_sync(
     ),
     text_content: str | None = None,
     vlm_max_concurrent: int = 5,
+    max_retries: int = 2,
+    base_delay: float = 0.5,
 ) -> str:
     """
     Synchronously generates a description/caption/summary for an image or structured text
-    using the selected VLM/LLM REST provider with dynamic rate-limiting control.
+    using the selected VLM/LLM REST provider with dynamic rate-limiting control and exponential backoff.
     """
     prepared = _prepare_caption_args(
         image=image,
@@ -592,11 +627,43 @@ def generate_caption_sync(
             client_ctx = raw_client
 
         with client_ctx as client:
-            response = client.post(url, headers=headers, json=json_body)
-            response.raise_for_status()
-            data = response.json()
-            content = _extract_response_content(provider_resolved, data)
-            return content.strip()
+            last_exc = None
+            for attempt in range(max_retries + 1):
+                try:
+                    response = client.post(url, headers=headers, json=json_body)
+                    response.raise_for_status()
+                    data = response.json()
+                    content = _extract_response_content(provider_resolved, data)
+                    return content.strip()
+                except httpx.HTTPStatusError as e:
+                    last_exc = e
+                    status_code = e.response.status_code if e.response is not None else 0
+                    if attempt < max_retries and _should_retry_status(status_code):
+                        jitter = (secrets.randbelow(100) / 1000.0)
+                        backoff = base_delay * (2 ** attempt) + jitter
+                        logger.warning(
+                            f"Transient HTTP {status_code} from VLM provider {provider_resolved}. "
+                            f"Retrying in {backoff:.2f}s (Attempt {attempt + 1}/{max_retries})."
+                        )
+                        time.sleep(backoff)
+                    else:
+                        raise e
+                except (httpx.RequestError, TimeoutError) as e:
+                    last_exc = e
+                    if attempt < max_retries:
+                        jitter = (secrets.randbelow(100) / 1000.0)
+                        backoff = base_delay * (2 ** attempt) + jitter
+                        logger.warning(
+                            f"Network error contacting VLM provider {provider_resolved}: {sanitize_log_message(e)}. "
+                            f"Retrying in {backoff:.2f}s (Attempt {attempt + 1}/{max_retries})."
+                        )
+                        time.sleep(backoff)
+                    else:
+                        raise e
+
+            if last_exc:
+                raise last_exc
+            return ""
     except Exception as e:
         logger.warning(
             f"VLM/LLM caption generation failed for {provider_resolved}: {sanitize_log_message(e)}"

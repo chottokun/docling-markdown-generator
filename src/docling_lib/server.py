@@ -23,7 +23,7 @@ from fastapi import (
     UploadFile,
 )
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, PlainTextResponse
 from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
 from starlette.datastructures import Headers
@@ -142,6 +142,56 @@ class ContentSizeLimitMiddleware:
 setup_logging()
 logger = logging.getLogger(__name__)
 
+# --- Simple In-Memory Prometheus Metrics Collector ---
+class _MetricsRegistry:
+    def __init__(self):
+        self.conversions_total = defaultdict(int)  # {status: count}
+        self.conversion_duration_seconds = []  # list of float durations
+        self.active_conversions = 0
+
+    def record_conversion(self, status: str, duration: float):
+        self.conversions_total[status] += 1
+        self.conversion_duration_seconds.append(duration)
+        if len(self.conversion_duration_seconds) > 1000:
+            self.conversion_duration_seconds = self.conversion_duration_seconds[-1000:]
+
+    def generate_prometheus_text(self) -> str:
+        lines = []
+
+        # Counter: docling_conversions_total
+        lines.append("# HELP docling_conversions_total Total number of document conversion requests.")
+        lines.append("# TYPE docling_conversions_total counter")
+        for status, count in sorted(self.conversions_total.items()):
+            lines.append(f'docling_conversions_total{{status="{status}"}} {count}')
+
+        # Gauge: docling_active_conversions
+        lines.append("# HELP docling_active_conversions Current active document conversion tasks.")
+        lines.append("# TYPE docling_active_conversions gauge")
+        lines.append(f'docling_active_conversions {self.active_conversions}')
+
+        # Gauge: docling_memory_used_bytes
+        lines.append("# HELP docling_memory_used_bytes Memory used in bytes by the server.")
+        lines.append("# TYPE docling_memory_used_bytes gauge")
+        try:
+            mem_bytes = psutil.Process().memory_info().rss
+            lines.append(f'docling_memory_used_bytes {mem_bytes}')
+        except (psutil.Error, OSError, AttributeError):
+            lines.append('docling_memory_used_bytes 0')
+
+        # Histogram summary: docling_conversion_duration_seconds
+        lines.append("# HELP docling_conversion_duration_seconds Duration of conversion requests in seconds.")
+        lines.append("# TYPE docling_conversion_duration_seconds summary")
+        durations = self.conversion_duration_seconds
+        count = len(durations)
+        total_sum = sum(durations)
+        lines.append(f'docling_conversion_duration_seconds_count {count}')
+        lines.append(f'docling_conversion_duration_seconds_sum {total_sum:.4f}')
+
+        return "\n".join(lines) + "\n"
+
+
+metrics_registry = _MetricsRegistry()
+
 router = APIRouter()
 
 
@@ -227,7 +277,7 @@ async def cleanup_expired_rate_limits(now: float):
                     dq.popleft()
                 if not dq:
                     _rate_limit_data.pop(ip, None)
-    except Exception as e:
+    except (RuntimeError, KeyError, IndexError) as e:
         logger.error(f"Error during async rate limit cleanup: {sanitize_log_message(e)}")
 
 
@@ -492,6 +542,9 @@ async def convert_file(
 
     file_ext = _validate_extension(file.filename)
     tmp_path = None
+    start_time = time.time()
+    metrics_registry.active_conversions += 1
+    status = "error"
     try:
         tmp_path = await _save_upload_temp(file, file_ext)
         request_id, request_output_dir = await _create_output_dir()
@@ -562,7 +615,9 @@ async def convert_file(
 
                 result_path = Path(result_path_str) if result_path_str else None
 
-        return await _validate_and_format_response(result_path, request_id)
+        response = await _validate_and_format_response(result_path, request_id)
+        status = "success"
+        return response
 
     except HTTPException:
         # Re-raise already formed HTTP exceptions
@@ -575,6 +630,9 @@ async def convert_file(
             status_code=500, detail="An internal error occurred during conversion."
         ) from e
     finally:
+        metrics_registry.active_conversions = max(0, metrics_registry.active_conversions - 1)
+        duration = time.time() - start_time
+        metrics_registry.record_conversion(status, duration)
         await _cleanup_temp_file(tmp_path)
 
 
@@ -637,6 +695,18 @@ async def download_file(request_id: str, filename: str):
 @router.get("/")
 async def root():
     return {"message": "Welcome to the Docling Markdown Conversion Server"}
+
+
+@router.get("/metrics", response_class=PlainTextResponse)
+async def metrics():
+    """
+    Prometheus metrics exporter endpoint.
+    Exposes conversion counts, duration summaries, active conversion gauges, and memory usage.
+    """
+    return PlainTextResponse(
+        content=metrics_registry.generate_prometheus_text(),
+        media_type="text/plain; version=0.0.4; charset=utf-8"
+    )
 
 
 def create_app() -> FastAPI:

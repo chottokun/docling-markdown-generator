@@ -18,6 +18,21 @@ def test_root_get_success():
         "message": "Welcome to the Docling Markdown Conversion Server"
     }
 
+def test_metrics_endpoint_success():
+    """
+    Assert that a GET request to /metrics returns 200 OK
+    and formatted Prometheus metrics text containing key counters and gauges.
+    """
+    response = client.get("/metrics")
+    assert response.status_code == 200
+    assert "text/plain" in response.headers.get("content-type", "").lower()
+    content = response.text
+    assert "docling_conversions_total" in content
+    assert "docling_active_conversions" in content
+    assert "docling_memory_used_bytes" in content
+    assert "docling_conversion_duration_seconds" in content
+
+
 def test_root_options_cors(monkeypatch):
     """
     Assert that an OPTIONS request to the root endpoint (/) returns 200 OK

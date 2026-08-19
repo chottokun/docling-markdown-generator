@@ -169,6 +169,35 @@ class TestMultiProviderVLMAndRates(unittest.TestCase):
             mock_sem.release.assert_called_once()
 
     @patch("httpx.Client")
+    def test_generate_caption_sync_retry_on_429(self, mock_client_cls):
+        """
+        Verify that generate_caption_sync retries on 429 status and succeeds on subsequent try.
+        """
+        import httpx
+        mock_client = mock_client_cls.return_value.__enter__.return_value
+
+        res_429 = MagicMock()
+        res_429.status_code = 429
+        err_429 = httpx.HTTPStatusError("429 Too Many Requests", request=MagicMock(), response=res_429)
+
+        res_200 = MagicMock()
+        res_200.json.return_value = {"message": {"content": "Retry Success"}}
+        res_200.raise_for_status = MagicMock()
+
+        mock_client.post.side_effect = [err_429, res_200]
+
+        img = Image.new("RGB", (10, 10))
+        res = generate_caption_sync(
+            image=img,
+            provider="ollama",
+            max_retries=1,
+            base_delay=0.01,
+        )
+
+        self.assertEqual(res, "Retry Success")
+        self.assertEqual(mock_client.post.call_count, 2)
+
+    @patch("httpx.Client")
     def test_generate_caption_sync_post_exception(self, mock_client_cls):
         """
         Verify that generate_caption_sync handles post exception gracefully,
