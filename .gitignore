@@ -221,6 +221,7 @@ output/
 output_*/
 test_cli_output/
 test_output/
+test_output_verification/
 
 # Real-world test samples
 tests/data/real_world/
