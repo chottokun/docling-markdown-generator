@@ -528,6 +528,73 @@ async def _validate_and_format_response(
     }
 
 
+def _build_conversion_options(
+    req_options: DocumentConversionRequest,
+) -> DocumentConversionOptions:
+    """Build DocumentConversionOptions from a DocumentConversionRequest."""
+    return DocumentConversionOptions(
+        table_format=req_options.table_format,
+        include_page_breaks=req_options.include_page_breaks,
+        include_kv_extraction=req_options.include_kv_extraction,
+        vlm_enabled=req_options.vlm_enabled,
+        vlm_provider=req_options.vlm_provider,
+        vlm_api_key=req_options.vlm_api_key,
+        vlm_model=req_options.vlm_model,
+        vlm_endpoint=req_options.vlm_endpoint,
+        vlm_prompt=req_options.vlm_prompt,
+        vlm_max_concurrent=req_options.vlm_max_concurrent,
+        num_threads=req_options.num_threads,
+        cuda_use_flash_attention=req_options.cuda_use_flash_attention,
+    )
+
+
+def _build_options_dict(options: DocumentConversionOptions) -> dict:
+    """Generate options dictionary for process pool worker execution."""
+    return {
+        "image_dir_name": options.image_dir_name,
+        "md_output_name": options.md_output_name,
+        "image_scale": options.image_scale,
+        "table_format": options.table_format,
+        "do_formula": options.do_formula,
+        "do_ocr": options.do_ocr,
+        "do_chart": options.do_chart,
+        "do_code": options.do_code,
+        "include_page_breaks": options.include_page_breaks,
+        "include_kv_extraction": options.include_kv_extraction,
+        "vlm_enabled": options.vlm_enabled,
+        "vlm_provider": options.vlm_provider,
+        "vlm_api_key": options.vlm_api_key,
+        "vlm_model": options.vlm_model,
+        "vlm_endpoint": options.vlm_endpoint,
+        "vlm_prompt": options.vlm_prompt,
+        "vlm_max_concurrent": options.vlm_max_concurrent,
+        "num_threads": options.num_threads,
+        "cuda_use_flash_attention": options.cuda_use_flash_attention,
+    }
+
+
+async def _run_multiprocess_conversion(
+    tmp_path: Path, request_output_dir: Path, options_dict: dict
+) -> Path | None:
+    """Run pdf conversion using process pool executor with concurrency throttling."""
+    from .converter import get_process_pool, process_pdf_multi_process_worker
+
+    sem = await get_concurrency_semaphore()
+    async with sem:
+        pool = get_process_pool()
+        loop = asyncio.get_running_loop()
+
+        result_path_str = await loop.run_in_executor(
+            pool,
+            process_pdf_multi_process_worker,
+            str(tmp_path),
+            str(request_output_dir),
+            options_dict,
+        )
+
+        return Path(result_path_str) if result_path_str else None
+
+
 @router.post("/convert/", dependencies=[Depends(api_key_auth), Depends(rate_limiter)])
 async def convert_file(
     file: UploadFile = File(...),
@@ -552,20 +619,7 @@ async def convert_file(
         sanitized_filename = sanitize_log_message(file.filename)
         logger.info(f"Processing file: {sanitized_filename}")
 
-        options = DocumentConversionOptions(
-            table_format=req_options.table_format,
-            include_page_breaks=req_options.include_page_breaks,
-            include_kv_extraction=req_options.include_kv_extraction,
-            vlm_enabled=req_options.vlm_enabled,
-            vlm_provider=req_options.vlm_provider,
-            vlm_api_key=req_options.vlm_api_key,
-            vlm_model=req_options.vlm_model,
-            vlm_endpoint=req_options.vlm_endpoint,
-            vlm_prompt=req_options.vlm_prompt,
-            vlm_max_concurrent=req_options.vlm_max_concurrent,
-            num_threads=req_options.num_threads,
-            cuda_use_flash_attention=req_options.cuda_use_flash_attention,
-        )
+        options = _build_conversion_options(req_options)
 
         # Check if process_pdf is mocked in tests
         is_mocked = "Mock" in type(process_pdf).__name__
@@ -576,44 +630,10 @@ async def convert_file(
                 process_pdf, tmp_path, request_output_dir, options=options
             )
         else:
-            from .converter import get_process_pool, process_pdf_multi_process_worker
-
-            sem = await get_concurrency_semaphore()
-            async with sem:
-                pool = get_process_pool()
-                loop = asyncio.get_running_loop()
-
-                options_dict = {
-                    "image_dir_name": options.image_dir_name,
-                    "md_output_name": options.md_output_name,
-                    "image_scale": options.image_scale,
-                    "table_format": options.table_format,
-                    "do_formula": options.do_formula,
-                    "do_ocr": options.do_ocr,
-                    "do_chart": options.do_chart,
-                    "do_code": options.do_code,
-                    "include_page_breaks": options.include_page_breaks,
-                    "include_kv_extraction": options.include_kv_extraction,
-                    "vlm_enabled": options.vlm_enabled,
-                    "vlm_provider": options.vlm_provider,
-                    "vlm_api_key": options.vlm_api_key,
-                    "vlm_model": options.vlm_model,
-                    "vlm_endpoint": options.vlm_endpoint,
-                    "vlm_prompt": options.vlm_prompt,
-                    "vlm_max_concurrent": options.vlm_max_concurrent,
-                    "num_threads": options.num_threads,
-                    "cuda_use_flash_attention": options.cuda_use_flash_attention,
-                }
-
-                result_path_str = await loop.run_in_executor(
-                    pool,
-                    process_pdf_multi_process_worker,
-                    str(tmp_path),
-                    str(request_output_dir),
-                    options_dict,
-                )
-
-                result_path = Path(result_path_str) if result_path_str else None
+            options_dict = _build_options_dict(options)
+            result_path = await _run_multiprocess_conversion(
+                tmp_path, request_output_dir, options_dict
+            )
 
         response = await _validate_and_format_response(result_path, request_id)
         status = "success"
