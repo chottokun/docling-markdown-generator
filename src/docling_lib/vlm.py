@@ -7,6 +7,7 @@ import secrets
 import threading
 import time
 import weakref
+from typing import Any
 
 import httpx
 from PIL import Image
@@ -17,25 +18,27 @@ logger = logging.getLogger(__name__)
 
 # Cache of threading semaphores based on (provider, endpoint, max_concurrent)
 _semaphores_lock = threading.Lock()
-_semaphores = {}
+_semaphores: dict[tuple[str, str, int], threading.Semaphore] = {}
 
 # Reusable HTTP clients to implement connection pooling and keep-alive.
 # Store the original class references to detect when they are mocked during testing.
 _ORIG_CLIENT_CLASS = httpx.Client
 _ORIG_ASYNC_CLIENT_CLASS = httpx.AsyncClient
 
-_sync_client_cache = None
+_sync_client_cache: httpx.Client | None = None
 _sync_client_lock = threading.Lock()
 
 # Map running event loop to its cached AsyncClient
-_async_client_cache = weakref.WeakKeyDictionary()
+_async_client_cache: weakref.WeakKeyDictionary[
+    asyncio.AbstractEventLoop, httpx.AsyncClient
+] = weakref.WeakKeyDictionary()
 _async_client_lock = threading.Lock()
 
 # Default API request timeout (seconds)
 _DEFAULT_TIMEOUT = 300.0
 
 
-def _cleanup_cached_clients():
+def _cleanup_cached_clients() -> None:
     """アプリケーション終了時にキャッシュされたhttpxクライアントを安全に閉じる。"""
     global _sync_client_cache
     with _sync_client_lock:
@@ -61,11 +64,14 @@ class _UnclosedClientContext:
     def __enter__(self) -> httpx.Client:
         return self._client
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         # Prevent the shared client from being closed on context exit
         pass
 
-    def __getattr__(self, name):
+    def post(self, *args: Any, **kwargs: Any) -> httpx.Response:
+        return self._client.post(*args, **kwargs)
+
+    def __getattr__(self, name: str) -> Any:
         return getattr(self._client, name)
 
 
@@ -81,11 +87,14 @@ class _UnclosedAsyncClientContext:
     async def __aenter__(self) -> httpx.AsyncClient:
         return self._client
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         # Prevent the shared client from being closed on context exit
         pass
 
-    def __getattr__(self, name):
+    async def post(self, *args: Any, **kwargs: Any) -> httpx.Response:
+        return await self._client.post(*args, **kwargs)
+
+    def __getattr__(self, name: str) -> Any:
         return getattr(self._client, name)
 
 
@@ -168,14 +177,14 @@ def _build_openai_payload(
     model: str,
     full_prompt: str,
     img_base64: str | None,
-    headers: dict,
-) -> tuple[str, dict, dict]:
+    headers: dict[str, str],
+) -> tuple[str, dict[str, str], dict[str, Any]]:
     url = f"{endpoint.rstrip('/')}/chat/completions"
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
 
     if img_base64:
-        content_list = [
+        content_list: list[dict[str, Any]] = [
             {"type": "text", "text": full_prompt},
             {
                 "type": "image_url",
@@ -199,8 +208,8 @@ def _build_anthropic_payload(
     model: str,
     full_prompt: str,
     img_base64: str | None,
-    headers: dict,
-) -> tuple[str, dict, dict]:
+    headers: dict[str, str],
+) -> tuple[str, dict[str, str], dict[str, Any]]:
     url = f"{endpoint.rstrip('/')}/v1/messages"
     headers.update(
         {
@@ -210,14 +219,14 @@ def _build_anthropic_payload(
     )
 
     if img_base64:
-        content_list = [
+        content_list: list[dict[str, Any]] = [
             {
                 "type": "image",
                 "source": {
                     "type": "base64",
                     "media_type": "image/png",
                     "data": img_base64,
-                    },
+                },
             },
             {"type": "text", "text": full_prompt},
         ]
@@ -238,14 +247,14 @@ def _build_google_payload(
     model: str,
     full_prompt: str,
     img_base64: str | None,
-    headers: dict,
-) -> tuple[str, dict, dict]:
+    headers: dict[str, str],
+) -> tuple[str, dict[str, str], dict[str, Any]]:
     url = f"{endpoint.rstrip('/')}/v1beta/models/{model}:generateContent"
     if api_key:
         headers["x-goog-api-key"] = api_key
 
     if img_base64:
-        parts = [
+        parts: list[dict[str, Any]] = [
             {"text": full_prompt},
             {
                 "inlineData": {
@@ -267,11 +276,11 @@ def _build_ollama_payload(
     model: str,
     full_prompt: str,
     img_base64: str | None,
-    headers: dict,
-) -> tuple[str, dict, dict]:
+    headers: dict[str, str],
+) -> tuple[str, dict[str, str], dict[str, Any]]:
     url = f"{endpoint.rstrip('/')}/api/chat"
     if img_base64:
-        message_content = {
+        message_content: dict[str, Any] = {
             "role": "user",
             "content": full_prompt,
             "images": [img_base64],
@@ -309,7 +318,7 @@ def _prepare_rest_payload(
     text_content: str | None,
     api_key: str,
     endpoint: str,
-) -> tuple[str, dict, dict]:
+) -> tuple[str, dict[str, str], dict[str, Any]]:
     """
     Prepares the request URL, headers, and JSON body for the chosen VLM/LLM provider.
     Returns: (url, headers, json_body)
@@ -331,7 +340,7 @@ def _prepare_rest_payload(
     )
 
 
-def _extract_response_content(provider: str, data: dict) -> str:
+def _extract_response_content(provider: str, data: dict[str, Any]) -> str:
     """
     Extracts the text content from the provider's standard JSON response.
     """
@@ -401,7 +410,7 @@ async def _prepare_caption_args_async(
     endpoint: str,
     prompt: str,
     text_content: str | None,
-) -> tuple[str, str, str, dict, dict] | None:
+) -> tuple[str, str, str, dict[str, str], dict[str, Any]] | None:
     """
     Asynchronously forces parameter defaults, automatically adjusts endpoints, encodes images to base64 via threadpool,
     and prepares the REST payload.
@@ -442,7 +451,7 @@ def _prepare_caption_args(
     endpoint: str,
     prompt: str,
     text_content: str | None,
-) -> tuple[str, str, str, dict, dict] | None:
+) -> tuple[str, str, str, dict[str, str], dict[str, Any]] | None:
     """
     Forces parameter defaults, automatically adjusts endpoints, encodes images to base64,
     and prepares the REST payload.
@@ -515,7 +524,9 @@ async def generate_caption(
     provider_resolved, endpoint_resolved, url, headers, json_body = prepared
 
     # Use semaphore for rate limiting, isolated per provider & endpoint
-    sem = get_semaphore(vlm_max_concurrent, provider=provider_resolved, endpoint=endpoint_resolved)
+    sem = get_semaphore(
+        vlm_max_concurrent, provider=provider_resolved, endpoint=endpoint_resolved
+    )
     acquired = False
     try:
         # Acquire semaphore asynchronously using to_thread to prevent event-loop blocking
@@ -525,13 +536,14 @@ async def generate_caption(
         # Use helper to get a cached client, or a fresh mocked client if patched.
         raw_client = _get_cached_async_client()
         # If it is the original unmocked client class, wrap it to avoid closing it on context block exit.
+        client_ctx: Any
         if httpx.AsyncClient is _ORIG_ASYNC_CLIENT_CLASS:
             client_ctx = _UnclosedAsyncClientContext(raw_client)
         else:
             client_ctx = raw_client
 
         async with client_ctx as client:
-            last_exc = None
+            last_exc: Exception | None = None
             for attempt in range(max_retries + 1):
                 try:
                     response = await client.post(url, headers=headers, json=json_body)
@@ -541,10 +553,12 @@ async def generate_caption(
                     return content.strip()
                 except httpx.HTTPStatusError as e:
                     last_exc = e
-                    status_code = e.response.status_code if e.response is not None else 0
+                    status_code = (
+                        e.response.status_code if e.response is not None else 0
+                    )
                     if attempt < max_retries and _should_retry_status(status_code):
-                        jitter = (secrets.randbelow(100) / 1000.0)
-                        backoff = base_delay * (2 ** attempt) + jitter
+                        jitter = secrets.randbelow(100) / 1000.0
+                        backoff = base_delay * (2**attempt) + jitter
                         logger.warning(
                             f"Transient HTTP {status_code} from VLM provider {provider_resolved}. "
                             f"Retrying in {backoff:.2f}s (Attempt {attempt + 1}/{max_retries})."
@@ -555,8 +569,8 @@ async def generate_caption(
                 except (httpx.RequestError, TimeoutError) as e:
                     last_exc = e
                     if attempt < max_retries:
-                        jitter = (secrets.randbelow(100) / 1000.0)
-                        backoff = base_delay * (2 ** attempt) + jitter
+                        jitter = secrets.randbelow(100) / 1000.0
+                        backoff = base_delay * (2**attempt) + jitter
                         logger.warning(
                             f"Network error contacting VLM provider {provider_resolved}: {sanitize_log_message(e)}. "
                             f"Retrying in {backoff:.2f}s (Attempt {attempt + 1}/{max_retries})."
@@ -612,7 +626,9 @@ def generate_caption_sync(
     provider_resolved, endpoint_resolved, url, headers, json_body = prepared
 
     # Use semaphore for rate limiting, isolated per provider & endpoint
-    sem = get_semaphore(vlm_max_concurrent, provider=provider_resolved, endpoint=endpoint_resolved)
+    sem = get_semaphore(
+        vlm_max_concurrent, provider=provider_resolved, endpoint=endpoint_resolved
+    )
     acquired = False
     try:
         sem.acquire()
@@ -621,13 +637,14 @@ def generate_caption_sync(
         # Use helper to get a cached client, or a fresh mocked client if patched.
         raw_client = _get_cached_sync_client()
         # If it is the original unmocked client class, wrap it to avoid closing it on context block exit.
+        client_ctx: Any
         if httpx.Client is _ORIG_CLIENT_CLASS:
             client_ctx = _UnclosedClientContext(raw_client)
         else:
             client_ctx = raw_client
 
         with client_ctx as client:
-            last_exc = None
+            last_exc: Exception | None = None
             for attempt in range(max_retries + 1):
                 try:
                     response = client.post(url, headers=headers, json=json_body)
@@ -637,10 +654,12 @@ def generate_caption_sync(
                     return content.strip()
                 except httpx.HTTPStatusError as e:
                     last_exc = e
-                    status_code = e.response.status_code if e.response is not None else 0
+                    status_code = (
+                        e.response.status_code if e.response is not None else 0
+                    )
                     if attempt < max_retries and _should_retry_status(status_code):
-                        jitter = (secrets.randbelow(100) / 1000.0)
-                        backoff = base_delay * (2 ** attempt) + jitter
+                        jitter = secrets.randbelow(100) / 1000.0
+                        backoff = base_delay * (2**attempt) + jitter
                         logger.warning(
                             f"Transient HTTP {status_code} from VLM provider {provider_resolved}. "
                             f"Retrying in {backoff:.2f}s (Attempt {attempt + 1}/{max_retries})."
@@ -651,8 +670,8 @@ def generate_caption_sync(
                 except (httpx.RequestError, TimeoutError) as e:
                     last_exc = e
                     if attempt < max_retries:
-                        jitter = (secrets.randbelow(100) / 1000.0)
-                        backoff = base_delay * (2 ** attempt) + jitter
+                        jitter = secrets.randbelow(100) / 1000.0
+                        backoff = base_delay * (2**attempt) + jitter
                         logger.warning(
                             f"Network error contacting VLM provider {provider_resolved}: {sanitize_log_message(e)}. "
                             f"Retrying in {backoff:.2f}s (Attempt {attempt + 1}/{max_retries})."
