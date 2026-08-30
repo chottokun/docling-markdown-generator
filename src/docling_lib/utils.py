@@ -1,4 +1,5 @@
 import re
+from typing import Any
 
 # Regex to redact sensitive query parameters in strings/URLs (e.g., key=..., api_key=..., etc.)
 _SENSITIVE_PARAM_RE = re.compile(
@@ -6,7 +7,8 @@ _SENSITIVE_PARAM_RE = re.compile(
     re.IGNORECASE
 )
 
-def sanitize_log_message(message: str) -> str:
+
+def sanitize_log_message(message: Any) -> str:
     """
     Sanitizes a message for logging by replacing newline characters with spaces.
     This prevents log injection vulnerabilities.

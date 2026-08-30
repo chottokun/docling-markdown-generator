@@ -7,6 +7,7 @@ import secrets
 import tempfile
 import time
 from collections import defaultdict, deque
+from collections.abc import MutableMapping
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -102,7 +103,7 @@ class ContentSizeLimitMiddleware:
         total_size = 0
         response_started = False
 
-        async def wrapped_receive() -> dict:
+        async def wrapped_receive() -> MutableMapping[str, Any]:
             nonlocal total_size
             message = await receive()
             if message["type"] == "http.request":
@@ -112,7 +113,7 @@ class ContentSizeLimitMiddleware:
                     raise RequestBodyTooLarge("Payload Too Large")
             return message
 
-        async def wrapped_send(message: dict) -> None:
+        async def wrapped_send(message: MutableMapping[str, Any]) -> None:
             nonlocal response_started
             if message["type"] == "http.response.start":
                 response_started = True
@@ -249,7 +250,7 @@ def get_conversion_request(
     math_block_newline: str = Form(str(DOCLING_MATH_BLOCK_NEWLINE)),
 ) -> DocumentConversionRequest:
     # If the string represents boolean, convert it or pass it on
-    resolved_nl = math_block_newline
+    resolved_nl: str | bool = math_block_newline
     if isinstance(math_block_newline, str):
         if math_block_newline.lower() == "true":
             resolved_nl = True
@@ -294,7 +295,7 @@ async def api_key_auth(x_api_key: str | None = Header(None)):
 
 
 # In-memory storage for rate limiting: {client_ip: deque([timestamp1, timestamp2, ...])}
-_rate_limit_data = defaultdict(deque)
+_rate_limit_data: dict[str, deque[float]] = defaultdict(deque)
 _last_rate_limit_cleanup = 0.0
 
 
@@ -657,7 +658,7 @@ async def convert_file(
     """
     _validate_content_length(content_length)
 
-    file_ext = _validate_extension(file.filename)
+    file_ext = _validate_extension(file.filename or "")
     tmp_path = None
     start_time = time.time()
     metrics_registry.active_conversions += 1
@@ -788,7 +789,7 @@ def create_app() -> FastAPI:
     # Add CORS middleware
     new_app.add_middleware(
         CORSMiddleware,
-        allow_origins=CORS_ORIGINS,
+        allow_origins=list(CORS_ORIGINS),
         allow_credentials=bool(CORS_ORIGINS) and "*" not in CORS_ORIGINS,
         allow_methods=["GET", "POST"],
         allow_headers=["Content-Type", "Content-Length"],

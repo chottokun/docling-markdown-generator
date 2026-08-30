@@ -187,8 +187,8 @@ class CustomMarkdownPictureSerializer(MarkdownPictureSerializer):
         self.image_dir_name = image_dir_name
         self.image_tag_template = image_tag_template
         self.slug = slug
-        self._cached_doc = None
-        self._pic_ref_to_idx = {}
+        self._cached_doc: DoclingDocument | None = None
+        self._pic_ref_to_idx: dict[str, int] = {}
 
     def _get_closing_delim(self, delim: str) -> str:
         if delim == "\\(":
@@ -688,7 +688,7 @@ class PDFConverter:
         """
         Prefetch VLM captions for all pictures in the document in parallel using ThreadPoolExecutor.
         """
-        vlm_captions = {}
+        vlm_captions: dict[str, str] = {}
         if not actual_options.vlm_enabled or not doc.pictures:
             return vlm_captions
 

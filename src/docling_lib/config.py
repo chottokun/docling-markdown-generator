@@ -88,6 +88,7 @@ DOCLING_MATH_INLINE_DELIM = os.getenv("DOCLING_MATH_INLINE_DELIM", "auto")
 DOCLING_MATH_BLOCK_DELIM = os.getenv("DOCLING_MATH_BLOCK_DELIM", "auto")
 
 _math_nl_env = os.getenv("DOCLING_MATH_BLOCK_NEWLINE", "auto")
+DOCLING_MATH_BLOCK_NEWLINE: str | bool
 if _math_nl_env.lower() == "auto":
     DOCLING_MATH_BLOCK_NEWLINE = "auto"
 else:
