@@ -3,8 +3,7 @@ from typing import Any
 
 # Regex to redact sensitive query parameters in strings/URLs (e.g., key=..., api_key=..., etc.)
 _SENSITIVE_PARAM_RE = re.compile(
-    r"((?:key|api_key|token|secret|credential|api-key)=(?:\w+))",
-    re.IGNORECASE
+    r"((?:key|api_key|token|secret|credential|api-key)=(?:\w+))", re.IGNORECASE
 )
 
 
@@ -42,7 +41,7 @@ def sanitize_log_message(message: Any) -> str:
         r"([?&](?:key|api_key|token|secret|credential|api[-_]key)=)[^&\s'\"]+",
         r"\1REDACTED",
         sanitized,
-        flags=re.IGNORECASE
+        flags=re.IGNORECASE,
     )
     return sanitized
 
