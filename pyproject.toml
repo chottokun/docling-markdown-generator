@@ -9,7 +9,7 @@ packages = ["src/docling_lib"]
 name = "docling_lib"
 version = "0.1.0"
 description = "A library to generate markdown with embedded figures from PDF files."
-requires-python = ">=3.11, <4.0"
+requires-python = ">=3.11, <3.14"
 dependencies = [
     "docling>=2.97.0",
     "docling-core>=2.80.0",
@@ -19,6 +19,8 @@ dependencies = [
     "python-multipart>=0.0.27",
     "httpx>=0.27.0",
     "aiofiles>=25.1.0",
+    "torch",
+    "torchvision",
 ]
 
 [project.scripts]
@@ -48,3 +50,12 @@ asyncio_mode = "strict"
 filterwarnings = [
     "ignore::DeprecationWarning",
 ]
+
+[[tool.uv.index]]
+name = "pytorch-cu124"
+url = "https://download.pytorch.org/whl/cu124"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu124" }
+torchvision = { index = "pytorch-cu124" }
