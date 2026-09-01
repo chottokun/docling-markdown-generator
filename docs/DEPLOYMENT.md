@@ -1,95 +1,160 @@
 # デプロイメント・ガイド (Deployment Guide)
 
-本サーバーを本番環境やコンテナ環境で運用するためのガイドです。
+本サーバーを本番環境やコンテナ環境（Docker / Kubernetes 等）で安定運用するためのガイドです。
 
-## 1. 環境変数による設定
+---
 
-以下の環境変数を設定することで、動作をカスタマイズできます。
+## 1. 環境変数による設定一覧
 
+すべての設定は環境変数（または `.env` ファイル）で制御できます。
+
+### 1.1 セキュリティ & サーバー基本設定
 | 変数名 | デフォルト値 | 説明 |
 | :--- | :--- | :--- |
-| `DOCLING_UPLOAD_DIR` | `uploads` | アップロードされたファイルの一時保存先 |
-| `DOCLING_OUTPUT_DIR` | `output` | 変換済みファイルの保存先 |
+| `DOCLING_API_KEY` | *(未設定)* | 設定した場合、全エンドポイントで `X-API-Key` ヘッダーによる認証が有効になります。 |
+| `DOCLING_CORS_ORIGINS` | *(空)* | 許可するCORSオリジンのカンマ区切りリスト（例: `http://localhost:3000,https://example.com`）。 |
 | `DOCLING_MAX_UPLOAD_SIZE` | `20971520` | 最大アップロードサイズ（バイト単位）。デフォルトは20MB。 |
-| `DOCLING_CORS_ORIGINS` | `*` | 許可するCORSオリジンのカンマ区切りリスト。 |
-| `IMAGE_RESOLUTION_SCALE` | `2.0` | 抽出される画像の解像度倍率。 |
+| `DOCLING_RATE_LIMIT_REQUESTS`| `5` | IPアドレスごとの最大許可リクエスト数（レートリミット）。 |
+| `DOCLING_RATE_LIMIT_WINDOW`  | `60` | レートリミットの計測ウィンドウ（秒数）。 |
+| `DOCLING_TRUSTED_PROXIES`    | *(空)* | 信頼するリバースプロキシのIP/CIDR（IPスプーフィング対策用）。 |
+| `DOCLING_MAX_WORKERS`        | `2` | 独立した子プロセス（ProcessPoolExecutor）のワーカープロセス数。 |
+| `DOCLING_UPLOAD_DIR`         | `uploads` | アップロードされたファイルの一時保存先（コンテナ内: `/app/data/uploads`）。 |
+| `DOCLING_OUTPUT_DIR`         | `output` | 変換済みファイルの保存先（コンテナ内: `/app/data/output`）。 |
 
-### docling v2.x 拡張オプション
-これらのオプションを設定することで、より高度な解析機能やGPUによるハードウェア加速を制御できます（計算リソースをより多く消費します）。
-
+### 1.2 Docling 変換パイプライン & ハードウェア設定
 | 変数名 | デフォルト値 | 説明 |
 | :--- | :--- | :--- |
-| `DOCLING_DO_FORMULA` | `True` | 数式の抽出を有効にする。 |
-| `DOCLING_DO_OCR` | `True` | OCR（光学文字認識）を有効にする。 |
-| `DOCLING_DO_CHART` | `False` | 図表（チャート）の抽出と解析を有効にする。 |
-| `DOCLING_DO_CODE` | `False` | コードブロックの高度な認識と強化を有効にする。 |
-| `DOCLING_USE_GPU` | `True` | GPU（CUDA）アクセラレーションの利用を制御する。`False`に設定した場合、GPU検証をバイパスして強制的にCPUモードで動作します。 |
+| `DOCLING_USE_GPU` | `True` | GPU（CUDA）アクセラレーションの利用制御。`False` で強制CPUモード。非対応GPU環境では自動でCPUにフォールバックします。 |
 | `DOCLING_NUM_THREADS` | `4` | CPU/GPU前処理等で使用される演算スレッド数。 |
-| `DOCLING_CUDA_FLASH_ATTENTION` | `False` | サポートされているハイエンドGPUでFlashAttention2を有効化し、推論の高速化とメモリ消費の削減を図る。 |
-| `DOCLING_TABLE_FORMAT` | `html` | テーブルのシリアライズ形式（`html` または `markdown`）。 |
-| `DOCLING_VLM_ENABLED` | `False` | ローカルの Ollama 等のVLMを用いた画像説明（キャプション）生成を有効化する。 |
-| `DOCLING_VLM_MODEL` | `qwen2-vl:2b` | 利用するVLMモデル名。 |
-| `DOCLING_VLM_ENDPOINT` | `http://localhost:11434` | Ollama などのVLM APIのエンドポイントURL。 |
-| `DOCLING_VLM_PROMPT` | （画像説明指示文） | VLMへ送信する指示プロンプト。 |
-| `DOCLING_INCLUDE_PAGE_BREAKS` | `False` | Markdown内のページ境界に `<!-- PAGE_BREAK: Page N -->` コメントを埋め込む（RAG等でのチャンク分割用）。 |
-| `DOCLING_INCLUDE_KV_EXTRACTION` | `False` | YAMLメタデータやヘッダー部に重要情報（KV抽出プレースホルダー）を埋め込む。 |
+| `DOCLING_CUDA_FLASH_ATTENTION` | `False` | サポートされているハイエンドGPUでFlashAttention2を有効化（推論高速化・VRAM節約）。 |
+| `DOCLING_DO_OCR` | `True` | OCR（光学文字認識）を有効にする。 |
+| `DOCLING_DO_FORMULA` | `True` | 数式（LaTeX）の抽出・認識を有効にする。 |
+| `DOCLING_DO_CHART` | `False` | 図表（チャート/グラフ）の抽出と解析を有効にする。 |
+| `DOCLING_DO_CODE` | `False` | ソースコードブロックの高度な認識を有効にする。 |
+| `DOCLING_TABLE_FORMAT` | `html` | テーブルの出力形式（`html`, `markdown`, `csv`, `tsv`）。 |
+| `IMAGE_RESOLUTION_SCALE` | `2.0` | 抽出される画像の解像度倍率（大きいほど高画質）。 |
+| `DOCLING_INCLUDE_PAGE_BREAKS` | `False` | Markdown内に `<!-- PAGE_BREAK: Page N -->` を出力（RAGチャンキング用）。 |
+| `DOCLING_INCLUDE_KV_EXTRACTION` | `False` | YAMLヘッダー部に重要情報（KV抽出）を出力。 |
+| `DOCLING_MATH_INLINE_DELIM` | `auto` | インライン数式のデリミタ（例: `$`, `\(`, `auto`）。 |
+| `DOCLING_MATH_BLOCK_DELIM` | `auto` | ブロック数式のデリミタ（例: `$$`, `\[`, `auto`）。 |
+| `DOCLING_MATH_BLOCK_NEWLINE` | `auto` | ブロック数式前後の改行制御（`auto`, `true`, `false`）。 |
 
+### 1.3 VLM (Vision Language Model) / LLM 画像キャプション生成設定
+| 変数名 | デフォルト値 | 説明 |
+| :--- | :--- | :--- |
+| `DOCLING_VLM_ENABLED` | `False` | **【重要】デフォルト無効**。`True` に設定した場合のみ画像・図表のVLMキャプション生成を実行。 |
+| `DOCLING_VLM_PROVIDER` | `ollama` | 利用するプロバイダ（`ollama`, `openai`, `vllm`, `llama.cpp`, `google`, `gemini`, `anthropic`）。 |
+| `DOCLING_VLM_API_KEY` | *(空)* | 各種プロバイダのAPIキー（OpenAI / Anthropic / Google / 認証付きOpenAI互換サーバー）。 |
+| `DOCLING_VLM_MODEL` | `qwen2-vl:2b` | 利用するモデル名（例: `gpt-4o-mini`, `gemini-1.5-flash`, `qwen2-vl:2b` 等）。 |
+| `DOCLING_VLM_ENDPOINT` | `http://localhost:11434` | APIエンドポイントURL。 |
+| `DOCLING_VLM_PROMPT` | （画像説明指示文） | VLMへ送信するキャプション生成用日本語プロンプト。 |
+| `DOCLING_VLM_MAX_CONCURRENT` | `5` | 同時リクエスト数のセマフォ流量制限値。 |
 
+---
 
-### Docker Compose での設定例
-```yaml
-services:
-  app:
-    environment:
-      - DOCLING_OUTPUT_DIR=/app/data/output
-      - DOCLING_CORS_ORIGINS=https://app.example.com,https://api.example.com
-      - DOCLING_DO_CHART=True
-      - IMAGE_RESOLUTION_SCALE=3.0
-    volumes:
-      - ./data:/app/data
-```
+## 2. VLM プロバイダ別設定例
 
-## 2. スケーリングとパフォーマンス
-
-- **CPU/GPUと自動フォールバック**: DoclingはOCRやレイアウト解析に多大なリソースを消費します。
-  - **明示的な制御**: 環境変数 `DOCLING_USE_GPU` を `False` に設定することで、GPUの利用を明示的に無効化し、強制的にCPUで動作させることができます。
-  - **自動フォールバック**: GPU（CUDA）が利用可能な環境では自動的に高速化されますが、PyTorchのCUDAビルドとインストールされている物理GPUのCompute Capability（CC）に不整合がある場合（例: 古いGPUでの実行時エラー等）、システムは実行時クラッシュを避けるために起動時にダミーテンソル演算を用いて互換性を自動検証し、問題が検出された場合は安全に**CPUモードへ自動フォールバック**します。
-  - **GPU性能の最大化**: 高性能なGPU環境（CC >= 7.5）では、環境変数 `DOCLING_CUDA_FLASH_ATTENTION` を `True` に設定することで FlashAttention2 を有効化し、推論の高速化とVRAM効率化が可能です。また `DOCLING_NUM_THREADS` で処理用スレッド数を最適化できます。
-- **並行処理**: 内部的に `threading.Lock` を使用しているため、単一プロセス内でのドキュメント解析（モデル推論）は順次実行されます。ただし、抽出画像に対するVLM呼び出し処理は `ThreadPoolExecutor` を用いて並列に処理され、I/Oブロッキングを低減します。高い同時接続スループットが必要な場合は、複数のコンテナを起動し、ロードバランサーで負荷分散してください。
-
-## 3. ストレージ管理
-
-変換されたファイルは `OUTPUT_DIR` に蓄積されます。
-定期的なクリーンアップ（例: 24時間以上経過したディレクトリの削除）を行うサイドカーコンテナや cron ジョブの運用を推奨します。
-
-### クリーンアップのコマンド例
+### 2.1 ホストPC上の Ollama
+ホストマシンや別サーバーで起動している Ollama を利用する場合の設定です。APIキーは不要（空欄）です。
 ```bash
-find output/* -type d -ctime +1 -exec rm -rf {} +
+DOCLING_VLM_ENABLED=True
+DOCLING_VLM_PROVIDER=ollama
+DOCLING_VLM_MODEL=qwen2-vl:2b
+DOCLING_VLM_API_KEY=  # APIキー不要（空欄）
+# Base URL / エンドポイント:
+# - DockerコンテナからホストPCのOllamaへ接続する場合:
+DOCLING_VLM_ENDPOINT=http://host.docker.internal:11434
+# - ローカルPython (CLI等) から直接接続する場合:
+# DOCLING_VLM_ENDPOINT=http://localhost:11434
 ```
 
-## 4. ヘルスチェック
-
-サーバーが正常に稼働しているか確認するには、ルートエンドポイントへの GET リクエストを使用してください。
+### 2.2 ローカルの OpenAI 互換推論サーバー（vLLM / llama.cpp / LM Studio / LocalAI / LiteLLM 等）
+ローカルPCや社内サーバーの OpenAI 互換 API を利用する場合の設定です。認証不要な環境ではAPIキーは空欄で構いません。
 ```bash
-curl -f http://localhost:8000/ || exit 1
+DOCLING_VLM_ENABLED=True
+DOCLING_VLM_PROVIDER=openai  # または vllm / llama.cpp
+DOCLING_VLM_MODEL=Qwen/Qwen2-VL-7B-Instruct
+DOCLING_VLM_API_KEY=  # 認証不要な場合は空欄（認証付きの場合はキーを指定）
+# Base URL / エンドポイント:
+# - Dockerコンテナからアクセスする場合:
+DOCLING_VLM_ENDPOINT=http://host.docker.internal:8000/v1
+# （LM Studio の場合は http://host.docker.internal:1234/v1 など）
+# - ローカルPythonからアクセスする場合:
+# DOCLING_VLM_ENDPOINT=http://localhost:8000/v1
 ```
 
-## 5. Dockerビルド時のログ肥大化防止対策
+### 2.3 クラウド OpenAI (GPT-4o mini 等)
+```bash
+DOCLING_VLM_ENABLED=True
+DOCLING_VLM_PROVIDER=openai
+DOCLING_VLM_API_KEY=sk-proj-xxxxxxxxxxxxxxxxxxxx
+DOCLING_VLM_MODEL=gpt-4o-mini
+DOCLING_VLM_ENDPOINT=https://api.openai.com/v1
+```
 
-非インタラクティブなビルド環境（CI/CDやバックグラウンドタスクなど）において、数百万行に及ぶプログレスバーのログ出力を抑制し、必要な警告やエラー情報が埋もれないようにするための設定です。
+### 2.4 Google Gemini (gemini-1.5-flash 等)
+```bash
+DOCLING_VLM_ENABLED=True
+DOCLING_VLM_PROVIDER=google
+DOCLING_VLM_API_KEY=AIzaSyxxxxxxxxxxxxxxxxxxxx
+DOCLING_VLM_MODEL=gemini-1.5-flash
+DOCLING_VLM_ENDPOINT=https://generativelanguage.googleapis.com
+```
 
-### 対策方法
-1. **Dockerfile 内の設定**:
-   `builder` ステージにおいて環境変数 `ENV UV_NO_PROGRESS=1` を設定し、`uv` コマンドによるパッケージのダウンロード進捗バーを無効化しています（設定済み）。
-2. **BuildKit 進捗出力の抑制**:
-   Docker BuildKit 自体のプログレスバー表示をプレーン（改行のみ）または静的にします。
-   - コマンドライン引数に `--progress=plain` を追加：
-     ```bash
-     docker compose build --progress=plain
-     # または
-     docker build --progress=plain -t docling-server .
-     ```
-   - もしくは、環境変数 `BUILDKIT_PROGRESS=plain` を指定して実行：
-     ```bash
-     BUILDKIT_PROGRESS=plain docker compose build
-     ```
+### 2.5 Anthropic Claude (Claude 3.5 Sonnet 等)
+```bash
+DOCLING_VLM_ENABLED=True
+DOCLING_VLM_PROVIDER=anthropic
+DOCLING_VLM_API_KEY=sk-ant-api03-xxxxxxxxxxxx
+DOCLING_VLM_MODEL=claude-3-5-sonnet-20241022
+DOCLING_VLM_ENDPOINT=https://api.anthropic.com
+```
+
+---
+
+## 3. Docker Compose による運用
+
+本リポジトリは `docling-server` 単独のコンテナ構成となっており、Ollama等の外部モデルサーバーは内包していません。
+
+### 3.1 起動手順
+```bash
+# 設定ファイルの準備
+cp .env.example .env
+
+# 起動（バックグラウンド実行）
+docker compose up -d --build
+```
+- APIサーバー: `http://localhost:8090` (コンテナ内ポート 8000 をホストの 8090 へ転送)
+
+### 3.2 CPU のみでビルド・起動したい場合
+Dockerfile のビルド引数 `TARGET_DEVICE=cpu` を指定します。
+```bash
+docker build --build-arg TARGET_DEVICE=cpu -t docling-server-cpu .
+```
+
+---
+
+## 4. ヘルスチェックとログ監視
+
+### ヘルスチェック
+サーバーが正常にリクエストを受け付けられるか確認します。
+```bash
+curl -f http://localhost:8090/ || exit 1
+```
+
+### ログ監視
+```bash
+docker compose logs -f docling-server
+```
+
+---
+
+## 5. ストレージ管理
+
+変換されたファイルは `DOCLING_OUTPUT_DIR`（コンテナ内 `/app/data/output`）に蓄積されます。
+定期的なクリーンアップ（例: 24時間以上経過したディレクトリの削除）を行う cron ジョブやサイドカーコンテナの運用を推奨します。
+
+```bash
+# 24時間以上経過した出力ファイルを削除する例
+find /path/to/data/output/* -type d -ctime +1 -exec rm -rf {} +
+```

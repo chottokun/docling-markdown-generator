@@ -17,8 +17,8 @@ WORKDIR /app
 # Copy the uv binary directly from official image for speed and minimal builder image size
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
-# Copy dependencies definitions first to maximize layer caching
-COPY pyproject.toml uv.lock /app/
+# Copy dependencies definitions first to maximize layer caching (uv.lock is optional during initial build)
+COPY pyproject.toml uv.lock* /app/
 
 # Install project dependencies with BuildKit cache mount to preserve uv caches between builds.
 # If TARGET_DEVICE is 'cpu', we remove uv.lock and dynamically modify pyproject.toml to route torch packages to the CPU-only index.
@@ -38,7 +38,11 @@ RUN --mount=type=cache,target=/root/.cache/uv \
         echo 'torchvision = { index = "pytorch-cpu" }' >> pyproject.toml && \
         uv sync --no-install-project --no-dev --quiet; \
     else \
-        uv sync --frozen --no-install-project --no-dev --quiet; \
+        if [ -f uv.lock ]; then \
+            uv sync --frozen --no-install-project --no-dev --quiet; \
+        else \
+            uv sync --no-install-project --no-dev --quiet; \
+        fi \
     fi
 
 

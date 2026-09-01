@@ -53,9 +53,13 @@ uv run docling_converter_cli input.pdf -o ./output
 
 ### Dockerコンテナの実行
 ```bash
-docker-compose up -d --build
+# 1. 環境変数設定ファイルの作成（必要に応じて .env 内で設定調整）
+cp .env.example .env
+
+# 2. docling-server の起動
+docker compose up -d --build
 ```
-*APIサーバーはデフォルトで `8000` ポートで待機します。*
+*APIサーバーはホストの `8090` ポート（コンテナ内 `8000`）で待機します。*
 
 ## 📖 技術ドキュメント
 

@@ -7,6 +7,12 @@ services:
         - TARGET_DEVICE=gpu
     ports:
       - "8090:8000"
+    extra_hosts:
+      # Linux環境のDockerでも host.docker.internal 経由でホストPC上のサービス（Ollama等）に接続可能にする
+      - "host.docker.internal:host-gateway"
+    env_file:
+      - path: .env
+        required: false
     volumes:
       # 各ディレクトリを個別にマウントし、コンテナ内の仮想環境（.venv）の上書きを防ぐ
       - ./src:/app/src
@@ -34,27 +40,6 @@ services:
         max-size: "${DOCKER_LOG_MAX_SIZE:-10m}"
         max-file: "${DOCKER_LOG_MAX_FILE:-3}"
 
-  ollama:
-    image: ollama/ollama:latest
-    container_name: ollama
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama_data:/root/.ollama
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "${DOCKER_LOG_MAX_SIZE:-10m}"
-        max-file: "${DOCKER_LOG_MAX_FILE:-3}"
-
 volumes:
   # 名前付きボリュームを使うことで、ホストの権限問題を回避しつつデータを永続化
   docling_data:
-  ollama_data:
