@@ -158,3 +158,25 @@ docker compose logs -f docling-server
 # 24時間以上経過した出力ファイルを削除する例
 find /path/to/data/output/* -type d -ctime +1 -exec rm -rf {} +
 ```
+
+---
+
+## 6. 初回起動時のモデルダウンロードと永続化
+
+### 6.1 ダウンロードのタイミング（オンデマンド取得）
+Docling のレイアウト解析モデルや OCR モデル等は、**初めて変換リクエスト（`POST /convert/` または CLI）を実行したタイミング**で、Hugging Face Hub 等から自動的にダウンロードされます。
+- 初回変換時のみダウンロード処理（数百MB〜約1GB）が発生するため、初回の応答には数十秒〜1分程度かかります。
+- 2回目以降のリクエストは、キャッシュされたモデルがロードされるため即座に高速処理されます。
+
+### 6.2 Docker ボリュームによるモデルの永続化
+- コンテナ環境では環境変数 `HF_HOME=/app/data/models` が設定されています。
+- `docker-compose.yml` において名前付きボリューム `docling_data:/app/data` をマウントしているため、一度ダウンロードされたモデルファイルはホスト上の Docker ボリュームに永続化されます。
+- コンテナの再起動（`docker compose restart`）や再ビルド（`docker compose up --build`）を行っても、ボリュームが存在する限り**再ダウンロードは発生しません**。
+
+### 6.3 デプロイ時の事前ウォームアップ（任意）
+本番環境等で、ユーザーからの初弾リクエストでのダウンロード待ちを回避したい場合は、コンテナ起動直後に以下のコマンドを実行して事前にモデルをキャッシュしておくことができます。
+
+```bash
+# コンテナ内で Docling のモデル事前ロード（ウォームアップ）を実行
+docker compose exec docling-server python -c "from docling.document_converter import DocumentConverter; DocumentConverter()"
+```
