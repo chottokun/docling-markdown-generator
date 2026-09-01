@@ -1,7 +1,7 @@
 """Docker コンテナ（http://localhost:8096）に対する E2E 検証スクリプト"""
 import json
-import urllib.request
 import urllib.parse
+import urllib.request
 from pathlib import Path
 
 BASE_URL = "http://localhost:8096"
@@ -10,8 +10,8 @@ def main():
     print("=== Docker コンテナ (CUDA 12.4 版) E2E 動作検証開始 ===")
     
     # 1. ルートエンドポイント確認
-    req = urllib.request.Request(f"{BASE_URL}/")
-    with urllib.request.urlopen(req) as resp:
+    req = urllib.request.Request(f"{BASE_URL}/")  # noqa: S310
+    with urllib.request.urlopen(req) as resp:  # noqa: S310
         assert resp.status == 200
         body = json.loads(resp.read().decode())
         print(f"1. GET / -> Status: {resp.status}, Body: {body}")
@@ -36,13 +36,13 @@ def main():
     
     body_bytes = b"\r\n".join(data)
 
-    req = urllib.request.Request(
+    req = urllib.request.Request(  # noqa: S310
         f"{BASE_URL}/convert/",
         data=body_bytes,
         headers={"Content-Type": f"multipart/form-data; boundary={boundary}"},
         method="POST"
     )
-    with urllib.request.urlopen(req) as resp:
+    with urllib.request.urlopen(req) as resp:  # noqa: S310
         assert resp.status == 200
         res_json = json.loads(resp.read().decode())
         print(f"2. POST /convert/ -> Status: {resp.status}")
@@ -51,8 +51,8 @@ def main():
         assert download_url, "download_url が返されていません"
 
     # 3. 生成された Markdown のダウンロード (/download/{id}/{file})
-    req = urllib.request.Request(f"{BASE_URL}{download_url}")
-    with urllib.request.urlopen(req) as resp:
+    req = urllib.request.Request(f"{BASE_URL}{download_url}")  # noqa: S310
+    with urllib.request.urlopen(req) as resp:  # noqa: S310
         assert resp.status == 200
         md_content = resp.read().decode("utf-8")
         print(f"3. GET {download_url} -> Status: {resp.status}")
@@ -60,8 +60,8 @@ def main():
         assert "Sample Document" in md_content
 
     # 4. Prometheus メトリクスの取得 (/metrics)
-    req = urllib.request.Request(f"{BASE_URL}/metrics")
-    with urllib.request.urlopen(req) as resp:
+    req = urllib.request.Request(f"{BASE_URL}/metrics")  # noqa: S310
+    with urllib.request.urlopen(req) as resp:  # noqa: S310
         assert resp.status == 200
         metrics_text = resp.read().decode("utf-8")
         print(f"4. GET /metrics -> Status: {resp.status}")
