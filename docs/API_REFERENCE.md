@@ -9,9 +9,10 @@ FastAPIによるDocling Markdown Conversion ServerのAPI仕様および各種言
 2. [ドキュメント変換エンドポイント (`POST /convert/`)](#2-ドキュメント変換エンドポイント-post-convert)
 3. [ファイルダウンロードエンドポイント (`GET /download/{request_id}/{filename}`)](#3-ファイルダウンロードエンドポイント-get-downloadrequest_idfilename)
 4. [ヘルスチェックエンドポイント (`GET /`)](#4-ヘルスチェックエンドポイント-get-)
-5. [クライアント利用例 (cURL / Python / JavaScript)](#5-クライアント利用例-curl--python--javascript)
-6. [エラーレスポンス一覧](#6-エラーレスポンス一覧)
-7. [セキュリティと並行処理制御](#7-セキュリティと並行処理制御)
+5. [Prometheus メトリクスエンドポイント (`GET /metrics`)](#5-prometheus-メトリクスエンドポイント-get-metrics)
+6. [クライアント利用例 (cURL / Python / JavaScript)](#6-クライアント利用例-curl--python--javascript)
+7. [エラーレスポンス一覧](#7-エラーレスポンス一覧)
+8. [セキュリティと並行処理制御](#8-セキュリティと並行処理制御)
 
 ---
 
@@ -45,26 +46,29 @@ X-API-Key: your_configured_api_key
 
 | パラメータ名 | 型 | デフォルト値 | 説明 |
 |---|---|---|---|
-| `file` **(必須)** | File | - | 変換対象のファイル（`.pdf`, `.docx`, `.pptx`, `.xlsx`） |
+| `file` **(必須)** | File | - | 変換対象のファイル（`.pdf`, `.docx`, `.pptx`, `.xlsx`, `.html` 等） |
 | `table_format` | string | `"html"` | 表の出力形式 (`html` または `markdown`) |
-| `include_page_breaks` | boolean | `true` | 改ページマーカー `<!-- PAGE_BREAK: Page N -->` の差し込み有無 |
+| `include_page_breaks` | boolean | `false` | 改ページマーカー `<!-- PAGE_BREAK: Page N -->` の差し込み有無 |
 | `include_kv_extraction` | boolean | `false` | キー・バリュー抽出用セクションの追加有無 |
 | `vlm_enabled` | boolean | `false` | Vision-Language Model (VLM) による画像説明文自動生成の有無 |
-| `vlm_provider` | string | `"ollama"` | VLMプロバイダ (`ollama`, `openai`, `gemini`, `anthropic` 等) |
+| `vlm_provider` | string | `"ollama"` | VLMプロバイダ (`ollama`, `openai`, `gemini`, `anthropic`, `vllm` 等) |
+| `vlm_api_key` | string | `""` | VLM APIキー（認証が必要なプロバイダ利用時） |
 | `vlm_model` | string | `"qwen2-vl:2b"` | 使用するVLMモデル名 |
-| `vlm_endpoint` | string | `"http://localhost:11434"` | VLMサービスのエンドポイント |
-| `vlm_prompt` | string | *標準プロンプト* | VLMへの指示プロンプト |
-| `vlm_max_concurrent` | integer | `4` | VLM APIへの同時並列リクエスト上限数 |
-| `num_threads` | integer | CPU自動判定 | 計算処理用スレッド数 |
+| `vlm_prompt` | string | *標準プロンプト* | VLMへの画像説明指示プロンプト |
+| `vlm_max_concurrent` | integer | `5` | VLM APIへの同時並列リクエスト上限数 |
+| `num_threads` | integer | `4` | 計算処理用CPUスレッド数 |
 | `cuda_use_flash_attention` | boolean | `false` | FlashAttention2の有効化（対応GPU環境のみ） |
+| `math_inline_delim` | string | `"auto"` | インラインLaTeX数式デリミタ（`"auto"`, `"$"`, `"\("` 等） |
+| `math_block_delim` | string | `"auto"` | ブロックLaTeX数式デリミタ（`"auto"`, `"$$"`, `"\["` 等） |
+| `math_block_newline` | string | `"auto"` | ブロック数式内部の改行制御（`"auto"`, `"true"`, `"false"`） |
 
 ### 成功時レスポンス (200 OK)
 ```json
 {
   "message": "Conversion successful",
-  "markdown_file": "sample.md",
+  "markdown_file": "processed_document.md",
   "output_id": "8f3b2a1c9d4e5f60",
-  "download_url": "/download/8f3b2a1c9d4e5f60/sample.md"
+  "download_url": "/download/8f3b2a1c9d4e5f60/processed_document.md"
 }
 ```
 
@@ -77,8 +81,8 @@ X-API-Key: your_configured_api_key
 - **Method**: `GET`
 - **Path**: `/download/{request_id}/{filename}`
 - **Path Parameters**:
-  - `request_id`: `/convert/` レスポンスで返された一意の文字列 ID
-  - `filename`: 取得対象のファイル名 (`sample.md` や `images/image_1.png` 等)
+  - `request_id`: `/convert/` レスポンスで返された一意の文字列 ID (`output_id`)
+  - `filename`: 取得対象のファイル名 (`processed_document.md` や `images/picture_1.png` 等)
 
 ### 成功時レスポンス (200 OK)
 指定したファイルのバイナリ/テキストデータストリームを返却します。
@@ -101,7 +105,23 @@ X-API-Key: your_configured_api_key
 
 ---
 
-## 5. クライアント利用例 (cURL / Python / JavaScript)
+## 5. Prometheus メトリクスエンドポイント (`GET /metrics`)
+
+Prometheus 互換のシステム・パフォーマンス監視メトリクスをプレーンテキスト形式で返却します。
+
+- **Method**: `GET`
+- **Path**: `/metrics`
+
+### 主な監視メトリクス
+- `docling_conversions_total{status="success|error"}`: ドキュメント変換の総リクエスト数
+- `docling_active_conversions`: 現在実行中のアクティブな変換プロセス数
+- `docling_conversion_duration_seconds_count` / `_sum`: 変換処理所要時間のヒストグラム
+- `docling_vlm_requests_total{provider="...", status="..."}`: VLMキャプション生成リクエスト数
+- `docling_vlm_retry_total{provider="..."}`: VLM API 一時障害時のリトライ実行回数
+
+---
+
+## 6. クライアント利用例 (cURL / Python / JavaScript)
 
 ### cURL による例
 
@@ -117,14 +137,15 @@ curl -X POST "http://localhost:8090/convert/" \
   -H "X-API-Key: your_secret_key" \
   -F "file=@/path/to/financial_report.xlsx" \
   -F "table_format=html" \
-  -F "include_page_breaks=true"
+  -F "include_page_breaks=true" \
+  -F "math_block_newline=true"
 ```
 
 #### 成果物のダウンロード
 ```bash
 curl -H "X-API-Key: your_secret_key" \
   -o result.md \
-  "http://localhost:8090/download/8f3b2a1c9d4e5f60/sample.md"
+  "http://localhost:8090/download/8f3b2a1c9d4e5f60/processed_document.md"
 ```
 
 ---
@@ -207,21 +228,22 @@ convertDocument().catch(console.error);
 
 ---
 
-## 6. エラーレスポンス一覧
+## 7. エラーレスポンス一覧
 
 | HTTP ステータス | エラー内容 | レスポンス例 | 対処法 |
 |---|---|---|---|
 | **400 Bad Request** | 未サポートの拡張子 / 不正な引数 | `{"detail": "Unsupported file format. Supported: ['.pdf', '.docx', ...]"}` | 許可されたファイル拡張子でアップロードしてください |
 | **401 Unauthorized** | APIキーが不足または不正 | `{"detail": "Invalid or missing API Key."}` | リクエストヘッダーに正しい `X-API-Key` を指定してください |
 | **404 Not Found** | ファイルが存在しない / パストラバーサル試行 | `{"detail": "File not found."}` | 正しい `request_id` と `filename` を指定してください |
-| **413 Payload Too Large** | ファイルサイズが上限超過 | `{"detail": "Payload Too Large. Maximum size is 52428800 bytes."}` | `MAX_UPLOAD_SIZE`（デフォルト50MB）以下のファイルを使用してください |
+| **413 Payload Too Large** | ファイルサイズが上限超過 | `{"detail": "Payload Too Large. Maximum size is 52428800 bytes."}` | `MAX_UPLOAD_SIZE`（デフォルト20MB）以下のファイルを使用してください |
 | **429 Too Many Requests** | レート制限の超過 | `{"detail": "Too Many Requests. Please try again later."}` | 一定時間（1分）置いてから再度リクエストしてください |
 | **500 Internal Server Error** | サーバー内部エラー | `{"detail": "An internal error occurred during conversion."}` | サーバーのログを確認してください |
 
 ---
 
-## 7. セキュリティと並行処理制御
+## 8. セキュリティと並行処理制御
 
 - **Path Traversal 防止**: `request_id` および `filename` のパストラバーサル文字（`../` 等）を自動検出し、絶対パス検証 (`is_relative_to`) で隔離ディレクトリ外へのアクセスを完全遮断。
 - **動的セマフォ制御**: 利用可能メモリ量に応じ、同時の重い変換処理プロセス数を自動的に制限（OOMクラッシュ防止）。
 - **IPスプーフィング対策**: 信頼済みプロキシ（`TRUSTED_PROXIES`）経由の通信のみ `X-Forwarded-For` のクライアントIPを参照。
+- **Prometheus 観測性**: `/metrics` エンドポイントで変換成否・レイテンシ・VLMリクエスト数を常時モニタリング可能。

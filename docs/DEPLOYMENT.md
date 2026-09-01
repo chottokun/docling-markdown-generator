@@ -180,3 +180,51 @@ Docling のレイアウト解析モデルや OCR モデル等は、**初めて�
 # コンテナ内で Docling のモデル事前ロード（ウォームアップ）を実行
 docker compose exec docling-server python -c "from docling.document_converter import DocumentConverter; DocumentConverter()"
 ```
+
+---
+
+## 7. Prometheus & 運用監視
+
+本サーバーは `/metrics` エンドポイントで Prometheus 形式のメトリクスを自動公開します。
+
+### 7.1 Prometheus 設定例 (`prometheus.yml`)
+```yaml
+scrape_configs:
+  - job_name: 'docling-markdown-generator'
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['localhost:8090']
+```
+
+### 7.2 主要監視項目
+- **リクエスト数 & 成功率**: `sum(rate(docling_conversions_total[5m])) by (status)`
+- **処理レイテンシ (95パーセンタイル)**: `histogram_quantile(0.95, sum(rate(docling_conversion_duration_seconds_bucket[5m])) by (le))`
+- **アクティブ変換プロセス数**: `docling_active_conversions`
+- **VLMリトライ発生率**: `sum(rate(docling_vlm_retry_total[5m]))`
+
+---
+
+## 8. コンテナ E2E 動作検証手順
+
+本番コンテナのビルドおよび起動後、同梱されている E2E 検証スクリプトを実行して全エンドポイントの疎通・変換・ダウンロード・メトリクスを自動検証できます。
+
+```bash
+# 1. コンテナの起動
+docker compose up -d --build
+
+# 2. E2E 検証スクリプトの実行
+uv run python tests/e2e_docker_check.py
+```
+
+---
+
+## 9. トラブルシューティング
+
+| 症状 | 原因 | 対処法 |
+| :--- | :--- | :--- |
+| `GPU compute capability is less than required 7.5. Falling back to CPU.` | 古い世代のGPU (Pascal等) が検出された | 正常な動作です。自動的にCPUモードで安全に継続処理されます。 |
+| `Payload Too Large` (413) | ファイルサイズが上限を超過 | `.env` の `DOCLING_MAX_UPLOAD_SIZE`（バイト）の値を引き上げてください。 |
+| `Too Many Requests` (429) | レートリミット制限に到達 | `DOCLING_RATE_LIMIT_REQUESTS` の値を増やすか、クライアント側でリトライ間隔を設けてください。 |
+| 初回リクエストがタイムアウトする | 初回モデルダウンロードに時間がかかっている | クライアント側のタイムアウト値を延長するか、`6.3` の事前ウォームアップコマンドを実行してください。 |
+| VLM画像説明が付与されない | `DOCLING_VLM_ENABLED=False` になっている | `.env` で `DOCLING_VLM_ENABLED=True` を設定し、適切なエンドポイント/APIキーを指定してください。 |
+
