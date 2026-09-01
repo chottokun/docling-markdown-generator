@@ -1,7 +1,7 @@
-import os
 import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
+
 import yaml
 from PIL import Image
 
@@ -10,11 +10,9 @@ from tests.mock_docling import mock_docling
 mock_docling()
 
 from docling_lib.vlm import (
-    generate_caption_sync,
     generate_caption,
-    _prepare_caption_args,
+    generate_caption_sync,
 )
-from docling_lib.converter import DocumentConversionOptions, PDFConverter
 
 
 class TestOpenAICompatibleAndDeployment(unittest.IsolatedAsyncioTestCase):
@@ -146,7 +144,7 @@ class TestOpenAICompatibleAndDeployment(unittest.IsolatedAsyncioTestCase):
         compose_path = Path(__file__).resolve().parent.parent / "docker-compose.yml"
         self.assertTrue(compose_path.exists())
 
-        with open(compose_path, "r", encoding="utf-8") as f:
+        with open(compose_path, encoding="utf-8") as f:
             compose_data = yaml.safe_load(f)
 
         services = compose_data.get("services", {})

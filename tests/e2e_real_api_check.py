@@ -1,11 +1,9 @@
-import asyncio
-import os
-import shutil
-import tempfile
 from pathlib import Path
+
 from fastapi.testclient import TestClient
 
 from docling_lib.server import app
+
 
 def test_real_api_conversion():
     print("=== FastAPI 実データ変換エンドポイント動作検証開始 ===")

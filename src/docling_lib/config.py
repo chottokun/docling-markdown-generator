@@ -2,6 +2,8 @@ import logging
 import os
 from pathlib import Path
 
+from .utils import parse_math_block_newline
+
 # --- Constants ---
 ALLOWED_EXTENSIONS = {
     ".pdf",
@@ -87,12 +89,9 @@ DOCLING_INCLUDE_KV_EXTRACTION = (
 DOCLING_MATH_INLINE_DELIM = os.getenv("DOCLING_MATH_INLINE_DELIM", "auto")
 DOCLING_MATH_BLOCK_DELIM = os.getenv("DOCLING_MATH_BLOCK_DELIM", "auto")
 
-_math_nl_env = os.getenv("DOCLING_MATH_BLOCK_NEWLINE", "auto")
-DOCLING_MATH_BLOCK_NEWLINE: str | bool
-if _math_nl_env.lower() == "auto":
-    DOCLING_MATH_BLOCK_NEWLINE = "auto"
-else:
-    DOCLING_MATH_BLOCK_NEWLINE = _math_nl_env.lower() == "true"
+DOCLING_MATH_BLOCK_NEWLINE = parse_math_block_newline(
+    os.getenv("DOCLING_MATH_BLOCK_NEWLINE", "auto")
+)
 
 
 def setup_logging():

@@ -3,9 +3,26 @@ from typing import Any
 
 # Regex to redact sensitive query parameters in strings/URLs (e.g., key=..., api_key=..., etc.)
 _SENSITIVE_PARAM_RE = re.compile(
-    r"((?:key|api_key|token|secret|credential|api-key)=(?:\w+))",
-    re.IGNORECASE
+    r"((?:key|api_key|token|secret|credential|api-key)=(?:\w+))", re.IGNORECASE
 )
+
+
+def parse_math_block_newline(value: Any) -> str | bool:
+    """
+    Parses a string or boolean representation of math_block_newline option into
+    either a boolean (True/False) or "auto".
+    """
+    if isinstance(value, str):
+        v = value.strip().lower()
+        if v == "true":
+            return True
+        elif v == "false":
+            return False
+        elif v == "auto":
+            return "auto"
+    elif isinstance(value, bool):
+        return value
+    return "auto"
 
 
 def sanitize_log_message(message: Any) -> str:
@@ -24,7 +41,7 @@ def sanitize_log_message(message: Any) -> str:
         r"([?&](?:key|api_key|token|secret|credential|api[-_]key)=)[^&\s'\"]+",
         r"\1REDACTED",
         sanitized,
-        flags=re.IGNORECASE
+        flags=re.IGNORECASE,
     )
     return sanitized
 
