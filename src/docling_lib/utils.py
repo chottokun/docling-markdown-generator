@@ -8,6 +8,24 @@ _SENSITIVE_PARAM_RE = re.compile(
 )
 
 
+def parse_math_block_newline(value: Any) -> str | bool:
+    """
+    Parses a string or boolean representation of math_block_newline option into
+    either a boolean (True/False) or "auto".
+    """
+    if isinstance(value, str):
+        v = value.strip().lower()
+        if v == "true":
+            return True
+        elif v == "false":
+            return False
+        elif v == "auto":
+            return "auto"
+    elif isinstance(value, bool):
+        return value
+    return "auto"
+
+
 def sanitize_log_message(message: Any) -> str:
     """
     Sanitizes a message for logging by replacing newline characters with spaces.

@@ -59,7 +59,7 @@ from .config import (
     setup_logging,
 )
 from .converter import DocumentConversionOptions, process_pdf
-from .utils import sanitize_log_message
+from .utils import parse_math_block_newline, sanitize_log_message
 
 
 class RequestBodyTooLarge(Exception):
@@ -249,15 +249,7 @@ def get_conversion_request(
     math_block_delim: str = Form(DOCLING_MATH_BLOCK_DELIM),
     math_block_newline: str = Form(str(DOCLING_MATH_BLOCK_NEWLINE)),
 ) -> DocumentConversionRequest:
-    # If the string represents boolean, convert it or pass it on
-    resolved_nl: str | bool = math_block_newline
-    if isinstance(math_block_newline, str):
-        if math_block_newline.lower() == "true":
-            resolved_nl = True
-        elif math_block_newline.lower() == "false":
-            resolved_nl = False
-        elif math_block_newline.lower() == "auto":
-            resolved_nl = "auto"
+    resolved_nl = parse_math_block_newline(math_block_newline)
 
     return DocumentConversionRequest(
         table_format=table_format,

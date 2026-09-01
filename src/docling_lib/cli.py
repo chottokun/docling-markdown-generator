@@ -14,6 +14,7 @@ from .config import (
     setup_logging,
 )
 from .converter import DocumentConversionOptions, process_pdf
+from .utils import parse_math_block_newline
 
 # Configure logging for the CLI tool
 logger = logging.getLogger(__name__)
@@ -88,14 +89,7 @@ def main(args=None):
 
     logger.info(f"Starting high-accuracy workflow for: {parsed_args.pdf_file}")
 
-    math_nl = parsed_args.math_block_newline
-    if isinstance(math_nl, str):
-        if math_nl.lower() == "true":
-            math_nl = True
-        elif math_nl.lower() == "false":
-            math_nl = False
-        elif math_nl.lower() == "auto":
-            math_nl = "auto"
+    math_nl = parse_math_block_newline(parsed_args.math_block_newline)
 
     options = DocumentConversionOptions(
         image_dir_name=parsed_args.image_dir,
