@@ -179,10 +179,27 @@ uv run docling_converter_cli [OPTIONS] pdf_file
 | オプション | 短縮形 | デフォルト値 | 説明 |
 | :--- | :---: | :---: | :--- |
 | `pdf_file` **(必須)** | - | - | 変換対象のファイル（PDF, DOCX, PPTX, XLSX, HTML, LaTeX等） |
-| `--output-dir` | `-o` | `output` | 出力先ディレクトリ |
+| `--output-dir` | `-o` | `output` | 出力先ディレクトリ（相対パスまたは絶対パス） |
 | `--image-dir` | - | `images` | 抽出画像の保存ディレクトリ名 |
 | `--output-name` | `-n` | `processed_document.md` | 出力 Markdown ファイル名 |
 | `--image-scale` | `-s` | `2.0` | 画像抽出解像度倍率（高画質化） |
+| `--table-format` | - | `html` | テーブルシリアライズ形式（`html` または `markdown`） |
+| `--include-page-breaks` / `--no-include-page-breaks` | - | `False` | ページ境界マーカー（`<!-- PAGE_BREAK: Page N -->`）の出力制御 |
+| `--include-kv-extraction` / `--no-include-kv-extraction` | - | `False` | Key Information セクションの注入制御 |
+| `--vlm` / `--no-vlm` | - | `False` | VLM 画像キャプション生成の有効化/無効化 |
+| `--vlm-provider` | - | `ollama` | VLM プロバイダ（`ollama`, `openai`, `anthropic`, `google`） |
+| `--vlm-model` | - | `qwen2-vl:2b` | VLM モデル名 |
+| `--vlm-endpoint` | - | `http://localhost:11434` | VLM サービスエンドポイント |
+| `--vlm-api-key` | - | - | VLM API キー（平文文字列、`-` で標準入力、`@path` でファイル読み込み） |
+| `--vlm-prompt` | - | （日本語プロンプト） | VLM キャプション生成プロンプト |
+| `--vlm-max-concurrent` | - | `5` | VLM 並行リクエスト上限数 |
+| `--ocr` / `--no-ocr` | - | `True` | OCR の有効化/無効化 |
+| `--formula` / `--no-formula` | - | `True` | 数式抽出の有効化/無効化 |
+| `--chart` / `--no-chart` | - | `False` | チャート抽出の有効化/無効化 |
+| `--code` / `--no-code` | - | `False` | コードエンリッチメントの有効化/無効化 |
+| `--num-threads` | - | `4` | CPU スレッド数 |
+| `--cuda-flash-attention` / `--no-cuda-flash-attention` | - | `False` | CUDA FlashAttention2 の有効化/無効化 |
+| `--artifacts-path` | - | - | ローカルモデルアーティファクトディレクトリのパス |
 | `--math-inline-delim`| - | `auto` | インライン数式デリミタ（`auto`, `$`, `\(` 等） |
 | `--math-block-delim` | - | `auto` | ブロック数式デリミタ（`auto`, `$$`, `\[` 等） |
 | `--math-block-newline`| - | `auto` | ブロック数式内の改行制御（`auto`, `true`, `false`） |

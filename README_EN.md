@@ -179,10 +179,27 @@ uv run docling_converter_cli [OPTIONS] pdf_file
 | Option | Short | Default | Description |
 | :--- | :---: | :---: | :--- |
 | `pdf_file` **(Required)** | - | - | File to convert (PDF, DOCX, PPTX, XLSX, HTML, LaTeX, etc.) |
-| `--output-dir` | `-o` | `output` | Output directory path |
+| `--output-dir` | `-o` | `output` | Output directory path (relative or absolute) |
 | `--image-dir` | - | `images` | Directory name for extracted images |
 | `--output-name` | `-n` | `processed_document.md` | Output Markdown filename |
 | `--image-scale` | `-s` | `2.0` | Resolution scale factor for image extraction |
+| `--table-format` | - | `html` | Table serialization format (`html` or `markdown`) |
+| `--include-page-breaks` / `--no-include-page-breaks` | - | `False` | Toggle output of page break markers (`<!-- PAGE_BREAK: Page N -->`) |
+| `--include-kv-extraction` / `--no-include-kv-extraction` | - | `False` | Toggle injection of Key Information section |
+| `--vlm` / `--no-vlm` | - | `False` | Enable/disable VLM image caption generation |
+| `--vlm-provider` | - | `ollama` | VLM provider (`ollama`, `openai`, `anthropic`, `google`) |
+| `--vlm-model` | - | `qwen2-vl:2b` | VLM model name |
+| `--vlm-endpoint` | - | `http://localhost:11434` | VLM service endpoint |
+| `--vlm-api-key` | - | - | VLM API key (literal string, `-` for stdin, or `@path` to read from secret file) |
+| `--vlm-prompt` | - | (Japanese prompt) | Prompt for VLM caption generation |
+| `--vlm-max-concurrent` | - | `5` | Maximum concurrent VLM API requests |
+| `--ocr` / `--no-ocr` | - | `True` | Enable/disable OCR |
+| `--formula` / `--no-formula` | - | `True` | Enable/disable formula extraction |
+| `--chart` / `--no-chart` | - | `False` | Enable/disable chart extraction |
+| `--code` / `--no-code` | - | `False` | Enable/disable code enrichment |
+| `--num-threads` | - | `4` | Number of CPU threads |
+| `--cuda-flash-attention` / `--no-cuda-flash-attention` | - | `False` | Enable/disable CUDA FlashAttention2 |
+| `--artifacts-path` | - | - | Path to local model artifacts directory |
 | `--math-inline-delim`| - | `auto` | Inline math delimiter (`auto`, `$`, `\(` etc.) |
 | `--math-block-delim` | - | `auto` | Block math delimiter (`auto`, `$$`, `\[` etc.) |
 | `--math-block-newline`| - | `auto` | Math block interior newline control (`auto`, `true`, `false`) |
