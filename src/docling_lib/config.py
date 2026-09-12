@@ -53,11 +53,27 @@ CORS_ORIGINS = set(
 
 # Security configurations
 DOCLING_ALLOW_ABSOLUTE_OUTPUT_DIR = (
-    os.getenv("DOCLING_ALLOW_ABSOLUTE_OUTPUT_DIR", "True").lower() == "true"
+    os.getenv("DOCLING_ALLOW_ABSOLUTE_OUTPUT_DIR", "False").lower() == "true"
 )
 
 _raw_dangerous_roots = (
-    ["/", "/bin", "/sbin", "/usr", "/etc", "/sys", "/proc", "/dev", "/boot", "/root"]
+    [
+        "/",
+        "/bin",
+        "/sbin",
+        "/usr",
+        "/etc",
+        "/sys",
+        "/proc",
+        "/dev",
+        "/boot",
+        "/root",
+        "/var",
+        "/run",
+        "/lib",
+        "/lib64",
+        "/opt",
+    ]
     if os.name != "nt"
     else [
         os.environ.get("SystemDrive", "C:") + "\\",

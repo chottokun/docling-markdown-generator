@@ -182,6 +182,7 @@ class DocumentConversionOptions:
     math_block_delim: str = DOCLING_MATH_BLOCK_DELIM
     math_block_newline: Any = DOCLING_MATH_BLOCK_NEWLINE
     artifacts_path: Path | str | None = DOCLING_ARTIFACTS_PATH
+    allow_absolute_output_dir: bool = DOCLING_ALLOW_ABSOLUTE_OUTPUT_DIR
 
 
 class PDFConverter:
@@ -780,10 +781,24 @@ def _validate_output_security(
     if allow_absolute is None:
         allow_absolute = DOCLING_ALLOW_ABSOLUTE_OUTPUT_DIR
 
+    # Block path traversal sequences like '..' immediately
+    if ".." in output_dir.parts:
+        logger.error(
+            "Security Error: Traversal sequence '..' detected in output directory: "
+            f"{sanitize_log_message(output_dir)}"
+        )
+        return False
+
     try:
         cwd = Path.cwd().resolve()
 
-        if output_dir.is_absolute():
+        resolved_out = output_dir.resolve()
+
+        # Check if resolved_out is CWD or inside CWD (always safe)
+        if resolved_out.is_relative_to(cwd):
+            return True
+
+        if output_dir.is_absolute() or resolved_out.is_absolute():
             if not allow_absolute:
                 logger.error(
                     "Security Error: Absolute output directory is disabled and outside CWD: "
@@ -791,18 +806,12 @@ def _validate_output_security(
                 )
                 return False
 
-            resolved_out = output_dir.resolve()
-
-            # Check if resolved_out is CWD or inside CWD (always safe)
-            if resolved_out.is_relative_to(cwd):
-                return True
-
-            # Block dangerous system directories and their direct children / contents
+            # Block dangerous system directories and their subpaths / exact root matches
             for root in DANGEROUS_SYSTEM_ROOTS:
                 if root in (Path("/"), Path("C:\\"), Path("C:/")):
-                    if resolved_out == root or resolved_out.parent == root:
+                    if resolved_out == root:
                         logger.error(
-                            "Security Error: Output directory targets root or direct child of root: "
+                            "Security Error: Output directory targets system root directory: "
                             f"{sanitize_log_message(output_dir)}"
                         )
                         return False
@@ -871,7 +880,10 @@ def process_pdf(
         return None
 
     # 2. Security Check: Path Traversal
-    if not _validate_output_security(output_dir):
+    actual_options = options or DocumentConversionOptions()
+    if not _validate_output_security(
+        output_dir, allow_absolute=actual_options.allow_absolute_output_dir
+    ):
         return None
 
     # 3. Processing

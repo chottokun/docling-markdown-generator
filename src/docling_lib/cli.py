@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 setup_logging()
 
 
-def _resolve_api_key(raw_key: str) -> str:
+def _resolve_api_key(raw_key: str | None) -> str:
     """
     Resolves VLM API Key string.
     Supports reading from stdin if '-' or from a secret file if '@path'.
@@ -270,6 +270,7 @@ def main(args=None):
         math_block_delim=parsed_args.math_block_delim,
         math_block_newline=math_nl,
         artifacts_path=parsed_args.artifacts_path,
+        allow_absolute_output_dir=True,
     )
 
     # Call the new, unified processing function

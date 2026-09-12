@@ -37,6 +37,7 @@ def test_main_happy_path(mock_process_pdf, tmp_path, pdf_downloader, monkeypatch
             image_dir_name="images",
             md_output_name="processed_document.md",
             image_scale=2.0,
+            allow_absolute_output_dir=True,
         ),
     )
 
@@ -103,6 +104,7 @@ def test_main_with_custom_image_dir(
             image_dir_name=custom_image_dir,
             md_output_name="processed_document.md",
             image_scale=2.0,
+            allow_absolute_output_dir=True,
         ),
     )
 

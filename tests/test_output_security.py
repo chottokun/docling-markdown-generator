@@ -27,6 +27,15 @@ def test_validate_output_security_traversal(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     # Path("../outside") resolved will be outside tmp_path
     assert _validate_output_security(Path("../outside")) is False
+    assert (
+        _validate_output_security(Path("../outside"), allow_absolute=True) is False
+    )
+    assert (
+        _validate_output_security(
+            tmp_path / ".." / "outside", allow_absolute=True
+        )
+        is False
+    )
 
 
 def test_validate_output_security_absolute_allow_true(tmp_path, monkeypatch):
