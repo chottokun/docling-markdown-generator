@@ -20,6 +20,7 @@
 | `DOCLING_MAX_WORKERS`        | `2` | 独立した子プロセス（ProcessPoolExecutor）のワーカープロセス数。 |
 | `DOCLING_UPLOAD_DIR`         | `uploads` | アップロードされたファイルの一時保存先（コンテナ内: `/app/data/uploads`）。 |
 | `DOCLING_OUTPUT_DIR`         | `output` | 変換済みファイルの保存先（コンテナ内: `/app/data/output`）。 |
+| `DOCLING_ALLOW_ABSOLUTE_OUTPUT_DIR` | `False` | 出力先ディレクトリとしてCWD外の絶対パスを許可するかどうか（パストラバーサル・システム領域保護のためデフォルトは無効）。 |
 
 ### 1.2 Docling 変換パイプライン & ハードウェア設定
 | 変数名 | デフォルト値 | 説明 |
