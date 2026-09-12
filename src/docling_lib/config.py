@@ -51,6 +51,39 @@ CORS_ORIGINS = set(
     o.strip() for o in os.getenv("DOCLING_CORS_ORIGINS", "").split(",") if o.strip()
 )
 
+# Security configurations
+DOCLING_ALLOW_ABSOLUTE_OUTPUT_DIR = (
+    os.getenv("DOCLING_ALLOW_ABSOLUTE_OUTPUT_DIR", "False").lower() == "true"
+)
+
+_raw_dangerous_roots = (
+    [
+        "/",
+        "/bin",
+        "/sbin",
+        "/usr",
+        "/etc",
+        "/sys",
+        "/proc",
+        "/dev",
+        "/boot",
+        "/root",
+        "/var",
+        "/run",
+        "/lib",
+        "/lib64",
+        "/opt",
+    ]
+    if os.name != "nt"
+    else [
+        os.environ.get("SystemDrive", "C:") + "\\",
+        os.environ.get("SystemRoot", "C:\\Windows"),
+        os.environ.get("ProgramFiles", "C:\\Program Files"),
+        os.environ.get("ProgramFiles(x86)", "C:\\Program Files (x86)"),
+    ]
+)
+DANGEROUS_SYSTEM_ROOTS = {Path(p).resolve() for p in _raw_dangerous_roots}
+
 # API Key for authentication (Optional: if not set, authentication is disabled)
 API_KEY = os.getenv("DOCLING_API_KEY")
 

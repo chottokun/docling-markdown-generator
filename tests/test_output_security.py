@@ -1,4 +1,5 @@
 import logging
+import os
 from pathlib import Path
 from unittest.mock import patch
 
@@ -26,13 +27,29 @@ def test_validate_output_security_traversal(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     # Path("../outside") resolved will be outside tmp_path
     assert _validate_output_security(Path("../outside")) is False
+    assert (
+        _validate_output_security(Path("../outside"), allow_absolute=True) is False
+    )
+    assert (
+        _validate_output_security(
+            tmp_path / ".." / "outside", allow_absolute=True
+        )
+        is False
+    )
 
 
-def test_validate_output_security_absolute_outside(tmp_path, monkeypatch):
-    """Verify that an absolute path outside CWD returns False."""
+def test_validate_output_security_absolute_allow_true(tmp_path, monkeypatch):
+    """Verify that an absolute path outside CWD returns True when allow_absolute=True."""
     monkeypatch.chdir(tmp_path)
-    outside_path = tmp_path.parent.resolve() / "outside_dir"
-    assert _validate_output_security(outside_path) is False
+    outside_path = (tmp_path.parent / "outside_dir_allowed").resolve()
+    assert _validate_output_security(outside_path, allow_absolute=True) is True
+
+
+def test_validate_output_security_absolute_allow_false(tmp_path, monkeypatch):
+    """Verify that an absolute path outside CWD returns False when allow_absolute=False."""
+    monkeypatch.chdir(tmp_path)
+    outside_path = (tmp_path.parent / "outside_dir_disallowed").resolve()
+    assert _validate_output_security(outside_path, allow_absolute=False) is False
 
 
 def test_validate_output_security_absolute_inside(tmp_path, monkeypatch):
@@ -40,6 +57,16 @@ def test_validate_output_security_absolute_inside(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     inside_path = (tmp_path / "inside_dir").resolve()
     assert _validate_output_security(inside_path) is True
+
+
+def test_validate_output_security_dangerous_system_roots(tmp_path, monkeypatch):
+    """Verify that dangerous system roots and subdirectories are blocked even when allow_absolute=True."""
+    monkeypatch.chdir(tmp_path)
+    target_root = Path("/etc") if os.name != "nt" else Path("C:\\Windows")
+    assert _validate_output_security(target_root, allow_absolute=True) is False
+
+    target_sub = Path("/etc/passwd") if os.name != "nt" else Path("C:\\Windows\\System32")
+    assert _validate_output_security(target_sub, allow_absolute=True) is False
 
 
 def test_validate_output_security_exception(tmp_path, monkeypatch, caplog):

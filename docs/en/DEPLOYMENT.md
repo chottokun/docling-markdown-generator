@@ -20,8 +20,9 @@ All settings can be configured using environment variables or a `.env` file.
 | `DOCLING_RATE_LIMIT_WINDOW`  | `60` | Rate limiting evaluation window in seconds. |
 | `DOCLING_TRUSTED_PROXIES`    | *(Empty)* | Trusted reverse proxy IPs/CIDRs for IP spoofing mitigation. |
 | `DOCLING_MAX_WORKERS`        | `2` | Number of worker processes in `ProcessPoolExecutor`. |
-| `DOCLING_UPLOAD_DIR`         | `uploads` | Directory for uploaded temporary files (In container: `/app/data/uploads`). |
+| `DOCLING_UPLOAD_DIR`         | `uploads` | Directory for uploaded files (In container: `/app/data/uploads`). |
 | `DOCLING_OUTPUT_DIR`         | `output` | Directory for converted output files (In container: `/app/data/output`). |
+| `DOCLING_ALLOW_ABSOLUTE_OUTPUT_DIR` | `False` | Whether to allow absolute output directories outside CWD (disabled by default to prevent path traversal and protect system directories). |
 
 ### 1.2 Docling Conversion Pipeline & Hardware Settings
 | Variable Name | Default Value | Description |

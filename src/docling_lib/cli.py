@@ -5,20 +5,58 @@ from pathlib import Path
 
 # Import from config and converter
 from .config import (
+    DO_CHART,
+    DO_CODE,
+    DO_FORMULA,
+    DO_OCR,
+    DOCLING_ARTIFACTS_PATH,
+    DOCLING_CUDA_FLASH_ATTENTION,
+    DOCLING_INCLUDE_KV_EXTRACTION,
+    DOCLING_INCLUDE_PAGE_BREAKS,
     DOCLING_MATH_BLOCK_DELIM,
     DOCLING_MATH_BLOCK_NEWLINE,
     DOCLING_MATH_INLINE_DELIM,
+    DOCLING_NUM_THREADS,
+    DOCLING_TABLE_FORMAT,
+    DOCLING_VLM_API_KEY,
+    DOCLING_VLM_ENABLED,
+    DOCLING_VLM_ENDPOINT,
+    DOCLING_VLM_MAX_CONCURRENT,
+    DOCLING_VLM_MODEL,
+    DOCLING_VLM_PROMPT,
+    DOCLING_VLM_PROVIDER,
     IMAGE_DIR_NAME,
     IMAGE_RESOLUTION_SCALE,
     MD_OUTPUT_NAME,
     setup_logging,
 )
 from .converter import DocumentConversionOptions, process_pdf
-from .utils import parse_math_block_newline
+from .utils import parse_math_block_newline, sanitize_log_message
 
 # Configure logging for the CLI tool
 logger = logging.getLogger(__name__)
 setup_logging()
+
+
+def _resolve_api_key(raw_key: str | None) -> str:
+    """
+    Resolves VLM API Key string.
+    Supports reading from stdin if '-' or from a secret file if '@path'.
+    """
+    if not raw_key:
+        return ""
+    if raw_key == "-":
+        return sys.stdin.read().strip()
+    if raw_key.startswith("@"):
+        key_path = Path(raw_key[1:])
+        try:
+            return key_path.read_text(encoding="utf-8").strip()
+        except Exception as e:
+            logger.error(
+                f"Failed to read API key from file {sanitize_log_message(key_path)}: {sanitize_log_message(e)}"
+            )
+            raise ValueError(f"Could not read API key file: {key_path}") from e
+    return raw_key
 
 
 def setup_parser():
@@ -58,6 +96,122 @@ def setup_parser():
         default=IMAGE_RESOLUTION_SCALE,
         help=f"Image resolution scale (default: {IMAGE_RESOLUTION_SCALE}). Higher values mean better quality but larger files.",
     )
+
+    # Table & RAG control options
+    parser.add_argument(
+        "--table-format",
+        choices=["html", "markdown"],
+        default=DOCLING_TABLE_FORMAT,
+        help=f"Table serialization format ('html' or 'markdown', default: '{DOCLING_TABLE_FORMAT}').",
+    )
+    parser.add_argument(
+        "--include-page-breaks",
+        action=argparse.BooleanOptionalAction,
+        default=DOCLING_INCLUDE_PAGE_BREAKS,
+        help="Inject page break markers (<!-- PAGE_BREAK: Page N -->) in output.",
+    )
+    parser.add_argument(
+        "--include-kv-extraction",
+        action=argparse.BooleanOptionalAction,
+        default=DOCLING_INCLUDE_KV_EXTRACTION,
+        help="Inject Key Information section for key-value extraction.",
+    )
+
+    # VLM options
+    parser.add_argument(
+        "--vlm",
+        dest="vlm_enabled",
+        action=argparse.BooleanOptionalAction,
+        default=DOCLING_VLM_ENABLED,
+        help="Enable VLM image caption generation.",
+    )
+    parser.add_argument(
+        "--vlm-provider",
+        choices=["ollama", "openai", "anthropic", "google"],
+        default=DOCLING_VLM_PROVIDER,
+        help=f"VLM provider name (default: '{DOCLING_VLM_PROVIDER}').",
+    )
+    parser.add_argument(
+        "--vlm-model",
+        type=str,
+        default=DOCLING_VLM_MODEL,
+        help=f"VLM model name (default: '{DOCLING_VLM_MODEL}').",
+    )
+    parser.add_argument(
+        "--vlm-endpoint",
+        type=str,
+        default=DOCLING_VLM_ENDPOINT,
+        help=f"VLM service endpoint URL (default: '{DOCLING_VLM_ENDPOINT}').",
+    )
+    parser.add_argument(
+        "--vlm-api-key",
+        type=str,
+        default=DOCLING_VLM_API_KEY,
+        help="VLM API key (literal string, '-' for stdin, or '@path' to read from secret file).",
+    )
+    parser.add_argument(
+        "--vlm-prompt",
+        type=str,
+        default=DOCLING_VLM_PROMPT,
+        help="Prompt for VLM image caption generation.",
+    )
+    parser.add_argument(
+        "--vlm-max-concurrent",
+        type=int,
+        default=DOCLING_VLM_MAX_CONCURRENT,
+        help=f"Max concurrent VLM API requests (default: {DOCLING_VLM_MAX_CONCURRENT}).",
+    )
+
+    # Pipeline control options
+    parser.add_argument(
+        "--ocr",
+        dest="do_ocr",
+        action=argparse.BooleanOptionalAction,
+        default=DO_OCR,
+        help="Enable/disable OCR during conversion.",
+    )
+    parser.add_argument(
+        "--formula",
+        dest="do_formula",
+        action=argparse.BooleanOptionalAction,
+        default=DO_FORMULA,
+        help="Enable/disable formula extraction.",
+    )
+    parser.add_argument(
+        "--chart",
+        dest="do_chart",
+        action=argparse.BooleanOptionalAction,
+        default=DO_CHART,
+        help="Enable/disable chart extraction.",
+    )
+    parser.add_argument(
+        "--code",
+        dest="do_code",
+        action=argparse.BooleanOptionalAction,
+        default=DO_CODE,
+        help="Enable/disable code enrichment.",
+    )
+    parser.add_argument(
+        "--num-threads",
+        type=int,
+        default=DOCLING_NUM_THREADS,
+        help=f"Number of CPU threads for Docling pipeline (default: {DOCLING_NUM_THREADS}).",
+    )
+    parser.add_argument(
+        "--cuda-flash-attention",
+        dest="cuda_use_flash_attention",
+        action=argparse.BooleanOptionalAction,
+        default=DOCLING_CUDA_FLASH_ATTENTION,
+        help="Enable/disable CUDA FlashAttention2.",
+    )
+    parser.add_argument(
+        "--artifacts-path",
+        type=Path,
+        default=DOCLING_ARTIFACTS_PATH,
+        help="Path to local Docling model artifacts directory.",
+    )
+
+    # Math formatting options
     parser.add_argument(
         "--math-inline-delim",
         type=str,
@@ -90,14 +244,33 @@ def main(args=None):
     logger.info(f"Starting high-accuracy workflow for: {parsed_args.pdf_file}")
 
     math_nl = parse_math_block_newline(parsed_args.math_block_newline)
+    resolved_vlm_key = _resolve_api_key(parsed_args.vlm_api_key)
 
     options = DocumentConversionOptions(
         image_dir_name=parsed_args.image_dir,
         md_output_name=parsed_args.output_name,
         image_scale=parsed_args.image_scale,
+        table_format=parsed_args.table_format,
+        do_formula=parsed_args.do_formula,
+        do_ocr=parsed_args.do_ocr,
+        do_chart=parsed_args.do_chart,
+        do_code=parsed_args.do_code,
+        include_page_breaks=parsed_args.include_page_breaks,
+        include_kv_extraction=parsed_args.include_kv_extraction,
+        vlm_enabled=parsed_args.vlm_enabled,
+        vlm_provider=parsed_args.vlm_provider,
+        vlm_api_key=resolved_vlm_key,
+        vlm_model=parsed_args.vlm_model,
+        vlm_endpoint=parsed_args.vlm_endpoint,
+        vlm_prompt=parsed_args.vlm_prompt,
+        vlm_max_concurrent=parsed_args.vlm_max_concurrent,
+        num_threads=parsed_args.num_threads,
+        cuda_use_flash_attention=parsed_args.cuda_use_flash_attention,
         math_inline_delim=parsed_args.math_inline_delim,
         math_block_delim=parsed_args.math_block_delim,
         math_block_newline=math_nl,
+        artifacts_path=parsed_args.artifacts_path,
+        allow_absolute_output_dir=True,
     )
 
     # Call the new, unified processing function
