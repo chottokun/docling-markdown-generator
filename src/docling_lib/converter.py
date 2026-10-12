@@ -195,39 +195,39 @@ class PDFConverter:
         options: DocumentConversionOptions | None = None,
     ):
         self.options = options or DocumentConversionOptions()
+        pipeline_options = self._configure_pipeline_options(self.options)
+        format_options = self._get_format_options(pipeline_options)
+        self.doc_converter = DocumentConverter(format_options=format_options)
 
-        # Configure pipeline options
+    def _configure_pipeline_options(
+        self, options: DocumentConversionOptions
+    ) -> PdfPipelineOptions:
+        """Constructs and configures PdfPipelineOptions from DocumentConversionOptions."""
         pipeline_options = PdfPipelineOptions()
-        if self.options.artifacts_path:
-            pipeline_options.artifacts_path = Path(self.options.artifacts_path)
+        if options.artifacts_path:
+            pipeline_options.artifacts_path = Path(options.artifacts_path)
 
         pipeline_options.generate_picture_images = True
-        pipeline_options.images_scale = self.options.image_scale
-        pipeline_options.do_formula_enrichment = self.options.do_formula
-        pipeline_options.do_ocr = self.options.do_ocr
-        pipeline_options.do_chart_extraction = self.options.do_chart
-        pipeline_options.do_code_enrichment = self.options.do_code
+        pipeline_options.images_scale = options.image_scale
+        pipeline_options.do_formula_enrichment = options.do_formula
+        pipeline_options.do_ocr = options.do_ocr
+        pipeline_options.do_chart_extraction = options.do_chart
+        pipeline_options.do_code_enrichment = options.do_code
 
-        if self.options.include_page_breaks:
+        if options.include_page_breaks:
             pipeline_options.generate_page_images = True
             pipeline_options.generate_parsed_pages = True
 
-        # Configure accelerator options (GPU fallback to CPU)
-        if is_cuda_compatible():
-            acc_device = AcceleratorDevice.AUTO
-        else:
-            acc_device = AcceleratorDevice.CPU
-
+        acc_device = (
+            AcceleratorDevice.AUTO if is_cuda_compatible() else AcceleratorDevice.CPU
+        )
         pipeline_options.accelerator_options = AcceleratorOptions(
             device=acc_device,
-            num_threads=self.options.num_threads,
-            cuda_use_flash_attention2=self.options.cuda_use_flash_attention,
+            num_threads=options.num_threads,
+            cuda_use_flash_attention2=options.cuda_use_flash_attention,
         )
 
-        # Configure DocumentConverter with multi-format support
-        format_options = self._get_format_options(pipeline_options)
-
-        self.doc_converter = DocumentConverter(format_options=format_options)
+        return pipeline_options
 
     def _get_format_options(self, pipeline_options: PdfPipelineOptions) -> dict:
         """
@@ -248,6 +248,26 @@ class PDFConverter:
             InputFormat.VTT: HTMLFormatOption(pipeline_options=pipeline_options),
         }
 
+    def _hash_existing_pictures(self, doc: DoclingDocument) -> set[str]:
+        """Computes SHA-256 hashes for existing picture items in doc.pictures."""
+        import hashlib
+        import io
+
+        existing_hashes: set[str] = set()
+        for existing_pic in doc.pictures:
+            if (
+                existing_pic.image
+                and hasattr(existing_pic.image, "pil_image")
+                and existing_pic.image.pil_image
+            ):
+                try:
+                    buf = io.BytesIO()
+                    existing_pic.image.pil_image.save(buf, format="PNG")
+                    existing_hashes.add(hashlib.sha256(buf.getvalue()).hexdigest())
+                except Exception:
+                    pass
+        return existing_hashes
+
     def _enrich_excel_pictures(self, doc: DoclingDocument, input_path: Path) -> None:
         """
         Inspects Excel (.xlsx) input files for embedded or pasted images in the ZIP archive
@@ -262,8 +282,6 @@ class PDFConverter:
             if not extracted_media:
                 return
 
-            import io
-
             from docling_core.types.doc import (
                 BoundingBox,
                 CoordOrigin,
@@ -271,22 +289,7 @@ class PDFConverter:
                 ProvenanceItem,
             )
 
-            # Compute sha256 of existing images in doc.pictures to prevent duplication securely
-            existing_hashes: set[str] = set()
-            for existing_pic in doc.pictures:
-                if (
-                    existing_pic.image
-                    and hasattr(existing_pic.image, "pil_image")
-                    and existing_pic.image.pil_image
-                ):
-                    try:
-                        buf = io.BytesIO()
-                        existing_pic.image.pil_image.save(buf, format="PNG")
-                        import hashlib
-
-                        existing_hashes.add(hashlib.sha256(buf.getvalue()).hexdigest())
-                    except Exception:
-                        pass
+            existing_hashes = self._hash_existing_pictures(doc)
 
             for item in extracted_media:
                 pil_img = item.get("pil_image")
@@ -534,7 +537,7 @@ class PDFConverter:
                 )
 
         if metadata:
-            import yaml
+            import yaml  # type: ignore[import-untyped]
 
             # default_flow_style=False ensures it doesn't use {key: value} block style
             # which might have caused some assertion issues with quoting
@@ -633,6 +636,29 @@ class PDFConverter:
 
         return output_dir / md_output_name
 
+    def _process_and_save_single_image(
+        self,
+        i: int,
+        element: Any,
+        images_dir: Path,
+        doc_slug: str,
+    ) -> None:
+        """Saves a single extracted picture to disk using the standard naming scheme."""
+        page_no = get_picture_page_no(element)
+        image_filename = generate_image_filename(doc_slug, page_no, i + 1)
+        image_path = images_dir / image_filename
+        try:
+            element.image.pil_image.save(image_path)
+            try:
+                image_path.chmod(0o666)
+            except Exception:
+                pass
+            logger.debug(f"Saved image: {image_path}")
+        except Exception as e:
+            logger.warning(
+                f"Failed to save image {image_path}: {sanitize_log_message(e)}"
+            )
+
     def _save_images(
         self, doc: DoclingDocument, images_dir: Path, slug: str | None = None
     ) -> None:
@@ -651,32 +677,22 @@ class PDFConverter:
 
         doc_slug = slug or (generate_doc_slug(doc.name) if getattr(doc, "name", None) else "document")
 
-        def save_image(i, element):
-            page_no = get_picture_page_no(element)
-            image_filename = generate_image_filename(doc_slug, page_no, i + 1)
-            image_path = images_dir / image_filename
-            try:
-                element.image.pil_image.save(image_path)
-                try:
-                    image_path.chmod(0o666)
-                except Exception:
-                    pass
-                logger.debug(f"Saved image: {image_path}")
-            except Exception as e:
-                logger.warning(
-                    f"Failed to save image {image_path}: {sanitize_log_message(e)}"
-                )
-
         if len(valid_pictures) == 1:
             # Sequential execution for single-image documents to avoid threadpool overhead
             i, element = valid_pictures[0]
-            save_image(i, element)
+            self._process_and_save_single_image(i, element, images_dir, doc_slug)
         else:
             # Parallel execution for multi-image files, dynamically bounding workers
             max_workers = min(len(valid_pictures), 32)
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
                 for i, element in valid_pictures:
-                    executor.submit(save_image, i, element)
+                    executor.submit(
+                        self._process_and_save_single_image,
+                        i,
+                        element,
+                        images_dir,
+                        doc_slug,
+                    )
 
 
 class EnhancedDoclingConverter:
