@@ -35,6 +35,7 @@ OUTPUT_DIR = Path(os.getenv("DOCLING_OUTPUT_DIR", "output"))
 # Model cache & artifacts configurations
 _default_cache_models_dir = Path(".cache_models").resolve()
 _env_artifacts_path = os.getenv("DOCLING_ARTIFACTS_PATH")
+DOCLING_ARTIFACTS_PATH: Path | None
 if _env_artifacts_path:
     DOCLING_ARTIFACTS_PATH = Path(_env_artifacts_path)
 elif _default_cache_models_dir.exists() and _default_cache_models_dir.is_dir():
