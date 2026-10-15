@@ -129,9 +129,15 @@ def _extract_anchors_from_drawing(
             col_elem = from_node.find(f"{{{ns_xdr}}}col")
             row_elem = from_node.find(f"{{{ns_xdr}}}row")
             if col_elem is not None and col_elem.text:
-                col_idx = int(col_elem.text)
+                try:
+                    col_idx = int(col_elem.text)
+                except (ValueError, TypeError):
+                    col_idx = 0
             if row_elem is not None and row_elem.text:
-                row_idx = int(row_elem.text)
+                try:
+                    row_idx = int(row_elem.text)
+                except (ValueError, TypeError):
+                    row_idx = 0
 
         blip = anchor.find(f".//{{{ns_a}}}blip")
         if blip is None:
