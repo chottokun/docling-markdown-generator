@@ -490,6 +490,12 @@ def _should_retry_status(status_code: int) -> bool:
     return status_code in (429, 502, 503, 504)
 
 
+def _compute_backoff_delay(attempt: int, base_delay: float) -> float:
+    """Computes exponential backoff delay with jitter."""
+    jitter = secrets.randbelow(100) / 1000.0
+    return base_delay * (2**attempt) + jitter
+
+
 async def generate_caption(
     image: Image.Image | None = None,
     provider: str = "ollama",
@@ -557,8 +563,7 @@ async def generate_caption(
                         e.response.status_code if e.response is not None else 0
                     )
                     if attempt < max_retries and _should_retry_status(status_code):
-                        jitter = secrets.randbelow(100) / 1000.0
-                        backoff = base_delay * (2**attempt) + jitter
+                        backoff = _compute_backoff_delay(attempt, base_delay)
                         logger.warning(
                             f"Transient HTTP {status_code} from VLM provider {provider_resolved}. "
                             f"Retrying in {backoff:.2f}s (Attempt {attempt + 1}/{max_retries})."
@@ -569,8 +574,7 @@ async def generate_caption(
                 except (httpx.RequestError, TimeoutError) as e:
                     last_exc = e
                     if attempt < max_retries:
-                        jitter = secrets.randbelow(100) / 1000.0
-                        backoff = base_delay * (2**attempt) + jitter
+                        backoff = _compute_backoff_delay(attempt, base_delay)
                         logger.warning(
                             f"Network error contacting VLM provider {provider_resolved}: {sanitize_log_message(e)}. "
                             f"Retrying in {backoff:.2f}s (Attempt {attempt + 1}/{max_retries})."
@@ -658,8 +662,7 @@ def generate_caption_sync(
                         e.response.status_code if e.response is not None else 0
                     )
                     if attempt < max_retries and _should_retry_status(status_code):
-                        jitter = secrets.randbelow(100) / 1000.0
-                        backoff = base_delay * (2**attempt) + jitter
+                        backoff = _compute_backoff_delay(attempt, base_delay)
                         logger.warning(
                             f"Transient HTTP {status_code} from VLM provider {provider_resolved}. "
                             f"Retrying in {backoff:.2f}s (Attempt {attempt + 1}/{max_retries})."
@@ -670,8 +673,7 @@ def generate_caption_sync(
                 except (httpx.RequestError, TimeoutError) as e:
                     last_exc = e
                     if attempt < max_retries:
-                        jitter = secrets.randbelow(100) / 1000.0
-                        backoff = base_delay * (2**attempt) + jitter
+                        backoff = _compute_backoff_delay(attempt, base_delay)
                         logger.warning(
                             f"Network error contacting VLM provider {provider_resolved}: {sanitize_log_message(e)}. "
                             f"Retrying in {backoff:.2f}s (Attempt {attempt + 1}/{max_retries})."
