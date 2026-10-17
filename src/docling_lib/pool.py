@@ -11,29 +11,7 @@ if TYPE_CHECKING:
     from .converter import DocumentConversionOptions, PDFConverter
 
 from .config import (
-    DO_CHART,
-    DO_CODE,
-    DO_FORMULA,
-    DO_OCR,
-    DOCLING_CUDA_FLASH_ATTENTION,
-    DOCLING_INCLUDE_KV_EXTRACTION,
-    DOCLING_INCLUDE_PAGE_BREAKS,
-    DOCLING_MATH_BLOCK_DELIM,
-    DOCLING_MATH_BLOCK_NEWLINE,
-    DOCLING_MATH_INLINE_DELIM,
     DOCLING_MAX_WORKERS,
-    DOCLING_NUM_THREADS,
-    DOCLING_TABLE_FORMAT,
-    DOCLING_VLM_API_KEY,
-    DOCLING_VLM_ENABLED,
-    DOCLING_VLM_ENDPOINT,
-    DOCLING_VLM_MAX_CONCURRENT,
-    DOCLING_VLM_MODEL,
-    DOCLING_VLM_PROMPT,
-    DOCLING_VLM_PROVIDER,
-    IMAGE_DIR_NAME,
-    IMAGE_RESOLUTION_SCALE,
-    MD_OUTPUT_NAME,
 )
 
 logger = logging.getLogger(__name__)
@@ -102,7 +80,7 @@ def _worker_initializer(options_dict: dict | None = None) -> None:
             from .converter import DocumentConversionOptions, _get_or_create_converter
 
             # Recreate options and get converter to trigger lazy preloading
-            options = DocumentConversionOptions(**options_dict)
+            options = DocumentConversionOptions.from_dict(options_dict)
             _get_or_create_converter(options)
         except Exception as e:
             # Don't crash worker startup if pre-loading fails, just log
@@ -122,7 +100,7 @@ def process_pdf_multi_process_worker(
 
     pdf_path = Path(pdf_path_str)
     output_dir = Path(output_dir_str)
-    options = DocumentConversionOptions(**options_dict)
+    options = DocumentConversionOptions.from_dict(options_dict)
 
     output_dir.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(dir=output_dir) as temp_dir_name:
@@ -171,31 +149,10 @@ def get_process_pool() -> ProcessPoolExecutor:
             if _process_pool is None:
                 ctx = multiprocessing.get_context("spawn")
 
+                from .converter import DocumentConversionOptions
+
                 # Retrieve default options for initializer preloading
-                default_options_dict = {
-                    "image_dir_name": IMAGE_DIR_NAME,
-                    "md_output_name": MD_OUTPUT_NAME,
-                    "image_scale": IMAGE_RESOLUTION_SCALE,
-                    "table_format": DOCLING_TABLE_FORMAT,
-                    "do_formula": DO_FORMULA,
-                    "do_ocr": DO_OCR,
-                    "do_chart": DO_CHART,
-                    "do_code": DO_CODE,
-                    "include_page_breaks": DOCLING_INCLUDE_PAGE_BREAKS,
-                    "include_kv_extraction": DOCLING_INCLUDE_KV_EXTRACTION,
-                    "vlm_enabled": DOCLING_VLM_ENABLED,
-                    "vlm_provider": DOCLING_VLM_PROVIDER,
-                    "vlm_api_key": DOCLING_VLM_API_KEY,
-                    "vlm_model": DOCLING_VLM_MODEL,
-                    "vlm_endpoint": DOCLING_VLM_ENDPOINT,
-                    "vlm_prompt": DOCLING_VLM_PROMPT,
-                    "vlm_max_concurrent": DOCLING_VLM_MAX_CONCURRENT,
-                    "num_threads": DOCLING_NUM_THREADS,
-                    "cuda_use_flash_attention": DOCLING_CUDA_FLASH_ATTENTION,
-                    "math_inline_delim": DOCLING_MATH_INLINE_DELIM,
-                    "math_block_delim": DOCLING_MATH_BLOCK_DELIM,
-                    "math_block_newline": DOCLING_MATH_BLOCK_NEWLINE,
-                }
+                default_options_dict = DocumentConversionOptions().to_dict()
 
                 _process_pool = ProcessPoolExecutor(
                     max_workers=DOCLING_MAX_WORKERS,
