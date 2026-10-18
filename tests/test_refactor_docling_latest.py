@@ -118,3 +118,69 @@ def test_metrics_registry_characterization():
     assert "docling_active_conversions 2" in text
     assert "docling_memory_used_bytes" in text
     assert "docling_conversion_duration_seconds_count 2" in text
+
+
+def test_document_conversion_options_serialization_and_robustness():
+    # 1. Roundtrip test
+    orig = DocumentConversionOptions(
+        image_dir_name="custom_dir",
+        table_format="markdown",
+        do_ocr=False,
+        artifacts_path=None,
+    )
+    d = orig.to_dict()
+    recreated = DocumentConversionOptions.from_dict(d)
+    assert recreated.image_dir_name == "custom_dir"
+    assert recreated.table_format == "markdown"
+    assert recreated.do_ocr is False
+    assert recreated.artifacts_path is None
+
+    # 2. Unknown fields robustness test (e.g. forward compatibility)
+    d_with_unknown = d.copy()
+    d_with_unknown["unknown_future_option"] = "extra_value"
+    d_with_unknown["artifacts_path"] = ""
+    recreated_with_unknown = DocumentConversionOptions.from_dict(d_with_unknown)
+    assert recreated_with_unknown.artifacts_path is None
+    assert not hasattr(recreated_with_unknown, "unknown_future_option")
+
+
+def test_custom_markdown_picture_serializer_unindexed_picture():
+    serializer = CustomMarkdownPictureSerializer(
+        image_dir_name="images",
+        slug="doc_slug",
+    )
+    doc = MagicMock(spec=DoclingDocument)
+    doc.name = "sample"
+    doc.pictures = []
+
+    unindexed_pic = MagicMock(spec=PictureItem)
+    unindexed_pic.self_ref = "#/pictures/unknown"
+    unindexed_pic.prov = []
+    unindexed_pic.meta = None
+    unindexed_pic.captions = []
+    unindexed_pic.annotations = []
+    unindexed_pic.image = None
+
+    doc_serializer = MagicMock()
+    doc_serializer.serialize_captions.return_value = create_ser_result(text="")
+    doc_serializer.serialize_annotations.return_value = create_ser_result(text="")
+    doc_serializer.get_excluded_refs.return_value = []
+
+    res = serializer.serialize(
+        item=unindexed_pic,
+        doc_serializer=doc_serializer,
+        doc=doc,
+    )
+    assert res is not None
+
+
+def test_compute_backoff_delay_bounds():
+    from src.docling_lib.vlm import _compute_backoff_delay
+
+    for attempt in range(4):
+        base_delay = 1.5
+        delay = _compute_backoff_delay(attempt, base_delay)
+        expected_base = base_delay * (2**attempt)
+        # Jitter is between 0.0 and 0.1
+        assert expected_base <= delay < expected_base + 0.1
+

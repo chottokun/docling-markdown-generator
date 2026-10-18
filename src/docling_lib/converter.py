@@ -3,7 +3,7 @@ import re
 import shutil
 import threading
 from concurrent.futures import ThreadPoolExecutor as ThreadPoolExecutor
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import Any
 
@@ -216,9 +216,13 @@ class DocumentConversionOptions:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "DocumentConversionOptions":
         """Recreates options instance from a dictionary, handling Path conversions safely."""
-        clean_data = dict(data)
-        if "artifacts_path" in clean_data and clean_data["artifacts_path"]:
-            clean_data["artifacts_path"] = Path(clean_data["artifacts_path"])
+        valid_keys = {f.name for f in fields(cls)}
+        clean_data = {k: v for k, v in data.items() if k in valid_keys}
+        raw_artifacts = clean_data.get("artifacts_path")
+        if raw_artifacts:
+            clean_data["artifacts_path"] = Path(raw_artifacts)
+        else:
+            clean_data["artifacts_path"] = None
         return cls(**clean_data)
 
 
