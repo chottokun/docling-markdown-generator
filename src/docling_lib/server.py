@@ -167,46 +167,51 @@ class _MetricsRegistry:
         if len(self.conversion_duration_seconds) > 1000:
             self.conversion_duration_seconds = self.conversion_duration_seconds[-1000:]
 
-    def generate_prometheus_text(self) -> str:
-        lines = []
-
-        # Counter: docling_conversions_total
-        lines.append(
-            "# HELP docling_conversions_total Total number of document conversion requests."
-        )
-        lines.append("# TYPE docling_conversions_total counter")
+    def _format_conversions_total(self) -> list[str]:
+        lines = [
+            "# HELP docling_conversions_total Total number of document conversion requests.",
+            "# TYPE docling_conversions_total counter",
+        ]
         for status, count in sorted(self.conversions_total.items()):
             lines.append(f'docling_conversions_total{{status="{status}"}} {count}')
+        return lines
 
-        # Gauge: docling_active_conversions
-        lines.append(
-            "# HELP docling_active_conversions Current active document conversion tasks."
-        )
-        lines.append("# TYPE docling_active_conversions gauge")
-        lines.append(f"docling_active_conversions {self.active_conversions}")
+    def _format_active_conversions(self) -> list[str]:
+        return [
+            "# HELP docling_active_conversions Current active document conversion tasks.",
+            "# TYPE docling_active_conversions gauge",
+            f"docling_active_conversions {self.active_conversions}",
+        ]
 
-        # Gauge: docling_memory_used_bytes
-        lines.append(
-            "# HELP docling_memory_used_bytes Memory used in bytes by the server."
-        )
-        lines.append("# TYPE docling_memory_used_bytes gauge")
+    def _format_memory_used(self) -> list[str]:
+        lines = [
+            "# HELP docling_memory_used_bytes Memory used in bytes by the server.",
+            "# TYPE docling_memory_used_bytes gauge",
+        ]
         try:
             mem_bytes = psutil.Process().memory_info().rss
             lines.append(f"docling_memory_used_bytes {mem_bytes}")
         except (psutil.Error, OSError, AttributeError):
             lines.append("docling_memory_used_bytes 0")
+        return lines
 
-        # Histogram summary: docling_conversion_duration_seconds
-        lines.append(
-            "# HELP docling_conversion_duration_seconds Duration of conversion requests in seconds."
-        )
-        lines.append("# TYPE docling_conversion_duration_seconds summary")
+    def _format_conversion_duration(self) -> list[str]:
         durations = self.conversion_duration_seconds
         count = len(durations)
         total_sum = sum(durations)
-        lines.append(f"docling_conversion_duration_seconds_count {count}")
-        lines.append(f"docling_conversion_duration_seconds_sum {total_sum:.4f}")
+        return [
+            "# HELP docling_conversion_duration_seconds Duration of conversion requests in seconds.",
+            "# TYPE docling_conversion_duration_seconds summary",
+            f"docling_conversion_duration_seconds_count {count}",
+            f"docling_conversion_duration_seconds_sum {total_sum:.4f}",
+        ]
 
+    def generate_prometheus_text(self) -> str:
+        lines = []
+        lines.extend(self._format_conversions_total())
+        lines.extend(self._format_active_conversions())
+        lines.extend(self._format_memory_used())
+        lines.extend(self._format_conversion_duration())
         return "\n".join(lines) + "\n"
 
 
@@ -590,30 +595,7 @@ def _build_conversion_options(
 
 def _build_options_dict(options: DocumentConversionOptions) -> dict:
     """Generate options dictionary for process pool worker execution."""
-    return {
-        "image_dir_name": options.image_dir_name,
-        "md_output_name": options.md_output_name,
-        "image_scale": options.image_scale,
-        "table_format": options.table_format,
-        "do_formula": options.do_formula,
-        "do_ocr": options.do_ocr,
-        "do_chart": options.do_chart,
-        "do_code": options.do_code,
-        "include_page_breaks": options.include_page_breaks,
-        "include_kv_extraction": options.include_kv_extraction,
-        "vlm_enabled": options.vlm_enabled,
-        "vlm_provider": options.vlm_provider,
-        "vlm_api_key": options.vlm_api_key,
-        "vlm_model": options.vlm_model,
-        "vlm_endpoint": options.vlm_endpoint,
-        "vlm_prompt": options.vlm_prompt,
-        "vlm_max_concurrent": options.vlm_max_concurrent,
-        "num_threads": options.num_threads,
-        "cuda_use_flash_attention": options.cuda_use_flash_attention,
-        "math_inline_delim": options.math_inline_delim,
-        "math_block_delim": options.math_block_delim,
-        "math_block_newline": options.math_block_newline,
-    }
+    return options.to_dict()
 
 
 async def _run_multiprocess_conversion(

@@ -3,7 +3,7 @@ import re
 import shutil
 import threading
 from concurrent.futures import ThreadPoolExecutor as ThreadPoolExecutor
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import Any
 
@@ -183,6 +183,47 @@ class DocumentConversionOptions:
     math_block_newline: Any = DOCLING_MATH_BLOCK_NEWLINE
     artifacts_path: Path | str | None = DOCLING_ARTIFACTS_PATH
     allow_absolute_output_dir: bool = DOCLING_ALLOW_ABSOLUTE_OUTPUT_DIR
+
+    def to_dict(self) -> dict[str, Any]:
+        """Converts options into a dictionary for serialization across process boundaries."""
+        return {
+            "image_dir_name": self.image_dir_name,
+            "md_output_name": self.md_output_name,
+            "image_scale": self.image_scale,
+            "table_format": self.table_format,
+            "do_formula": self.do_formula,
+            "do_ocr": self.do_ocr,
+            "do_chart": self.do_chart,
+            "do_code": self.do_code,
+            "include_page_breaks": self.include_page_breaks,
+            "include_kv_extraction": self.include_kv_extraction,
+            "vlm_enabled": self.vlm_enabled,
+            "vlm_provider": self.vlm_provider,
+            "vlm_api_key": self.vlm_api_key,
+            "vlm_model": self.vlm_model,
+            "vlm_endpoint": self.vlm_endpoint,
+            "vlm_prompt": self.vlm_prompt,
+            "vlm_max_concurrent": self.vlm_max_concurrent,
+            "num_threads": self.num_threads,
+            "cuda_use_flash_attention": self.cuda_use_flash_attention,
+            "math_inline_delim": self.math_inline_delim,
+            "math_block_delim": self.math_block_delim,
+            "math_block_newline": self.math_block_newline,
+            "artifacts_path": str(self.artifacts_path) if self.artifacts_path else None,
+            "allow_absolute_output_dir": self.allow_absolute_output_dir,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "DocumentConversionOptions":
+        """Recreates options instance from a dictionary, handling Path conversions safely."""
+        valid_keys = {f.name for f in fields(cls)}
+        clean_data = {k: v for k, v in data.items() if k in valid_keys}
+        raw_artifacts = clean_data.get("artifacts_path")
+        if raw_artifacts:
+            clean_data["artifacts_path"] = Path(raw_artifacts)
+        else:
+            clean_data["artifacts_path"] = None
+        return cls(**clean_data)
 
 
 class PDFConverter:

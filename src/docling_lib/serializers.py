@@ -70,13 +70,7 @@ class CustomMarkdownPictureSerializer(MarkdownPictureSerializer):
         self.slug = slug
         self._cached_doc: DoclingDocument | None = None
         self._pic_ref_to_idx: dict[str, int] = {}
-
-    def _get_closing_delim(self, delim: str) -> str:
-        if delim == "\\(":
-            return "\\)"
-        if delim == "\\[":
-            return "\\]"
-        return delim
+        self._pic_ref_to_page_no: dict[str, int] = {}
 
     def serialize(
         self,
@@ -92,19 +86,23 @@ class CustomMarkdownPictureSerializer(MarkdownPictureSerializer):
 
         # Find the index of the current picture element to map it to the saved image file name
         idx = -1
+        page_no = 1
         if doc is self._cached_doc:
             idx = self._pic_ref_to_idx.get(item.self_ref, -1)
+            page_no = self._pic_ref_to_page_no.get(item.self_ref, get_picture_page_no(item))
         else:
             self._cached_doc = doc
             self._pic_ref_to_idx = {}
+            self._pic_ref_to_page_no = {}
             if hasattr(doc, "pictures") and doc.pictures:
                 for i, pic in enumerate(doc.pictures):
                     self._pic_ref_to_idx[pic.self_ref] = i
+                    self._pic_ref_to_page_no[pic.self_ref] = get_picture_page_no(pic)
                 idx = self._pic_ref_to_idx.get(item.self_ref, -1)
+                page_no = self._pic_ref_to_page_no.get(item.self_ref, get_picture_page_no(item))
 
         if idx != -1:
             doc_slug = self.slug or (generate_doc_slug(doc.name) if getattr(doc, "name", None) else "document")
-            page_no = get_picture_page_no(item)
             image_filename = generate_image_filename(doc_slug, page_no, idx + 1)
             if self.image_tag_template:
                 res.text = self.image_tag_template.format(
